@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stacklet-mcp-server"
+version = "0.1.0"
+description = "A simple MCP server using FastMCP 2"
+dependencies = [
+    "fastmcp>=2.0.0",
+    "graphql-core>=3.2.0",
+    "requests>=2.31.0",
+]
+requires-python = ">=3.10"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=3.0.0",
+    "ruff>=0.12.0",
+]
+
+[project.scripts]
+mcp = "src.mcp:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# Add `line-too-long` and isort to the enforced rule set.
+extend-select = ["E501", "I"]
+
+[tool.ruff.lint.isort]
+# Use a single line between direct and from import.
+lines-between-types = 1
+lines-after-imports = 2
