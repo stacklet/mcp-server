@@ -30,6 +30,7 @@ class AssetDBClient:
             self.redash_url += "/"
 
         self.session = requests.Session()
+        self.session.cookies.set("stacklet-auth", credentials.identity_token)
 
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """
@@ -44,12 +45,6 @@ class AssetDBClient:
             Decoded response JSON
         """
         url = urljoin(self.redash_url, endpoint)
-
-        # Set the stacklet-auth cookie with the id token
-        if "cookies" not in kwargs:
-            kwargs["cookies"] = {}
-        kwargs["cookies"]["stacklet-auth"] = self.credentials.identity_token
-
         response = self.session.request(method, url, **kwargs)
         response.raise_for_status()
         return response.json()
