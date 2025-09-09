@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import json
 
 import requests
 
@@ -15,7 +14,7 @@ _schema_cache = None
 
 def get_stacklet_schema(
     endpoint: str | None = None, access_token: str | None = None
-) -> GraphQLSchema | None:
+) -> GraphQLSchema:
     """
     Retrieve the GraphQL schema from a Stacklet endpoint.
     Uses caching to avoid repeated introspection queries.
@@ -25,7 +24,7 @@ def get_stacklet_schema(
         access_token: Optional direct access token configuration
 
     Returns:
-        GraphQL schema as dict if successful, None otherwise
+        GraphQL schema
     """
     global _schema_cache
 
@@ -35,8 +34,6 @@ def get_stacklet_schema(
 
     # Load credentials using the same logic as Stacklet Terraform provider
     creds = load_stacklet_auth(endpoint=endpoint, access_token=access_token)
-    if not creds:
-        return None
 
     # Use the standard GraphQL introspection query from graphql-core
     introspection_query = {"query": get_introspection_query()}
@@ -46,28 +43,17 @@ def get_stacklet_schema(
         "Authorization": f"Bearer {creds.access_token}",
     }
 
-    try:
-        response = requests.post(
-            creds.endpoint, json=introspection_query, headers=headers, timeout=30
-        )
-        response.raise_for_status()
+    response = requests.post(creds.endpoint, json=introspection_query, headers=headers, timeout=30)
+    response.raise_for_status()
 
-        result = response.json()
-        if errors := result.get("errors"):
-            print(f"GraphQL errors: {errors}")
-            return None
+    result = response.json()
+    if errors := result.get("errors"):
+        raise Exception(f"GraphQL introspection errors: {errors}")
 
-        schema = result.get("data", {}).get("__schema")
+    schema = result.get("data", {}).get("__schema")
+    if not schema:
+        raise Exception("GraphQL introspection returned no schema data")
 
-        # Cache the schema for future requests
-        if schema:
-            _schema_cache = build_client_schema({"__schema": schema})
-
-        return _schema_cache
-
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {e}")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"Failed to parse JSON response: {e}")
-        return None
+    # Cache the schema for future requests
+    _schema_cache = build_client_schema({"__schema": schema})
+    return _schema_cache

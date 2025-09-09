@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import json
 
 from typing import Any, Dict
 
@@ -14,7 +13,7 @@ def query_stacklet_graphql(
     variables: Dict[str, Any] | None = None,
     endpoint: str | None = None,
     access_token: str | None = None,
-) -> Dict[str, Any] | None:
+) -> Dict[str, Any]:
     """
     Execute a GraphQL query against the Stacklet API.
 
@@ -25,12 +24,10 @@ def query_stacklet_graphql(
         access_token: Optional direct access token configuration
 
     Returns:
-        Query result as dict if successful, None otherwise
+        Query result as dict
     """
     # Load credentials using the same logic as Stacklet Terraform provider
     creds = load_stacklet_auth(endpoint=endpoint, access_token=access_token)
-    if not creds:
-        return None
 
     # Prepare the GraphQL request
     request_data = {"query": query}
@@ -42,14 +39,6 @@ def query_stacklet_graphql(
         "Authorization": f"Bearer {creds.access_token}",
     }
 
-    try:
-        response = requests.post(creds.endpoint, json=request_data, headers=headers, timeout=30)
-        # 400s and 500s may still contain response data, don't raise.
-        return response.json()
-
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {e}")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"Failed to parse JSON response: {e}")
-        return None
+    response = requests.post(creds.endpoint, json=request_data, headers=headers, timeout=30)
+    # 400s and 500s may still contain response data, don't raise.
+    return response.json()
