@@ -5,23 +5,20 @@ import requests
 
 from graphql import GraphQLSchema, build_client_schema, get_introspection_query
 
-from .stacklet_auth import load_stacklet_auth
+from .stacklet_auth import StackletCredentials
 
 
 # Global cache for schema data
 _schema_cache = None
 
 
-def get_stacklet_schema(
-    endpoint: str | None = None, access_token: str | None = None
-) -> GraphQLSchema:
+def get_stacklet_schema(creds: StackletCredentials) -> GraphQLSchema:
     """
     Retrieve the GraphQL schema from a Stacklet endpoint.
     Uses caching to avoid repeated introspection queries.
 
     Args:
-        endpoint: Optional direct endpoint configuration
-        access_token: Optional direct access token configuration
+        creds: Stacklet credentials
 
     Returns:
         GraphQL schema
@@ -31,9 +28,6 @@ def get_stacklet_schema(
     # Return a deep copy of cached schema if available
     if _schema_cache is not None:
         return _schema_cache
-
-    # Load credentials using the same logic as Stacklet Terraform provider
-    creds = load_stacklet_auth(endpoint=endpoint, access_token=access_token)
 
     # Use the standard GraphQL introspection query from graphql-core
     introspection_query = {"query": get_introspection_query()}

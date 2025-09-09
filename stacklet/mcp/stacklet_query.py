@@ -5,29 +5,25 @@ from typing import Any, Dict
 
 import requests
 
-from .stacklet_auth import load_stacklet_auth
+from .stacklet_auth import StackletCredentials
 
 
 def query_stacklet_graphql(
+    creds: StackletCredentials,
     query: str,
     variables: Dict[str, Any] | None = None,
-    endpoint: str | None = None,
-    access_token: str | None = None,
 ) -> Dict[str, Any]:
     """
     Execute a GraphQL query against the Stacklet API.
 
     Args:
+        creds: Stacklet credentials (endpoint and access token)
         query: The GraphQL query string
         variables: Optional variables for the query
-        endpoint: Optional direct endpoint configuration
-        access_token: Optional direct access token configuration
 
     Returns:
         Query result as dict
     """
-    # Load credentials using the same logic as Stacklet Terraform provider
-    creds = load_stacklet_auth(endpoint=endpoint, access_token=access_token)
 
     # Prepare the GraphQL request
     request_data = {"query": query}
