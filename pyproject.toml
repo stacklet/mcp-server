@@ -16,14 +16,15 @@ requires-python = ">=3.10"
 [dependency-groups]
 dev = [
     "pre-commit>=3.0.0",
+    "pytest>=7.0.0",
     "ruff>=0.12.0",
 ]
 
 [project.scripts]
-mcp = "src.mcp:main"
+mcp = "stacklet.mcp.mcp:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["stacklet"]
 
 [tool.ruff]
 line-length = 100

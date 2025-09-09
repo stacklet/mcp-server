@@ -14,6 +14,21 @@ class StackletCredentials(NamedTuple):
     api_key: str
 
 
+def get_stacklet_dir() -> Optional[Path]:
+    """
+    Get the Stacklet configuration directory (~/.stacklet).
+
+    Returns:
+        Path to the .stacklet directory, or None if home directory cannot be determined
+    """
+    try:
+        home_dir = Path.home()
+        return home_dir / ".stacklet"
+    except (OSError, RuntimeError):
+        # Handle cases where home directory can't be determined
+        return None
+
+
 def load_stacklet_auth(
     endpoint: Optional[str] = None, api_key: Optional[str] = None
 ) -> Optional[StackletCredentials]:
@@ -42,10 +57,8 @@ def load_stacklet_auth(
         creds_api_key = os.getenv("STACKLET_API_KEY")
 
     # Lookup CLI configuration files
-    try:
-        home_dir = Path.home()
-        stacklet_dir = home_dir / ".stacklet"
-
+    stacklet_dir = get_stacklet_dir()
+    if stacklet_dir:
         # Load endpoint from config.json if still needed
         if not creds_endpoint:
             config_file = stacklet_dir / "config.json"
@@ -65,10 +78,6 @@ def load_stacklet_auth(
                     creds_api_key = creds_file.read_text().strip()
                 except IOError:
                     pass
-
-    except (OSError, RuntimeError):
-        # Handle cases where home directory can't be determined
-        pass
 
     # Return credentials only if both are available
     if creds_endpoint and creds_api_key:

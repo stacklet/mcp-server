@@ -43,17 +43,6 @@ uv run mcp
 python src/mcp.py
 ```
 
-**Test individual components:**
-```bash
-# Test authentication
-python src/stacklet_auth.py
-
-# Test GraphQL query
-python src/stacklet_query.py
-
-# Test schema introspection
-python src/stacklet_schema.py
-```
 
 ## MCP Tools Available
 

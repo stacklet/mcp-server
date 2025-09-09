@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 # Hardcoded documentation root directory
-DOCS_ROOT = Path(__file__).parent / ".." / ".." / "docs" / "src"
+DOCS_ROOT = Path(__file__).parent / ".." / ".." / ".." / "docs" / "src"
 
 
 def read_documentation_file(file_path: str) -> str | None:
