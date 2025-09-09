@@ -11,76 +11,86 @@ class StackletCredentials(NamedTuple):
     """Stacklet authentication credentials."""
 
     endpoint: str
-    api_key: str
+    access_token: str
 
 
-def get_stacklet_dir() -> Optional[Path]:
+def get_stacklet_dir() -> Path:
     """
     Get the Stacklet configuration directory (~/.stacklet).
 
     Returns:
-        Path to the .stacklet directory, or None if home directory cannot be determined
+        Path to the .stacklet directory
+
+    Raises:
+        OSError, RuntimeError: If home directory cannot be determined
     """
-    try:
-        home_dir = Path.home()
-        return home_dir / ".stacklet"
-    except (OSError, RuntimeError):
-        # Handle cases where home directory can't be determined
-        return None
+    home_dir = Path.home()
+    return home_dir / ".stacklet"
 
 
 def load_stacklet_auth(
-    endpoint: Optional[str] = None, api_key: Optional[str] = None
-) -> Optional[StackletCredentials]:
+    endpoint: Optional[str] = None, access_token: Optional[str] = None
+) -> StackletCredentials:
     """
     Load Stacklet authentication credentials using the same priority order
     as the Stacklet Terraform provider:
 
     1. Direct configuration (parameters)
-    2. Environment variables (STACKLET_ENDPOINT, STACKLET_API_KEY)
+    2. Environment variables (STACKLET_ENDPOINT, STACKLET_ACCESS_TOKEN)
     3. CLI configuration files (~/.stacklet/config.json, ~/.stacklet/credentials)
 
     Args:
         endpoint: Optional direct endpoint configuration
-        api_key: Optional direct API key configuration
+        access_token: Optional direct access token configuration
 
     Returns:
-        StackletCredentials if both endpoint and api_key are found, None otherwise
+        StackletCredentials with both endpoint and access_token
+
+    Raises:
+        ValueError: If credentials cannot be found or loaded
+        OSError, RuntimeError: If home directory cannot be determined
+        json.JSONDecodeError: If config.json is malformed
+        IOError: If credential files cannot be read
     """
     creds_endpoint = endpoint
-    creds_api_key = api_key
+    creds_access_token = access_token
 
     # Lookup environment variables if not provided directly
     if not creds_endpoint:
         creds_endpoint = os.getenv("STACKLET_ENDPOINT")
-    if not creds_api_key:
-        creds_api_key = os.getenv("STACKLET_API_KEY")
+    if not creds_access_token:
+        creds_access_token = os.getenv("STACKLET_ACCESS_TOKEN")
 
     # Lookup CLI configuration files
     stacklet_dir = get_stacklet_dir()
-    if stacklet_dir:
-        # Load endpoint from config.json if still needed
-        if not creds_endpoint:
-            config_file = stacklet_dir / "config.json"
-            if config_file.exists():
-                try:
-                    with open(config_file) as f:
-                        config = json.load(f)
-                        creds_endpoint = config.get("api")
-                except (json.JSONDecodeError, KeyError, IOError):
-                    pass
 
-        # Load API key from credentials file if still needed
-        if not creds_api_key:
-            creds_file = stacklet_dir / "credentials"
-            if creds_file.exists():
-                try:
-                    creds_api_key = creds_file.read_text().strip()
-                except IOError:
-                    pass
+    # Load endpoint from config.json if still needed
+    if not creds_endpoint:
+        config_file = stacklet_dir / "config.json"
+        if config_file.exists():
+            with open(config_file) as f:
+                config = json.load(f)
+                creds_endpoint = config.get("api")
+
+    # Load access token from credentials file if still needed
+    if not creds_access_token:
+        creds_file = stacklet_dir / "credentials"
+        if creds_file.exists():
+            creds_access_token = creds_file.read_text().strip()
 
     # Return credentials only if both are available
-    if creds_endpoint and creds_api_key:
-        return StackletCredentials(endpoint=creds_endpoint, api_key=creds_api_key)
+    if creds_endpoint and creds_access_token:
+        return StackletCredentials(endpoint=creds_endpoint, access_token=creds_access_token)
 
-    return None
+    # If we get here, credentials are missing
+    missing = []
+    if not creds_endpoint:
+        missing.append("endpoint")
+    if not creds_access_token:
+        missing.append("access_token")
+
+    raise ValueError(
+        f"Missing Stacklet credentials: {', '.join(missing)}. "
+        f"Set STACKLET_ENDPOINT/STACKLET_ACCESS_TOKEN environment variables "
+        f"or configure ~/.stacklet/config.json and ~/.stacklet/credentials files."
+    )

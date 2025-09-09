@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from graphql import print_type
 
 from .docs_handler import list_documentation_files, read_documentation_file
+from .stacklet_auth import load_stacklet_auth
 from .stacklet_query import query_stacklet_graphql
 from .stacklet_schema import get_stacklet_schema
 
@@ -194,10 +195,8 @@ def platform_graphql_list_types(match: str | None = None) -> str:
     Returns:
         JSON string with list of type names
     """
-    schema = get_stacklet_schema()
-    if schema is None:
-        return json.dumps({"error": "Failed to retrieve schema"})
-
+    creds = load_stacklet_auth()
+    schema = get_stacklet_schema(creds)
     names = schema.type_map.keys()
     if match:
         f = re.compile(match)
@@ -217,10 +216,8 @@ def platform_graphql_get_types(type_names: list[str]) -> str:
     Returns:
         JSON string mapping valid type names to GraphQL SDL definitions.
     """
-    schema = get_stacklet_schema()
-    if schema is None:
-        return json.dumps({"error": "Failed to retrieve schema"})
-
+    creds = load_stacklet_auth()
+    schema = get_stacklet_schema(creds)
     found = {}
     for type_name in type_names:
         if match := schema.type_map.get(type_name):
@@ -247,11 +244,8 @@ def platform_graphql_query(query: str, variables: dict[str, Any]) -> str:
     """
 
     # Execute the query
-    result = query_stacklet_graphql(query, variables or {})
-
-    if result is None:
-        return json.dumps({"error": "Failed to execute query - check authentication and network"})
-
+    creds = load_stacklet_auth()
+    result = query_stacklet_graphql(creds, query, variables or {})
     return json.dumps(result, indent=2)
 
 
