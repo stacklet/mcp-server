@@ -5,7 +5,7 @@ from pathlib import Path
 DOCS_ROOT = Path(__file__).parent / ".." / ".." / ".." / "docs" / "src"
 
 
-def read_documentation_file(file_path: str) -> str | None:
+def read_documentation_file(file_path: Path) -> str | None:
     """Read a documentation file from the docs directory
 
     Args:
@@ -34,7 +34,7 @@ def read_documentation_file(file_path: str) -> str | None:
         return None
 
 
-def list_documentation_files() -> list[str]:
+def list_documentation_files() -> list[Path]:
     """List all documentation files in the docs directory
 
     Returns:
@@ -48,7 +48,7 @@ def list_documentation_files() -> list[str]:
         for file_path in DOCS_ROOT.rglob("*"):
             if file_path.is_file() and file_path.suffix.lower() == ".md":
                 relative_path = file_path.relative_to(DOCS_ROOT)
-                files.append(str(relative_path))
+                files.append(relative_path)
         return sorted(files)
 
     except (OSError, IOError):
