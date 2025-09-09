@@ -9,10 +9,10 @@ from fastmcp.exceptions import ToolError
 from graphql import print_type
 
 from .docs_handler import list_documentation_files, read_documentation_file
+from .models import DocContent, DocsList
 from .stacklet_auth import load_stacklet_auth
 from .stacklet_query import query_stacklet_graphql
 from .stacklet_schema import get_stacklet_schema
-from .models import DocContent, DocsList
 
 
 mcp = FastMCP("Stacklet")

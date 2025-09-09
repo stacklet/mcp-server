@@ -10,10 +10,8 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.3.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^tests/.*/(fixtures|snapshots)/.*
       - id: end-of-file-fixer
-        exclude: ^tests/.*/(fixtures|snapshots)/.*
       - id: debug-statements
