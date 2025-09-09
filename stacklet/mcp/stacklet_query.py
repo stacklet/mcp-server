@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -23,7 +23,7 @@ def query_stacklet_graphql(
     """
 
     # Prepare the GraphQL request
-    request_data = {"query": query}
+    request_data: dict[str, Any] = {"query": query}
     if variables:
         request_data["variables"] = variables
 
@@ -34,4 +34,4 @@ def query_stacklet_graphql(
 
     response = requests.post(creds.endpoint, json=request_data, headers=headers, timeout=30)
     # 400s and 500s may still contain response data, don't raise.
-    return response.json()
+    return cast(dict[str, Any], response.json())
