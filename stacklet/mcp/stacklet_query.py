@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-
-
-from typing import Any, Dict
+from typing import Any
 
 import requests
 
@@ -11,8 +8,8 @@ from .stacklet_auth import StackletCredentials
 def query_stacklet_graphql(
     creds: StackletCredentials,
     query: str,
-    variables: Dict[str, Any] | None = None,
-) -> Dict[str, Any]:
+    variables: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """
     Execute a GraphQL query against the Stacklet API.
 

@@ -1,45 +1,51 @@
 import json
 import re
 
+from pathlib import Path
 from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 from graphql import print_type
 
 from .docs_handler import list_documentation_files, read_documentation_file
 from .stacklet_auth import load_stacklet_auth
 from .stacklet_query import query_stacklet_graphql
 from .stacklet_schema import get_stacklet_schema
+from .models import DocContent, DocsList
 
 
 mcp = FastMCP("Stacklet")
 
 
+class Error(ToolError):
+    """An error from the tool."""
+
+    def __init__(self, message: str, suggestion: str | None = None):
+        if suggestion:
+            message += f". *Suggestion*: {suggestion}."
+        super().__init__(message)
+
+
 @mcp.tool()
-def docs_list() -> str:
+def docs_list() -> DocsList:
     """
     List all available Stacklet user documentation files.
 
     Returns:
-        JSON string containing list of available documentation files
+        Available documentation files
     Note:
         This information is most valuable when "index_llms.md" has already been
         seen via the docs_read tool.
     """
-    files = list_documentation_files()
-
-    return json.dumps(
-        {
-            "available_files": files,
-            "recommended_start": "index_llms.md",
-            "note": "Use docs_read with any of these file paths to read the content",
-        },
-        indent=2,
+    return DocsList(
+        available_files=list_documentation_files(),
+        note="Use docs_read with any of these file paths to read the content",
     )
 
 
 @mcp.tool()
-def docs_read(file_path: str) -> str:
+def docs_read(file_path: Path) -> DocContent:
     """
     Read a Stacklet documentation file.
 
@@ -47,23 +53,20 @@ def docs_read(file_path: str) -> str:
         file_path: Relative path to the documentation file (e.g., "index_llms.md")
 
     Returns:
-        JSON string containing the file content or error message
+        The content of the file
 
     Note:
         The best starting point is "index_llms.md" which provides an overview
         of all available documentation.
     """
     content = read_documentation_file(file_path)
-
     if content is None:
-        return json.dumps(
-            {
-                "error": f"File '{file_path}' not found or not accessible",
-                "suggestion": "Try 'index_llms.md' as a starting point, or check docs_list",
-            }
+        raise Error(
+            f"File '{file_path}' not found or not accessible",
+            suggestion="Try 'index_llms.md' as a starting point, or check docs_list",
         )
 
-    return json.dumps({"file_path": file_path, "content": content}, indent=2)
+    return DocContent(file_path=file_path, content=content)
 
 
 @mcp.tool()
@@ -185,15 +188,15 @@ all executions.
 
 
 @mcp.tool()
-def platform_graphql_list_types(match: str | None = None) -> str:
+def platform_graphql_list_types(match: str | None = None) -> list[str]:
     """
     List the types available in the Stacklet Platform GraphQL API.
 
     Args:
-        match: Optional regex filter
+        match: Optional regular expression filter
 
     Returns:
-        JSON string with list of type names
+        List of type names
     """
     creds = load_stacklet_auth()
     schema = get_stacklet_schema(creds)
@@ -202,7 +205,7 @@ def platform_graphql_list_types(match: str | None = None) -> str:
         f = re.compile(match)
         names = filter(f.search, names)
 
-    return json.dumps(sorted(names))
+    return sorted(names)
 
 
 @mcp.tool()
@@ -227,7 +230,7 @@ def platform_graphql_get_types(type_names: list[str]) -> str:
 
 
 @mcp.tool()
-def platform_graphql_query(query: str, variables: dict[str, Any]) -> str:
+def platform_graphql_query(query: str, variables: dict[str, Any] | None = None) -> str:
     """
     Execute a GraphQL query against the Stacklet API.
 
