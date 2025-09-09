@@ -13,7 +13,7 @@ def query_stacklet_graphql(
     query: str,
     variables: Dict[str, Any] | None = None,
     endpoint: str | None = None,
-    api_key: str | None = None,
+    access_token: str | None = None,
 ) -> Dict[str, Any] | None:
     """
     Execute a GraphQL query against the Stacklet API.
@@ -22,13 +22,13 @@ def query_stacklet_graphql(
         query: The GraphQL query string
         variables: Optional variables for the query
         endpoint: Optional direct endpoint configuration
-        api_key: Optional direct API key configuration
+        access_token: Optional direct access token configuration
 
     Returns:
         Query result as dict if successful, None otherwise
     """
     # Load credentials using the same logic as Stacklet Terraform provider
-    creds = load_stacklet_auth(endpoint=endpoint, api_key=api_key)
+    creds = load_stacklet_auth(endpoint=endpoint, access_token=access_token)
     if not creds:
         return None
 
@@ -39,7 +39,7 @@ def query_stacklet_graphql(
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {creds.api_key}",
+        "Authorization": f"Bearer {creds.access_token}",
     }
 
     try:

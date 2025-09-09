@@ -32,7 +32,7 @@ def mock_env_vars():
     """Environment with test Stacklet credentials."""
     with patch.dict(
         os.environ,
-        {"STACKLET_ENDPOINT": "https://env.example.com", "STACKLET_API_KEY": "env-key"},
+        {"STACKLET_ENDPOINT": "https://env.example.com", "STACKLET_ACCESS_TOKEN": "env-key"},
         clear=True,
     ):
         yield
@@ -41,7 +41,7 @@ def mock_env_vars():
 @pytest.fixture
 def partial_env_vars():
     """Environment with only API key set."""
-    with patch.dict(os.environ, {"STACKLET_API_KEY": "env-key"}, clear=True):
+    with patch.dict(os.environ, {"STACKLET_ACCESS_TOKEN": "env-key"}, clear=True):
         yield
 
 
@@ -55,7 +55,7 @@ def endpoint_only_env():
 @pytest.fixture
 def empty_env_vars():
     """Environment with empty Stacklet variables."""
-    with patch.dict(os.environ, {"STACKLET_ENDPOINT": "", "STACKLET_API_KEY": ""}, clear=True):
+    with patch.dict(os.environ, {"STACKLET_ENDPOINT": "", "STACKLET_ACCESS_TOKEN": ""}, clear=True):
         yield
 
 
@@ -138,7 +138,7 @@ class TestStackletCredentials:
         """Test basic credential object creation."""
         creds = StackletCredentials("https://api.example.com", "test-key")
         assert creds.endpoint == "https://api.example.com"
-        assert creds.api_key == "test-key"
+        assert creds.access_token == "test-key"
 
 
 class TestGetStackletDir:
@@ -163,11 +163,11 @@ class TestLoadStackletAuth:
 
     def test_direct_parameters_priority(self, mock_env_vars):
         """Test that direct parameters take highest priority."""
-        creds = load_stacklet_auth(endpoint="https://direct.example.com", api_key="direct-key")
+        creds = load_stacklet_auth(endpoint="https://direct.example.com", access_token="direct-key")
 
         assert creds is not None
         assert creds.endpoint == "https://direct.example.com"
-        assert creds.api_key == "direct-key"
+        assert creds.access_token == "direct-key"
 
     def test_environment_variables_priority(self, mock_env_vars):
         """Test that environment variables are used when direct params not provided."""
@@ -175,7 +175,7 @@ class TestLoadStackletAuth:
 
         assert creds is not None
         assert creds.endpoint == "https://env.example.com"
-        assert creds.api_key == "env-key"
+        assert creds.access_token == "env-key"
 
     def test_partial_direct_parameters(self, mock_env_vars):
         """Test mixing direct parameters with environment variables."""
@@ -184,7 +184,7 @@ class TestLoadStackletAuth:
 
         assert creds is not None
         assert creds.endpoint == "https://direct.example.com"
-        assert creds.api_key == "env-key"
+        assert creds.access_token == "env-key"
 
     def test_config_file_loading(self, valid_config_file, partial_env_vars, mock_stacklet_dir):
         """Test loading configuration from ~/.stacklet/config.json."""
@@ -192,38 +192,38 @@ class TestLoadStackletAuth:
 
         assert creds is not None
         assert creds.endpoint == "https://config.example.com"
-        assert creds.api_key == "env-key"
+        assert creds.access_token == "env-key"
 
     def test_credentials_file_loading(
         self, credentials_with_whitespace, endpoint_only_env, mock_stacklet_dir
     ):
-        """Test loading API key from ~/.stacklet/credentials."""
+        """Test loading access token from ~/.stacklet/credentials."""
         creds = load_stacklet_auth()
 
         assert creds is not None
         assert creds.endpoint == "https://example.com"
-        assert creds.api_key == "file-api-key"  # Should be stripped
+        assert creds.access_token == "file-api-key"  # Should be stripped
 
     def test_full_config_file_loading(self, complete_config_files, clean_env, mock_stacklet_dir):
-        """Test loading both endpoint and API key from config files."""
+        """Test loading both endpoint and access token from config files."""
         creds = load_stacklet_auth()
 
         assert creds is not None
         assert creds.endpoint == "https://config.example.com"
-        assert creds.api_key == "config-file-key"
+        assert creds.access_token == "config-file-key"
 
     def test_missing_endpoint_returns_none(self, partial_env_vars, mock_no_stacklet_dir):
         """Test that missing endpoint returns None."""
         creds = load_stacklet_auth()
         assert creds is None
 
-    def test_missing_api_key_returns_none(self, endpoint_only_env, mock_no_stacklet_dir):
-        """Test that missing API key returns None."""
+    def test_missing_access_token_returns_none(self, endpoint_only_env, mock_no_stacklet_dir):
+        """Test that missing access token returns None."""
         creds = load_stacklet_auth()
         assert creds is None
 
     def test_missing_both_returns_none(self, clean_env, mock_no_stacklet_dir):
-        """Test that missing both endpoint and API key returns None."""
+        """Test that missing both endpoint and access token returns None."""
         creds = load_stacklet_auth()
         assert creds is None
 
@@ -278,7 +278,7 @@ class TestEdgeCases:
 
     def test_empty_strings_treated_as_missing(self, clean_env, mock_no_stacklet_dir):
         """Test that empty strings are treated as missing values."""
-        creds = load_stacklet_auth(endpoint="", api_key="")
+        creds = load_stacklet_auth(endpoint="", access_token="")
         assert creds is None
 
     def test_empty_env_vars_treated_as_missing(self, empty_env_vars, mock_no_stacklet_dir):
@@ -306,5 +306,5 @@ class TestEdgeCases:
     ):
         """Test when config file exists but credentials file doesn't."""
         creds = load_stacklet_auth()
-        # Has endpoint but no API key
+        # Has endpoint but no access token
         assert creds is None

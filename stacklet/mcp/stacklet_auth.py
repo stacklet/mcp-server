@@ -11,7 +11,7 @@ class StackletCredentials(NamedTuple):
     """Stacklet authentication credentials."""
 
     endpoint: str
-    api_key: str
+    access_token: str
 
 
 def get_stacklet_dir() -> Optional[Path]:
@@ -30,31 +30,31 @@ def get_stacklet_dir() -> Optional[Path]:
 
 
 def load_stacklet_auth(
-    endpoint: Optional[str] = None, api_key: Optional[str] = None
+    endpoint: Optional[str] = None, access_token: Optional[str] = None
 ) -> Optional[StackletCredentials]:
     """
     Load Stacklet authentication credentials using the same priority order
     as the Stacklet Terraform provider:
 
     1. Direct configuration (parameters)
-    2. Environment variables (STACKLET_ENDPOINT, STACKLET_API_KEY)
+    2. Environment variables (STACKLET_ENDPOINT, STACKLET_ACCESS_TOKEN)
     3. CLI configuration files (~/.stacklet/config.json, ~/.stacklet/credentials)
 
     Args:
         endpoint: Optional direct endpoint configuration
-        api_key: Optional direct API key configuration
+        access_token: Optional direct access token configuration
 
     Returns:
-        StackletCredentials if both endpoint and api_key are found, None otherwise
+        StackletCredentials if both endpoint and access_token are found, None otherwise
     """
     creds_endpoint = endpoint
-    creds_api_key = api_key
+    creds_access_token = access_token
 
     # Lookup environment variables if not provided directly
     if not creds_endpoint:
         creds_endpoint = os.getenv("STACKLET_ENDPOINT")
-    if not creds_api_key:
-        creds_api_key = os.getenv("STACKLET_API_KEY")
+    if not creds_access_token:
+        creds_access_token = os.getenv("STACKLET_ACCESS_TOKEN")
 
     # Lookup CLI configuration files
     stacklet_dir = get_stacklet_dir()
@@ -70,17 +70,17 @@ def load_stacklet_auth(
                 except (json.JSONDecodeError, KeyError, IOError):
                     pass
 
-        # Load API key from credentials file if still needed
-        if not creds_api_key:
+        # Load access token from credentials file if still needed
+        if not creds_access_token:
             creds_file = stacklet_dir / "credentials"
             if creds_file.exists():
                 try:
-                    creds_api_key = creds_file.read_text().strip()
+                    creds_access_token = creds_file.read_text().strip()
                 except IOError:
                     pass
 
     # Return credentials only if both are available
-    if creds_endpoint and creds_api_key:
-        return StackletCredentials(endpoint=creds_endpoint, api_key=creds_api_key)
+    if creds_endpoint and creds_access_token:
+        return StackletCredentials(endpoint=creds_endpoint, access_token=creds_access_token)
 
     return None

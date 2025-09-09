@@ -14,7 +14,7 @@ _schema_cache = None
 
 
 def get_stacklet_schema(
-    endpoint: str | None = None, api_key: str | None = None
+    endpoint: str | None = None, access_token: str | None = None
 ) -> GraphQLSchema | None:
     """
     Retrieve the GraphQL schema from a Stacklet endpoint.
@@ -22,7 +22,7 @@ def get_stacklet_schema(
 
     Args:
         endpoint: Optional direct endpoint configuration
-        api_key: Optional direct API key configuration
+        access_token: Optional direct access token configuration
 
     Returns:
         GraphQL schema as dict if successful, None otherwise
@@ -34,7 +34,7 @@ def get_stacklet_schema(
         return _schema_cache
 
     # Load credentials using the same logic as Stacklet Terraform provider
-    creds = load_stacklet_auth(endpoint=endpoint, api_key=api_key)
+    creds = load_stacklet_auth(endpoint=endpoint, access_token=access_token)
     if not creds:
         return None
 
@@ -43,7 +43,7 @@ def get_stacklet_schema(
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {creds.api_key}",
+        "Authorization": f"Bearer {creds.access_token}",
     }
 
     try:
