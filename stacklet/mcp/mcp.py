@@ -1,22 +1,43 @@
 import json
-import re
 
 from pathlib import Path
 from typing import Any
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
-from graphql import print_type
+from fastmcp.server.middleware import Middleware, MiddlewareContext
 
+from .assetdb_redash import AssetDBClient
 from .docs_handler import list_documentation_files, read_documentation_file
 from .models import DocContent, DocsList
 from .stacklet_auth import load_stacklet_auth
-from .stacklet_query import query_stacklet_graphql
-from .stacklet_schema import get_stacklet_schema
+from .stacklet_platform import PlatformClient
 from .utils import get_package_file
 
 
 mcp = FastMCP("Stacklet")
+
+
+class AuthInitMiddleware(Middleware):
+    """Initialize AssetDB and Platform clients once per session."""
+
+    async def on_message(self, context: MiddlewareContext, call_next):
+        if context.fastmcp_context and not context.fastmcp_context.get_state("clients_initialized"):
+            credentials = load_stacklet_auth()
+
+            # Initialize both clients
+            assetdb_client = AssetDBClient(credentials)
+            platform_client = PlatformClient(credentials)
+
+            # Store in session context
+            context.fastmcp_context.set_state("assetdb_client", assetdb_client)
+            context.fastmcp_context.set_state("platform_client", platform_client)
+            context.fastmcp_context.set_state("clients_initialized", True)
+
+        return await call_next(context)
+
+
+mcp.add_middleware(AuthInitMiddleware())
 
 
 class Error(ToolError):
@@ -82,7 +103,7 @@ def platform_graphql_info() -> str:
 
 
 @mcp.tool()
-def platform_graphql_list_types(match: str | None = None) -> list[str]:
+def platform_graphql_list_types(ctx: Context, match: str | None = None) -> list[str]:
     """
     List the types available in the Stacklet Platform GraphQL API.
 
@@ -92,18 +113,12 @@ def platform_graphql_list_types(match: str | None = None) -> list[str]:
     Returns:
         List of type names
     """
-    creds = load_stacklet_auth()
-    schema = get_stacklet_schema(creds)
-    names = schema.type_map.keys()
-    if match:
-        f = re.compile(match)
-        names = filter(f.search, names)
-
-    return sorted(names)
+    client = ctx.get_state("platform_client")
+    return client.list_types(match)
 
 
 @mcp.tool()
-def platform_graphql_get_types(type_names: list[str]) -> str:
+def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> str:
     """
     Retrieve information about types in the Stacklet Platform GraphQL API.
 
@@ -113,18 +128,15 @@ def platform_graphql_get_types(type_names: list[str]) -> str:
     Returns:
         JSON string mapping valid type names to GraphQL SDL definitions.
     """
-    creds = load_stacklet_auth()
-    schema = get_stacklet_schema(creds)
-    found = {}
-    for type_name in type_names:
-        if match := schema.type_map.get(type_name):
-            found[type_name] = print_type(match)
-
+    client = ctx.get_state("platform_client")
+    found = client.get_types(type_names)
     return json.dumps(found)
 
 
 @mcp.tool()
-def platform_graphql_query(query: str, variables: dict[str, Any] | None = None) -> str:
+def platform_graphql_query(
+    ctx: Context, query: str, variables: dict[str, Any] | None = None
+) -> str:
     """
     Execute a GraphQL query against the Stacklet API.
 
@@ -139,10 +151,8 @@ def platform_graphql_query(query: str, variables: dict[str, Any] | None = None) 
     Returns:
         JSON string of the query result
     """
-
-    # Execute the query
-    creds = load_stacklet_auth()
-    result = query_stacklet_graphql(creds, query, variables or {})
+    client = ctx.get_state("platform_client")
+    result = client.query(query, variables or {})
     return json.dumps(result, indent=2)
 
 

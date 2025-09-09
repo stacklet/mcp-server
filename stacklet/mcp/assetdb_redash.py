@@ -1,0 +1,165 @@
+"""
+AssetDB client using Redash API with Stacklet authentication.
+"""
+
+import time
+
+from typing import Any, Dict, List
+from urllib.parse import urljoin
+
+import requests
+
+from .stacklet_auth import StackletCredentials
+
+
+class AssetDBClient:
+    """Client for AssetDB interface via Redash API using Stacklet authentication."""
+
+    def __init__(self, credentials: StackletCredentials):
+        """
+        Initialize AssetDB client with Stacklet credentials.
+
+        Args:
+            credentials: StackletCredentials object containing endpoint and id_token
+        """
+        self.credentials = credentials
+
+        # Replace api. with redash. in the endpoint
+        self.redash_url = credentials.endpoint.replace("api.", "redash.")
+        if not self.redash_url.endswith("/"):
+            self.redash_url += "/"
+
+        self.session = requests.Session()
+
+    def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+        """
+        Make a request to the Redash API with Stacklet authentication.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            endpoint: API endpoint path
+            **kwargs: Additional arguments for requests
+
+        Returns:
+            Decoded response JSON
+        """
+        url = urljoin(self.redash_url, endpoint)
+
+        # Set the stacklet-auth cookie with the id token
+        if "cookies" not in kwargs:
+            kwargs["cookies"] = {}
+        kwargs["cookies"]["stacklet-auth"] = self.credentials.identity_token
+
+        response = self.session.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response.json()
+
+    def list_queries(self, page: int = 1, page_size: int = 25) -> List[Dict[str, Any]]:
+        """
+        Get list of queries.
+
+        Args:
+            page: Page number (1-based)
+            page_size: Number of queries per page
+
+        Returns:
+            List of query objects
+        """
+        params = {"page": page, "page_size": page_size}
+        result = self._make_request("GET", "api/queries", params=params)
+        return result.get("results", [])
+
+    def execute_adhoc_query(
+        self, query: str, data_source_id: int = 1, timeout: int = 60
+    ) -> Dict[str, Any]:
+        """
+        Execute an ad-hoc SQL query without saving it.
+
+        Args:
+            query: SQL query string to execute
+            data_source_id: ID of the data source (default 1 for main AssetDB)
+            timeout: Timeout in seconds for query execution
+
+        Returns:
+            Query results with data, columns, and metadata
+        """
+        payload = {
+            "query": query,
+            "data_source_id": data_source_id,
+            "max_age": 0,  # Force fresh results
+            "apply_auto_limit": True,
+            "parameters": {},
+        }
+
+        result = self._make_request("POST", "api/query_results", json=payload)
+
+        # If query is async, poll for results
+        if "job" in result:
+            return self._poll_job_results(result["job"]["id"], timeout)
+
+        return result
+
+    def _poll_job_results(
+        self, job_id: str, timeout: int = 60, interval: float = 1.0
+    ) -> Dict[str, Any]:
+        """
+        Poll for async query results.
+
+        Args:
+            job_id: Job ID to poll
+            timeout: Timeout in seconds
+            interval: Polling interval in seconds
+
+        Returns:
+            Query results when complete
+
+        Raises:
+            TimeoutError: If query doesn't complete within timeout
+            RuntimeError: If query execution fails
+        """
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            job_result = self._make_request("GET", f"api/jobs/{job_id}")
+            job_status = job_result.get("job", {}).get("status")
+
+            if job_status == 3:  # Completed
+                job_data = job_result.get("job", {})
+                if "query_result_id" in job_data:
+                    # Get the actual results
+                    return self._make_request(
+                        "GET", f"api/query_results/{job_data['query_result_id']}"
+                    )
+                else:
+                    # Return result directly
+                    return job_data.get("result", {})
+
+            elif job_status == 4:  # Error
+                error_msg = job_result.get("job", {}).get("error", "Unknown error")
+                raise RuntimeError(f"Query execution failed: {error_msg}")
+
+            # Wait before next poll
+            time.sleep(interval)
+
+        raise TimeoutError(f"Query execution timed out after {timeout} seconds")
+
+    def get_data_sources(self) -> List[Dict[str, Any]]:
+        """
+        Get available data sources.
+
+        Returns:
+            List of data source objects with id, name, type, etc.
+        """
+        return self._make_request("GET", "api/data_sources")
+
+    def get_schema(self, data_source_id: int = 1) -> Dict[str, Any]:
+        """
+        Get database schema for a data source.
+
+        Args:
+            data_source_id: ID of the data source (default 1 for main AssetDB)
+
+        Returns:
+            Schema information with tables and columns
+        """
+        return self._make_request("GET", f"api/data_sources/{data_source_id}/schema")
