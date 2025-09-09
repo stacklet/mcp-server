@@ -4,7 +4,7 @@ Stacklet Platform client for GraphQL API operations.
 
 import re
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -33,7 +33,7 @@ class PlatformClient:
         )
         self._schema_cache = None
 
-    def query(self, query: str, variables: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Execute a GraphQL query against the Stacklet Platform API.
 
@@ -83,7 +83,7 @@ class PlatformClient:
         self._schema_cache = build_client_schema({"__schema": schema})
         return self._schema_cache
 
-    def list_types(self, match: Optional[str] = None) -> List[str]:
+    def list_types(self, match: str | None = None) -> list[str]:
         """
         List the types available in the GraphQL API.
 
@@ -102,7 +102,7 @@ class PlatformClient:
 
         return sorted(names)
 
-    def get_types(self, type_names: List[str]) -> Dict[str, str]:
+    def get_types(self, type_names: list[str]) -> dict[str, str]:
         """
         Retrieve information about specific types in the GraphQL API.
 

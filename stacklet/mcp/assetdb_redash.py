@@ -4,7 +4,7 @@ AssetDB client using Redash API with Stacklet authentication.
 
 import time
 
-from typing import Any, Dict, List
+from typing import Any
 from urllib.parse import urljoin
 
 import requests
@@ -32,7 +32,7 @@ class AssetDBClient:
         self.session = requests.Session()
         self.session.cookies.set("stacklet-auth", credentials.identity_token)
 
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+    def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """
         Make a request to the Redash API with Stacklet authentication.
 
@@ -49,7 +49,7 @@ class AssetDBClient:
         response.raise_for_status()
         return response.json()
 
-    def list_queries(self, page: int = 1, page_size: int = 25) -> List[Dict[str, Any]]:
+    def list_queries(self, page: int = 1, page_size: int = 25) -> list[dict[str, Any]]:
         """
         Get list of queries.
 
@@ -66,7 +66,7 @@ class AssetDBClient:
 
     def execute_adhoc_query(
         self, query: str, data_source_id: int = 1, timeout: int = 60
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute an ad-hoc SQL query without saving it.
 
@@ -96,7 +96,7 @@ class AssetDBClient:
 
     def _poll_job_results(
         self, job_id: str, timeout: int = 60, interval: float = 1.0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Poll for async query results.
 
@@ -138,7 +138,7 @@ class AssetDBClient:
 
         raise TimeoutError(f"Query execution timed out after {timeout} seconds")
 
-    def get_data_sources(self) -> List[Dict[str, Any]]:
+    def get_data_sources(self) -> list[dict[str, Any]]:
         """
         Get available data sources.
 
@@ -147,7 +147,7 @@ class AssetDBClient:
         """
         return self._make_request("GET", "api/data_sources")
 
-    def get_schema(self, data_source_id: int = 1) -> Dict[str, Any]:
+    def get_schema(self, data_source_id: int = 1) -> dict[str, Any]:
         """
         Get database schema for a data source.
 
