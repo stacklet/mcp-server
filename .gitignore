@@ -1,5 +1,3 @@
-.mcp.json
-
 # Python
 __pycache__/
 *.py[cod]
@@ -8,11 +6,6 @@ __pycache__/
 .coverage
 .coverage.*
 .pytest_cache/
-
-# Virtual environments
-.venv
-.env
-venv/
 
 # IDE
 .vscode/*
