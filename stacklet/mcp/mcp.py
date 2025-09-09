@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import json
 import re
 
@@ -260,7 +258,3 @@ def platform_graphql_query(query: str, variables: dict[str, Any]) -> str:
 def main():
     """Main entry point for the MCP server"""
     mcp.run()
-
-
-if __name__ == "__main__":
-    main()
