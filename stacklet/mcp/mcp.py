@@ -252,6 +252,6 @@ def platform_graphql_query(query: str, variables: dict[str, Any] | None = None) 
     return json.dumps(result, indent=2)
 
 
-def main():
+def main() -> None:
     """Main entry point for the MCP server"""
     mcp.run()

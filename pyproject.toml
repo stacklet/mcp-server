@@ -40,12 +40,15 @@ lines-between-types = 1
 lines-after-imports = 2
 
 [tool.mypy]
+strict = true
+install_types = true
 warn_return_any = true
 warn_unused_configs = true
 check_untyped_defs = true
-strict_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
-exclude = ["tests/"]
 ignore_missing_imports = true
+non_interactive = true
+exclude = ["tests/"]
+plugins = ["pydantic.mypy"]
