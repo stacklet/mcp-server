@@ -9,7 +9,7 @@ description = "A simple MCP server using FastMCP 2"
 dependencies = [
     "fastmcp>=2.0.0",
     "graphql-core>=3.2.0",
-    "requests>=2.31.0",
+    "httpx>=0.28.1",
 ]
 requires-python = ">=3.12"
 

@@ -103,7 +103,7 @@ def platform_graphql_info() -> str:
 
 
 @mcp.tool()
-def platform_graphql_list_types(ctx: Context, match: str | None = None) -> list[str]:
+async def platform_graphql_list_types(ctx: Context, match: str | None = None) -> list[str]:
     """
     List the types available in the Stacklet Platform GraphQL API.
 
@@ -114,11 +114,11 @@ def platform_graphql_list_types(ctx: Context, match: str | None = None) -> list[
         List of type names
     """
     client = ctx.get_state("platform_client")
-    return client.list_types(match)
+    return await client.list_types(match)
 
 
 @mcp.tool()
-def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> str:
+async def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> str:
     """
     Retrieve information about types in the Stacklet Platform GraphQL API.
 
@@ -129,12 +129,12 @@ def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> str:
         JSON string mapping valid type names to GraphQL SDL definitions.
     """
     client = ctx.get_state("platform_client")
-    found = client.get_types(type_names)
+    found = await client.get_types(type_names)
     return json.dumps(found)
 
 
 @mcp.tool()
-def platform_graphql_query(
+async def platform_graphql_query(
     ctx: Context, query: str, variables: dict[str, Any] | None = None
 ) -> str:
     """
@@ -152,7 +152,7 @@ def platform_graphql_query(
         JSON string of the query result
     """
     client = ctx.get_state("platform_client")
-    result = client.query(query, variables or {})
+    result = await client.query(query, variables or {})
     return json.dumps(result, indent=2)
 
 
@@ -246,7 +246,7 @@ Queries should be:
 
 
 @mcp.tool()
-def assetdb_sql_query(ctx: Context, query: str, timeout: int = 60) -> str:
+async def assetdb_sql_query(ctx: Context, query: str, timeout: int = 60) -> str:
     """
     Execute an ad-hoc SQL query against the AssetDB.
 
@@ -267,7 +267,7 @@ def assetdb_sql_query(ctx: Context, query: str, timeout: int = 60) -> str:
     client = ctx.get_state("assetdb_client")
 
     try:
-        result = client.execute_adhoc_query(query, timeout=timeout)
+        result = await client.execute_adhoc_query(query, timeout=timeout)
         return json.dumps(result, indent=2)
     except Exception as e:
         raise Error(

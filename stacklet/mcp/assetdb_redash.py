@@ -2,12 +2,13 @@
 AssetDB client using Redash API with Stacklet authentication.
 """
 
+import asyncio
 import time
 
 from typing import Any
 from urllib.parse import urljoin
 
-import requests
+import httpx
 
 from .stacklet_auth import StackletCredentials
 
@@ -29,27 +30,28 @@ class AssetDBClient:
         if not self.redash_url.endswith("/"):
             self.redash_url += "/"
 
-        self.session = requests.Session()
-        self.session.cookies.set("stacklet-auth", credentials.identity_token)
+        self.session = httpx.AsyncClient(
+            cookies={"stacklet-auth": credentials.identity_token}, timeout=60.0
+        )
 
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
+    async def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """
         Make a request to the Redash API with Stacklet authentication.
 
         Args:
             method: HTTP method (GET, POST, etc.)
             endpoint: API endpoint path
-            **kwargs: Additional arguments for requests
+            **kwargs: Additional arguments for httpx
 
         Returns:
             Decoded response JSON
         """
         url = urljoin(self.redash_url, endpoint)
-        response = self.session.request(method, url, **kwargs)
+        response = await self.session.request(method, url, **kwargs)
         response.raise_for_status()
         return response.json()
 
-    def list_queries(self, page: int = 1, page_size: int = 25) -> list[dict[str, Any]]:
+    async def list_queries(self, page: int = 1, page_size: int = 25) -> list[dict[str, Any]]:
         """
         Get list of queries.
 
@@ -61,10 +63,10 @@ class AssetDBClient:
             List of query objects
         """
         params = {"page": page, "page_size": page_size}
-        result = self._make_request("GET", "api/queries", params=params)
+        result = await self._make_request("GET", "api/queries", params=params)
         return result.get("results", [])
 
-    def execute_adhoc_query(
+    async def execute_adhoc_query(
         self, query: str, data_source_id: int = 1, timeout: int = 60
     ) -> dict[str, Any]:
         """
@@ -86,15 +88,15 @@ class AssetDBClient:
             "parameters": {},
         }
 
-        result = self._make_request("POST", "api/query_results", json=payload)
+        result = await self._make_request("POST", "api/query_results", json=payload)
 
         # If query is async, poll for results
         if "job" in result:
-            return self._poll_job_results(result["job"]["id"], timeout)
+            return await self._poll_job_results(result["job"]["id"], timeout)
 
         return result
 
-    def _poll_job_results(
+    async def _poll_job_results(
         self, job_id: str, timeout: int = 60, interval: float = 1.0
     ) -> dict[str, Any]:
         """
@@ -115,14 +117,14 @@ class AssetDBClient:
         start_time = time.time()
 
         while time.time() - start_time < timeout:
-            job_result = self._make_request("GET", f"api/jobs/{job_id}")
+            job_result = await self._make_request("GET", f"api/jobs/{job_id}")
             job_status = job_result.get("job", {}).get("status")
 
             if job_status == 3:  # Completed
                 job_data = job_result.get("job", {})
                 if "query_result_id" in job_data:
                     # Get the actual results
-                    return self._make_request(
+                    return await self._make_request(
                         "GET", f"api/query_results/{job_data['query_result_id']}"
                     )
                 else:
@@ -134,20 +136,20 @@ class AssetDBClient:
                 raise RuntimeError(f"Query execution failed: {error_msg}")
 
             # Wait before next poll
-            time.sleep(interval)
+            await asyncio.sleep(interval)
 
         raise TimeoutError(f"Query execution timed out after {timeout} seconds")
 
-    def get_data_sources(self) -> list[dict[str, Any]]:
+    async def get_data_sources(self) -> list[dict[str, Any]]:
         """
         Get available data sources.
 
         Returns:
             List of data source objects with id, name, type, etc.
         """
-        return self._make_request("GET", "api/data_sources")
+        return await self._make_request("GET", "api/data_sources")
 
-    def get_schema(self, data_source_id: int = 1) -> dict[str, Any]:
+    async def get_schema(self, data_source_id: int = 1) -> dict[str, Any]:
         """
         Get database schema for a data source.
 
@@ -157,4 +159,4 @@ class AssetDBClient:
         Returns:
             Schema information with tables and columns
         """
-        return self._make_request("GET", f"api/data_sources/{data_source_id}/schema")
+        return await self._make_request("GET", f"api/data_sources/{data_source_id}/schema")

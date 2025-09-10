@@ -6,7 +6,7 @@ import re
 
 from typing import Any
 
-import requests
+import httpx
 
 from graphql import GraphQLSchema, build_client_schema, get_introspection_query, print_type
 
@@ -24,16 +24,16 @@ class PlatformClient:
             credentials: StackletCredentials object containing endpoint and access_token
         """
         self.credentials = credentials
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
+        self.session = httpx.AsyncClient(
+            headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {credentials.access_token}",
-            }
+            },
+            timeout=30.0,
         )
         self._schema_cache = None
 
-    def query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Execute a GraphQL query against the Stacklet Platform API.
 
@@ -48,11 +48,11 @@ class PlatformClient:
         if variables:
             request_data["variables"] = variables
 
-        response = self.session.post(self.credentials.endpoint, json=request_data, timeout=30)
+        response = await self.session.post(self.credentials.endpoint, json=request_data)
         # 400s and 500s may still contain response data, don't raise
         return response.json()
 
-    def get_schema(self) -> GraphQLSchema:
+    async def get_schema(self) -> GraphQLSchema:
         """
         Retrieve the GraphQL schema from the Stacklet Platform API.
         Uses instance-level caching to avoid repeated introspection queries.
@@ -66,9 +66,7 @@ class PlatformClient:
         # Use the standard GraphQL introspection query
         introspection_query = {"query": get_introspection_query()}
 
-        response = self.session.post(
-            self.credentials.endpoint, json=introspection_query, timeout=30
-        )
+        response = await self.session.post(self.credentials.endpoint, json=introspection_query)
         response.raise_for_status()
 
         result = response.json()
@@ -83,7 +81,7 @@ class PlatformClient:
         self._schema_cache = build_client_schema({"__schema": schema})
         return self._schema_cache
 
-    def list_types(self, match: str | None = None) -> list[str]:
+    async def list_types(self, match: str | None = None) -> list[str]:
         """
         List the types available in the GraphQL API.
 
@@ -93,7 +91,7 @@ class PlatformClient:
         Returns:
             List of type names
         """
-        schema = self.get_schema()
+        schema = await self.get_schema()
         names = schema.type_map.keys()
 
         if match:
@@ -102,7 +100,7 @@ class PlatformClient:
 
         return sorted(names)
 
-    def get_types(self, type_names: list[str]) -> dict[str, str]:
+    async def get_types(self, type_names: list[str]) -> dict[str, str]:
         """
         Retrieve information about specific types in the GraphQL API.
 
@@ -112,7 +110,7 @@ class PlatformClient:
         Returns:
             Dictionary mapping valid type names to GraphQL SDL definitions
         """
-        schema = self.get_schema()
+        schema = await self.get_schema()
         found = {}
 
         for type_name in type_names:
