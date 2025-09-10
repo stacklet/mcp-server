@@ -4,7 +4,7 @@ import json
 import os
 
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 
 class StackletCredentials(NamedTuple):
@@ -12,6 +12,7 @@ class StackletCredentials(NamedTuple):
 
     endpoint: str
     access_token: str
+    identity_token: str
 
 
 def get_stacklet_dir() -> Path:
@@ -20,46 +21,24 @@ def get_stacklet_dir() -> Path:
 
     Returns:
         Path to the .stacklet directory
-
-    Raises:
-        OSError, RuntimeError: If home directory cannot be determined
     """
-    home_dir = Path.home()
-    return home_dir / ".stacklet"
+    return Path.home() / ".stacklet"
 
 
-def load_stacklet_auth(
-    endpoint: Optional[str] = None, access_token: Optional[str] = None
-) -> StackletCredentials:
+def load_stacklet_auth() -> StackletCredentials:
     """
-    Load Stacklet authentication credentials using the same priority order
-    as the Stacklet Terraform provider:
+    Load Stacklet authentication credentials from:
 
-    1. Direct configuration (parameters)
-    2. Environment variables (STACKLET_ENDPOINT, STACKLET_ACCESS_TOKEN)
-    3. CLI configuration files (~/.stacklet/config.json, ~/.stacklet/credentials)
-
-    Args:
-        endpoint: Optional direct endpoint configuration
-        access_token: Optional direct access token configuration
+    1. Environment variables (STACKLET_ENDPOINT, STACKLET_ACCESS_TOKEN, STACKLET_IDENTITY_TOKEN)
+    2. CLI configuration files (~/.stacklet/config.json, ~/.stacklet/credentials, ~/.stacklet/id)
 
     Returns:
-        StackletCredentials with both endpoint and access_token
-
-    Raises:
-        ValueError: If credentials cannot be found or loaded
-        OSError, RuntimeError: If home directory cannot be determined
-        json.JSONDecodeError: If config.json is malformed
-        IOError: If credential files cannot be read
+        StackletCredentials with endpoint, access_token, and identity_token
     """
-    creds_endpoint = endpoint
-    creds_access_token = access_token
-
-    # Lookup environment variables if not provided directly
-    if not creds_endpoint:
-        creds_endpoint = os.getenv("STACKLET_ENDPOINT")
-    if not creds_access_token:
-        creds_access_token = os.getenv("STACKLET_ACCESS_TOKEN")
+    # Lookup environment variables first
+    creds_endpoint = os.getenv("STACKLET_ENDPOINT")
+    creds_access_token = os.getenv("STACKLET_ACCESS_TOKEN")
+    creds_identity_token = os.getenv("STACKLET_IDENTITY_TOKEN")
 
     # Lookup CLI configuration files
     stacklet_dir = get_stacklet_dir()
@@ -78,9 +57,19 @@ def load_stacklet_auth(
         if creds_file.exists():
             creds_access_token = creds_file.read_text().strip()
 
-    # Return credentials only if both are available
-    if creds_endpoint and creds_access_token:
-        return StackletCredentials(endpoint=creds_endpoint, access_token=creds_access_token)
+    # Load identity token from id file if still needed
+    if not creds_identity_token:
+        id_file = stacklet_dir / "id"
+        if id_file.exists():
+            creds_identity_token = id_file.read_text().strip()
+
+    # Return credentials only if all are available
+    if creds_endpoint and creds_access_token and creds_identity_token:
+        return StackletCredentials(
+            endpoint=creds_endpoint,
+            access_token=creds_access_token,
+            identity_token=creds_identity_token,
+        )
 
     # If we get here, credentials are missing
     missing = []
@@ -88,9 +77,11 @@ def load_stacklet_auth(
         missing.append("endpoint")
     if not creds_access_token:
         missing.append("access_token")
+    if not creds_identity_token:
+        missing.append("identity_token")
 
     raise ValueError(
         f"Missing Stacklet credentials: {', '.join(missing)}. "
-        f"Set STACKLET_ENDPOINT/STACKLET_ACCESS_TOKEN environment variables "
-        f"or configure ~/.stacklet/config.json and ~/.stacklet/credentials files."
+        "Run `stacklet-admin login`, or set via environment STACKLET_ENDPOINT, "
+        "STACKLET_ACCESS_TOKEN, STACKLET_IDENTITY_TOKEN."
     )
