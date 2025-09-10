@@ -13,7 +13,19 @@ from .stacklet_platform import PlatformClient
 from .utils import get_package_file
 
 
-mcp = FastMCP("Stacklet")
+mcp = FastMCP(
+    "Stacklet",
+    """
+The Stacklet MCP server has 3 main toolsets:
+
+- "docs_list" and "docs_read" give access to Stacklet documentation
+  - reading documentation will help you understand the concepts
+- "platform_*" tools give access to the Platform GraphQL API
+  - the "platform_graphql_info" tool is a great place to start
+- "assetdb_*" tools give SQL access to your cloud asset inventory
+  - the "assetdb_sql_info" tool is a great place to start
+""",
+)
 
 
 class AuthInitMiddleware(Middleware):
