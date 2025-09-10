@@ -21,12 +21,8 @@ def get_stacklet_dir() -> Path:
 
     Returns:
         Path to the .stacklet directory
-
-    Raises:
-        OSError, RuntimeError: If home directory cannot be determined
     """
-    home_dir = Path.home()
-    return home_dir / ".stacklet"
+    return Path.home() / ".stacklet"
 
 
 def load_stacklet_auth() -> StackletCredentials:

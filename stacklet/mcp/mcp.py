@@ -54,6 +54,7 @@ def docs_list() -> DocsList:
 
     Returns:
         Available documentation files
+
     Note:
         This information is most valuable when "index_llms.md" has already been
         seen via the docs_read tool.
@@ -166,7 +167,7 @@ def assetdb_sql_info() -> str:
 @mcp.tool()
 async def assetdb_sql_query(ctx: Context, query: str, timeout: int = 60) -> dict[str, Any]:
     """
-    Execute an ad-hoc SQL query against the AssetDB.
+    Execute an ad-hoc SQL query against AssetDB.
 
     Only call this tool when you understand the principles outlined in the
     assetdb_sql_info tool. Always explore the schema first and use appropriate

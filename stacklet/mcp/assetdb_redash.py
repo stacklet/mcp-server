@@ -5,12 +5,18 @@ AssetDB client using Redash API with Stacklet authentication.
 import asyncio
 import time
 
+from enum import IntEnum
 from typing import Any, cast
 from urllib.parse import urljoin
 
 import httpx
 
 from .stacklet_auth import StackletCredentials
+
+
+class JobStatus(IntEnum):
+    COMPLETED = 3
+    ERROR = 4
 
 
 class AssetDBClient:
@@ -26,7 +32,7 @@ class AssetDBClient:
         self.credentials = credentials
 
         # Replace api. with redash. in the endpoint
-        self.redash_url = credentials.endpoint.replace("api.", "redash.")
+        self.redash_url = credentials.endpoint.replace("api.", "redash.", 1)
         if not self.redash_url.endswith("/"):
             self.redash_url += "/"
 
@@ -109,10 +115,6 @@ class AssetDBClient:
 
         Returns:
             Query results when complete
-
-        Raises:
-            TimeoutError: If query doesn't complete within timeout
-            RuntimeError: If query execution fails
         """
         start_time = time.time()
 
@@ -120,7 +122,7 @@ class AssetDBClient:
             job_result = await self._make_request("GET", f"api/jobs/{job_id}")
             job_status = job_result.get("job", {}).get("status")
 
-            if job_status == 3:  # Completed
+            if job_status == JobStatus.COMPLETED:
                 job_data = job_result.get("job", {})
                 if "query_result_id" in job_data:
                     # Get the actual results
@@ -132,14 +134,14 @@ class AssetDBClient:
                     # Return result directly
                     return cast(dict[str, Any], job_data.get("result", {}))
 
-            elif job_status == 4:  # Error
+            elif job_status == JobStatus.ERROR:
                 error_msg = job_result.get("job", {}).get("error", "Unknown error")
                 raise RuntimeError(f"Query execution failed: {error_msg}")
 
             # Wait before next poll
             await asyncio.sleep(interval)
 
-        raise TimeoutError(f"Query execution timed out after {timeout} seconds")
+        raise RuntimeError(f"Query execution timed out after {timeout} seconds")
 
     async def get_data_sources(self) -> list[dict[str, Any]]:
         """
