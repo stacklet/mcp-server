@@ -5,7 +5,7 @@ AssetDB client using Redash API with Stacklet authentication.
 import asyncio
 import time
 
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urljoin
 
 import httpx
@@ -34,7 +34,7 @@ class AssetDBClient:
             cookies={"stacklet-auth": credentials.identity_token}, timeout=60.0
         )
 
-    async def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
+    async def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any:
         """
         Make a request to the Redash API with Stacklet authentication.
 
@@ -64,7 +64,7 @@ class AssetDBClient:
         """
         params = {"page": page, "page_size": page_size}
         result = await self._make_request("GET", "api/queries", params=params)
-        return result.get("results", [])
+        return cast(list[dict[str, Any]], result.get("results", []))
 
     async def execute_adhoc_query(
         self, query: str, data_source_id: int = 1, timeout: int = 60
@@ -94,7 +94,7 @@ class AssetDBClient:
         if "job" in result:
             return await self._poll_job_results(result["job"]["id"], timeout)
 
-        return result
+        return cast(dict[str, Any], result)
 
     async def _poll_job_results(
         self, job_id: str, timeout: int = 60, interval: float = 1.0
@@ -124,12 +124,13 @@ class AssetDBClient:
                 job_data = job_result.get("job", {})
                 if "query_result_id" in job_data:
                     # Get the actual results
-                    return await self._make_request(
+                    result = await self._make_request(
                         "GET", f"api/query_results/{job_data['query_result_id']}"
                     )
+                    return cast(dict[str, Any], result)
                 else:
                     # Return result directly
-                    return job_data.get("result", {})
+                    return cast(dict[str, Any], job_data.get("result", {}))
 
             elif job_status == 4:  # Error
                 error_msg = job_result.get("job", {}).get("error", "Unknown error")
@@ -147,7 +148,8 @@ class AssetDBClient:
         Returns:
             List of data source objects with id, name, type, etc.
         """
-        return await self._make_request("GET", "api/data_sources")
+        result = await self._make_request("GET", "api/data_sources")
+        return cast(list[dict[str, Any]], result)
 
     async def get_schema(self, data_source_id: int = 1) -> dict[str, Any]:
         """
@@ -159,4 +161,5 @@ class AssetDBClient:
         Returns:
             Schema information with tables and columns
         """
-        return await self._make_request("GET", f"api/data_sources/{data_source_id}/schema")
+        result = await self._make_request("GET", f"api/data_sources/{data_source_id}/schema")
+        return cast(dict[str, Any], result)
