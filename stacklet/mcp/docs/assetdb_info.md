@@ -6,72 +6,50 @@ cloud estate at scale.
 
 ### **Database Structure**
 
-The AssetDB follows a structured schema with these key principles:
-- Resources are normalized across cloud providers
-- Historical data is maintained for change tracking
-- Relationships between resources are preserved
-- Metadata includes tags, configurations, and compliance state
+AssetDB runs on PostgreSQL 16.
 
-Always explore the schema first using the data source schema APIs to understand
-available tables and columns before writing queries.
+All AssetDB data is contained in the "public" schema. The most important tables are:
 
-### **SQL Usage Principles**
+- "resources" contains raw JSON representations of every current resource in your estate
+  - this table is very large
+  - if you must query it, ensure you use LIMITs and/or filters on indexed columns
 
-**Query Efficiently:**
-- Use LIMIT clauses for exploratory queries to avoid overwhelming results
-- Index on commonly filtered columns (account_id, resource_type, region)
-- Use time-based filters when analyzing historical data
+- "resource_revisions" contains coarse-grained resource configuration history raw JSON as in "resources"
+  - this table is very very large
+  - ideally, ONLY look into this table via primary key
+  - if you must query it, ensure you use LIMITs and/or filters on indexed columns
 
-**Common Patterns:**
-- Filter by account_id to scope queries to specific accounts
-- Use resource_type to focus on specific AWS/Azure/GCP services
-- Join tables carefully - the schema preserves relationships but joins can be expensive
-- Aggregate data when looking for trends or summaries
+- The many tables named by provider and resource type, e.g. "aws_ec2" and "gcp_gke_cluster",
+are ideal when you want to know details of a specific resource type – they have SQL columns
+with resource attributes
+  - these tables are for some purposes a superior representation to that in the "resources"
+  table
+  - anything in a provider-type table should also be represented in "resources", and vice
+  versa
 
-**Schema Exploration:**
-- Start with DESCRIBE or SHOW TABLES to understand structure
-- Use INFORMATION_SCHEMA queries to explore column metadata
-- Look for tables with prefixes indicating data types (e.g., aws_, azure_, gcp_)
+- "resource_tags" and "resource_tags_mapping" must be the starting point for any potentially
+large-scale tagging query
 
-**Performance Tips:**
-- Use specific column lists instead of SELECT *
-- Apply filters early in WHERE clauses
-- Consider using CTEs for complex multi-step analysis
-- Be mindful of query timeout limits (typically 60 seconds)
+- "account_cost" (if configured) contains complete costs by date/service/account/region
+  - the granularity is coarse but this is usually the best starting point for cost queries
 
-### **Common Use Cases**
+- "resource_cost_summaries" contains the average daily cost that could be attributed to a given resource over the last month
+  - this is much more granular than "account_cost", but not all cost data can be mapped to a
+  specific resource, so it may not give a full picture.
 
-**Resource Inventory:**
-- Count resources by type, account, or region
-- Find resources with specific tags or configurations
-- Identify orphaned or unused resources
+- "resource_cost" is an unreasonably huge table and has the same completeness issues as the
+summary table
+  - it may be helpful in looking up granular costs for a few specific resources
 
-**Compliance Analysis:**
-- Query resource configurations against policy requirements
-- Find resources missing required tags or settings
-- Track compliance trends over time
+This tool also has access to the "platform" schema, but it is often wiser to use platform
+graphql tools to access the information you'd find there.
 
-**Cost Analysis:**
-- Aggregate resource costs by various dimensions
-- Identify cost anomalies or optimization opportunities
-- Track spending trends and patterns
 
-**Change Tracking:**
-- Query historical data to understand resource lifecycle
-- Find recently created, modified, or deleted resources
-- Analyze configuration drift over time
+### Querying Advice
 
-### **Security Considerations**
-
-The AssetDB contains sensitive information about your cloud infrastructure.
-Queries should be:
-- Purposeful and scoped appropriately
-- Mindful of data sensitivity in results
-- Used only for legitimate analysis and governance needs
-
-### **Getting Help**
-
-- Use the schema exploration tools to understand available data
-- Start with simple queries and build complexity incrementally
-- Consider the Stacklet documentation for data model explanations
-- Remember that GraphQL tools may provide complementary analysis capabilities
+Many tables in AssetDB can be very large; always follow a process where you:
+- Query for the sizes on disk of relevant tables
+- Discover which indexes are available for large tables
+- Structure the query to take advantage of indexes and avoid table scans
+- EXPLAIN the query before executing it for results, and rework the query if the plan reveals table scans
+- LIMIT the results to avoid overwhelming your context
