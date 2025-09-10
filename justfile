@@ -1,16 +1,21 @@
-# install dependencies
+# Install dependencies
 install:
     uv sync
 
-# run the MCP server locally
+# Run the MCP server locally
 run:
     uv run mcp
 
-# format code
+# Format code
 format:
     uv run ruff format
     uv run ruff check --fix
 
-# lint code
+# Lint code
 lint:
 	uv run pre-commit run --all-files
+
+
+# Run tests
+test *args:
+    uv run pytest {{args}}
