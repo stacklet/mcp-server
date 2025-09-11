@@ -24,7 +24,8 @@ The Stacklet MCP server has 3 main toolsets:
   - the "platform_graphql_info" tool is a great place to start
 - "assetdb_*" tools give access to your cloud asset inventory
   - "assetdb_sql_info" and "assetdb_sql_query" for direct SQL access
-  - "assetdb_query_list" and "assetdb_query_get" for saved query management
+  - "assetdb_query_list", "assetdb_query_get", and "assetdb_query_results"
+  for saved query management
 """,
 )
 
@@ -178,7 +179,13 @@ def assetdb_sql_info() -> str:
 
 
 @mcp.tool()
-async def assetdb_sql_query(ctx: Context, query: str, timeout: int = 60) -> dict[str, Any]:
+async def assetdb_sql_query(
+    ctx: Context,
+    query: str,
+    timeout: int = 60,
+    download_format: str | None = None,
+    download_path: str | None = None,
+) -> dict[str, Any]:
     """
     Execute an ad-hoc SQL query against AssetDB.
 
@@ -189,15 +196,39 @@ async def assetdb_sql_query(ctx: Context, query: str, timeout: int = 60) -> dict
     Args:
         query: The SQL query string to execute
         timeout: Query timeout in seconds (default 60, max 300)
+        download_format: Optional format to download results ("csv", "json", "tsv",
+                         "xlsx"). If specified, results are downloaded to file instead
+                         of returned directly.
+        download_path: Optional path to save downloaded file. Ignored if download
+                       format not set.
 
     Returns:
-        Complete query result data
+        Query results with data, columns, and metadata
+        OR download information if download_format was specified
     """
     if timeout > 300:
         timeout = 300  # Cap at 5 minutes
 
     client: AssetDBClient = ctx.get_state("assetdb_client")
-    return await client.execute_adhoc_query(query, timeout=timeout)
+
+    # Execute query to get result_id
+    result_id = await client.execute_adhoc_query(query, timeout=timeout)
+
+    if download_format:
+        # Download to file instead of returning data
+        file_path = await client.download_query_result(
+            result_id=result_id, format=download_format, download_path=download_path
+        )
+        return {
+            "downloaded": True,
+            "file_path": file_path,
+            "format": download_format,
+            "result_id": result_id,
+            "query": query[:100] + "..." if len(query) > 100 else query,
+        }
+    else:
+        # Return JSON data
+        return await client.get_query_result_data(result_id)
 
 
 @mcp.tool()
@@ -272,6 +303,63 @@ async def assetdb_query_get(ctx: Context, query_id: int) -> dict[str, Any]:
     result = await client.get_query(query_id)
     result.pop("visualizations", None)  # sometimes large, not currently relevant
     return result
+
+
+@mcp.tool()
+async def assetdb_query_results(
+    ctx: Context,
+    query_id: int,
+    parameters: dict[str, Any] | None = None,
+    max_age: int = -1,
+    timeout: int = 60,
+    download_format: str | None = None,
+    download_path: str | None = None,
+) -> dict[str, Any]:
+    """
+    Get results for a query with caching control.
+
+    Args:
+        query_id: ID of the query to get results for
+        parameters: Optional parameters for the query (for parameterized queries)
+        max_age: Maximum age of cached results in seconds (default -1 = any cached
+                 result, 0 = always fresh)
+        timeout: Timeout in seconds for query execution if not cached (default 60,
+                 max 300)
+        download_format: Optional format to download results ("csv", "json", "tsv",
+                         "xlsx"). If specified, results are downloaded to file instead
+                         of returned directly.
+        download_path: Optional path to save downloaded file. Ignored if download
+                       format not set.
+
+    Returns:
+        Query results with data, columns, and metadata
+        OR download information if download_format was specified
+    """
+    if timeout > 300:
+        timeout = 300  # Cap at 5 minutes
+
+    client: AssetDBClient = ctx.get_state("assetdb_client")
+
+    # Execute saved query to get result_id
+    result_id = await client.execute_saved_query(
+        query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout
+    )
+
+    if download_format:
+        # Download to file instead of returning data
+        file_path = await client.download_query_result(
+            result_id=result_id, format=download_format, download_path=download_path
+        )
+        return {
+            "downloaded": True,
+            "file_path": file_path,
+            "format": download_format,
+            "result_id": result_id,
+            "query_id": query_id,
+        }
+    else:
+        # Return JSON data
+        return await client.get_query_result_data(result_id)
 
 
 def main() -> None:
