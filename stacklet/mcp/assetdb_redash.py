@@ -3,6 +3,7 @@ AssetDB client using Redash API with Stacklet authentication.
 """
 
 import asyncio
+import tempfile
 import time
 
 from enum import IntEnum
@@ -91,6 +92,45 @@ class AssetDBClient:
         result = await self._make_request("GET", "api/queries", params=params)
         return cast(dict[str, Any], result)
 
+    async def get_query(self, query_id: int) -> dict[str, Any]:
+        """
+        Get detailed information about a specific saved query.
+
+        Args:
+            query_id: ID of the query to retrieve
+
+        Returns:
+            Complete query object with SQL and parameters
+        """
+        result = await self._make_request("GET", f"api/queries/{query_id}")
+        return cast(dict[str, Any], result)
+
+    async def execute_saved_query(
+        self,
+        query_id: int,
+        parameters: dict[str, Any] | None = None,
+        max_age: int = -1,
+        timeout: int = 60,
+    ) -> int:
+        """
+        Execute a saved query by ID, with caching control.
+
+        Args:
+            query_id: ID of the query
+            parameters: Optional parameters for the query
+            max_age: Maximum age of cached results in seconds (-1=any cached result, 0=always fresh)
+            timeout: Timeout in seconds for query execution (if not cached)
+
+        Returns:
+            Query result ID
+        """
+        payload: dict[str, Any] = {"max_age": max_age}
+        if parameters:
+            payload["parameters"] = parameters
+
+        result = await self._make_request("POST", f"api/queries/{query_id}/results", json=payload)
+        return await self._get_query_result_id(result, timeout)
+
     async def execute_adhoc_query(
         self, query: str, data_source_id: int = 1, timeout: int = 60
     ) -> int:
@@ -114,12 +154,22 @@ class AssetDBClient:
         }
 
         result = await self._make_request("POST", "api/query_results", json=payload)
+        return await self._get_query_result_id(result, timeout)
 
+    async def _get_query_result_id(self, result: dict[str, Any], timeout: int = 60) -> int:
+        """
+        Extract query result ID from execution response, handling both sync and async results.
+
+        Args:
+            result: API response from query execution
+            timeout: Timeout in seconds for async job polling
+
+        Returns:
+            Query result ID
+        """
         # If query is async, poll for results
         if "job" in result:
-            job_result = await self._poll_job_results(result["job"]["id"], timeout)
-            return int(job_result["query_result"]["id"])
-
+            result = await self._poll_job_results(result["job"]["id"], timeout)
         return int(result["query_result"]["id"])
 
     async def _poll_job_results(
@@ -160,9 +210,8 @@ class AssetDBClient:
                     raise RuntimeError(f"Query execution failed: {error}")
                 case JobStatus.CANCELED:
                     raise RuntimeError("Query execution cancelled")
-                case _:
-                    raise RuntimeError(f"Unhandled query execution status: {job_status}")
 
+            raise RuntimeError(f"Unhandled query execution status: {job_status}")
         raise RuntimeError(f"Query execution timed out after {timeout} seconds")
 
     async def get_query_result_data(self, result_id: int) -> dict[str, Any]:
@@ -176,74 +225,6 @@ class AssetDBClient:
             Query result data with columns and rows
         """
         result = await self._make_request("GET", f"api/query_results/{result_id}")
-        return cast(dict[str, Any], result)
-
-    async def get_query(self, query_id: int) -> dict[str, Any]:
-        """
-        Get detailed information about a specific saved query.
-
-        Args:
-            query_id: ID of the query to retrieve
-
-        Returns:
-            Complete query object with SQL and parameters
-        """
-        result = await self._make_request("GET", f"api/queries/{query_id}")
-        return cast(dict[str, Any], result)
-
-    async def execute_saved_query(
-        self,
-        query_id: int,
-        parameters: dict[str, Any] | None = None,
-        max_age: int = -1,
-        timeout: int = 60,
-    ) -> int:
-        """
-        Execute a saved query by ID, with caching control.
-
-        Args:
-            query_id: ID of the query
-            parameters: Optional parameters for the query
-            max_age: Maximum age of cached results in seconds (-1=any cached result, 0=always fresh)
-            timeout: Timeout in seconds for query execution (if not cached)
-
-        Returns:
-            Query result ID
-        """
-        payload: dict[str, Any] = {"max_age": max_age}
-        if parameters:
-            payload["parameters"] = parameters
-
-        result = await self._make_request("POST", f"api/queries/{query_id}/results", json=payload)
-
-        # If query is async (no cached result, executing fresh), poll for results
-        if "job" in result:
-            job_result = await self._poll_job_results(result["job"]["id"], timeout)
-            return int(job_result["query_result"]["id"])
-
-        return int(result["query_result"]["id"])
-
-    async def get_data_sources(self) -> list[dict[str, Any]]:
-        """
-        Get available data sources.
-
-        Returns:
-            List of data source objects with id, name, type, etc.
-        """
-        result = await self._make_request("GET", "api/data_sources")
-        return cast(list[dict[str, Any]], result)
-
-    async def get_schema(self, data_source_id: int = 1) -> dict[str, Any]:
-        """
-        Get database schema for a data source.
-
-        Args:
-            data_source_id: ID of the data source (default 1 for main AssetDB)
-
-        Returns:
-            Schema information with tables and columns
-        """
-        result = await self._make_request("GET", f"api/data_sources/{data_source_id}/schema")
         return cast(dict[str, Any], result)
 
     async def download_query_result(
@@ -267,7 +248,7 @@ class AssetDBClient:
         url = urljoin(self.redash_url, f"api/query_results/{result_id}.{format}")
 
         if not download_path:
-            download_path = f"/tmp/query_result_{result_id}.{format}"
+            download_path = f"{tempfile.gettempdir()}/assetdb_{result_id}.{format}"
 
         # Ensure directory exists
         Path(download_path).parent.mkdir(parents=True, exist_ok=True)
@@ -281,3 +262,26 @@ class AssetDBClient:
                     f.write(chunk)
 
         return download_path
+
+    async def get_data_sources(self) -> list[dict[str, Any]]:
+        """
+        Get available data sources.
+
+        Returns:
+            List of data source objects with id, name, type, etc.
+        """
+        result = await self._make_request("GET", "api/data_sources")
+        return cast(list[dict[str, Any]], result)
+
+    async def get_schema(self, data_source_id: int = 1) -> dict[str, Any]:
+        """
+        Get database schema for a data source.
+
+        Args:
+            data_source_id: ID of the data source (default 1 for main AssetDB)
+
+        Returns:
+            Schema information with tables and columns
+        """
+        result = await self._make_request("GET", f"api/data_sources/{data_source_id}/schema")
+        return cast(dict[str, Any], result)
