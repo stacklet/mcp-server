@@ -57,20 +57,33 @@ class AssetDBClient:
         response.raise_for_status()
         return response.json()
 
-    async def list_queries(self, page: int = 1, page_size: int = 25) -> list[dict[str, Any]]:
+    async def list_queries(
+        self,
+        page: int = 1,
+        page_size: int = 25,
+        search: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
         """
-        Get list of queries.
+        Get list of queries with search and sorting support.
 
         Args:
             page: Page number (1-based)
             page_size: Number of queries per page
+            search: Search query names, descriptions, and SQL content
 
         Returns:
-            List of query objects
+            Full API response including queries and pagination metadata
         """
-        params = {"page": page, "page_size": page_size}
+        params: dict[str, Any] = {"page": page, "page_size": page_size}
+
+        if search:
+            params["q"] = search
+        if tags:
+            params["tags"] = tags
+
         result = await self._make_request("GET", "api/queries", params=params)
-        return cast(list[dict[str, Any]], result.get("results", []))
+        return cast(dict[str, Any], result)
 
     async def execute_adhoc_query(
         self, query: str, data_source_id: int = 1, timeout: int = 60
@@ -142,6 +155,19 @@ class AssetDBClient:
             await asyncio.sleep(interval)
 
         raise RuntimeError(f"Query execution timed out after {timeout} seconds")
+
+    async def get_query(self, query_id: int) -> dict[str, Any]:
+        """
+        Get detailed information about a specific saved query.
+
+        Args:
+            query_id: ID of the query to retrieve
+
+        Returns:
+            Complete query object with SQL and parameters
+        """
+        result = await self._make_request("GET", f"api/queries/{query_id}")
+        return cast(dict[str, Any], result)
 
     async def get_data_sources(self) -> list[dict[str, Any]]:
         """

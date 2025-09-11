@@ -22,8 +22,9 @@ The Stacklet MCP server has 3 main toolsets:
   - reading documentation will help you understand the concepts
 - "platform_*" tools give access to the Platform GraphQL API
   - the "platform_graphql_info" tool is a great place to start
-- "assetdb_*" tools give SQL access to your cloud asset inventory
-  - the "assetdb_sql_info" tool is a great place to start
+- "assetdb_*" tools give access to your cloud asset inventory
+  - "assetdb_sql_info" and "assetdb_sql_query" for direct SQL access
+  - "assetdb_query_list" and "assetdb_query_get" for saved query management
 """,
 )
 
@@ -197,6 +198,80 @@ async def assetdb_sql_query(ctx: Context, query: str, timeout: int = 60) -> dict
 
     client: AssetDBClient = ctx.get_state("assetdb_client")
     return await client.execute_adhoc_query(query, timeout=timeout)
+
+
+@mcp.tool()
+async def assetdb_query_list(
+    ctx: Context,
+    page: int = 1,
+    page_size: int = 25,
+    search: str | None = None,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    List and search saved queries using Redash's built-in capabilities.
+
+    Args:
+        page: Page number (1-based)
+        page_size: Queries per page (max 100)
+        search: Search query names, descriptions, and SQL content
+        tags: Match only queries with these tags
+
+    Returns:
+        List of queries with pagination metadata
+    """
+    client: AssetDBClient = ctx.get_state("assetdb_client")
+
+    result = await client.list_queries(
+        page=page,
+        page_size=min(page_size, 100),  # Cap at reasonable limit
+        search=search,
+        tags=tags,
+    )
+
+    # Clean up the response for LLM consumption
+    queries = []
+    for q in result.get("results", []):
+        queries.append(
+            {
+                "id": q["id"],
+                "name": q["name"],
+                "description": q.get("description", ""),
+                "tags": q.get("tags", []),
+                "user": q["user"],
+                "is_archived": q.get("is_archived", False),
+                "is_draft": q.get("is_draft", False),
+                "data_source_id": q["data_source_id"],
+                "has_parameters": bool(q.get("options", {}).get("parameters")),
+            }
+        )
+
+    return {
+        "queries": queries,
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total_count": result.get("count", 0),
+            "has_next": page * page_size < result.get("count", 0),
+        },
+    }
+
+
+@mcp.tool()
+async def assetdb_query_get(ctx: Context, query_id: int) -> dict[str, Any]:
+    """
+    Get detailed information about a specific saved query.
+
+    Args:
+        query_id: ID of the query to retrieve
+
+    Returns:
+        Complete query object with SQL and parameters
+    """
+    client: AssetDBClient = ctx.get_state("assetdb_client")
+    result = await client.get_query(query_id)
+    result.pop("visualizations", None)  # sometimes large, not currently relevant
+    return result
 
 
 def main() -> None:
