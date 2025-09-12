@@ -9,9 +9,7 @@ from typing import Any
 
 import pytest
 
-from fastmcp.client.client import CallToolResult, Client
-
-from stacklet.mcp.mcp import mcp
+from fastmcp.client.client import CallToolResult
 
 from . import factory
 from .conftest import ExpectRequest
@@ -19,12 +17,6 @@ from .mcp_test import MCPTest, json_guard_parametrize
 
 
 pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
-
-
-@pytest.fixture
-async def mcp_client(mock_stacklet_credentials):
-    async with Client(mcp) as client:
-        yield client
 
 
 class TestSQLInfo(MCPTest):
@@ -53,7 +45,7 @@ class TestQueryList(MCPTest):
 
     def r(self, *, data={}, status_code=200, response: Any = "") -> ExpectRequest:
         return ExpectRequest(
-            "https://example.com/api/queries",
+            "https://redash.example.com/api/queries",
             data={"page": 1, "page_size": 25} | data,
             status_code=status_code,
             response=response,
@@ -190,7 +182,7 @@ class TestQueryGet(MCPTest):
     async def test_success(self, mangle, value):
         """Test the assetdb_query_get tool with valid query ID."""
         with self.http.expect(
-            ExpectRequest("https://example.com/api/queries/123", response=q123()),
+            ExpectRequest("https://redash.example.com/api/queries/123", response=q123()),
         ):
             result = await self.assert_call({"query_id": mangle(value)})
 
@@ -202,7 +194,7 @@ class TestQueryGet(MCPTest):
     async def test_not_found(self):
         """Test the assetdb_query_get tool with non-existent query ID."""
         with self.http.expect(
-            ExpectRequest("https://example.com/api/queries/999", status_code=404),
+            ExpectRequest("https://redash.example.com/api/queries/999", status_code=404),
         ):
             result = await self.assert_call({"query_id": 999}, error=True)
 
@@ -215,7 +207,7 @@ class TestQuerySave(MCPTest):
 
     def r(self, data, *, update=None, status_code=200, response: Any = ""):
         return ExpectRequest(
-            "https://example.com/api/queries" + (f"/{update}" if update else ""),
+            "https://redash.example.com/api/queries" + (f"/{update}" if update else ""),
             method="POST",
             data=data,
             status_code=status_code,

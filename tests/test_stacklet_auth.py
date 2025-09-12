@@ -20,10 +20,10 @@ def temp_stacklet_dir(tmp_path):
 
 
 @pytest.fixture
-def clean_env():
+def clean_env(monkeypatch):
     """Clean environment with no Stacklet vars."""
-    with patch.dict(os.environ, {}, clear=True):
-        yield
+    for name in ("STACKLET_ENDPOINT", "STACKLET_ACCESS_TOKEN", "STACKLET_IDENTITY_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def mock_env_vars():
     with patch.dict(
         os.environ,
         {
-            "STACKLET_ENDPOINT": "https://env.example.com",
+            "STACKLET_ENDPOINT": "https://api.example.com",
             "STACKLET_ACCESS_TOKEN": "env-key",
             "STACKLET_IDENTITY_TOKEN": "env-id-token",
         },
@@ -52,7 +52,7 @@ def mock_stacklet_dir(temp_stacklet_dir):
 def valid_config_file(temp_stacklet_dir):
     """Create valid config.json file."""
     config_file = temp_stacklet_dir / "config.json"
-    config_data = {"api": "https://config.example.com"}
+    config_data = {"api": "https://api.config-example.com"}
     config_file.write_text(json.dumps(config_data))
     return config_file
 
@@ -109,7 +109,7 @@ class TestLoadStackletAuth:
         creds = load_stacklet_auth()
 
         assert creds is not None
-        assert creds.endpoint == "https://env.example.com"
+        assert creds.endpoint == "https://api.example.com"
         assert creds.access_token == "env-key"
         assert creds.identity_token == "env-id-token"
 
@@ -120,7 +120,7 @@ class TestLoadStackletAuth:
         creds = load_stacklet_auth()
 
         assert creds is not None
-        assert creds.endpoint == "https://config.example.com"
+        assert creds.endpoint == "https://api.config-example.com"
         assert creds.access_token == "config-file-key"
         assert creds.identity_token == "config-file-id-token"
 
@@ -148,6 +148,11 @@ class TestLoadStackletAuth:
             with pytest.raises(RuntimeError, match="no home dir"):
                 load_stacklet_auth()
 
+    def test_service_endpoint(self, mock_env_vars):
+        """A service endpoint is returned correctly."""
+        creds = load_stacklet_auth()
+        assert creds.service_endpoint("redash") == "https://redash.example.com/"
+
 
 class TestExceptionBubbling:
     """Test that various exceptions bubble through load_stacklet_auth."""
@@ -165,7 +170,7 @@ class TestExceptionBubbling:
         """Test that IO errors bubble up."""
         # Create valid config file
         config_file = mock_stacklet_dir / "config.json"
-        config_file.write_text('{"api": "https://example.com"}')
+        config_file.write_text('{"api": "https://api.example.com"}')
 
         # Mock open to raise IOError
         with patch("builtins.open", side_effect=IOError("Permission denied")):

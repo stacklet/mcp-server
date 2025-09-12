@@ -37,12 +37,7 @@ class AssetDBClient:
             credentials: StackletCredentials object containing endpoint and id_token
         """
         self.credentials = credentials
-
-        # Replace api. with redash. in the endpoint
-        self.redash_url = credentials.endpoint.replace("api.", "redash.", 1)
-        if not self.redash_url.endswith("/"):
-            self.redash_url += "/"
-
+        self.redash_url = self.credentials.service_endpoint("redash")
         self.session = httpx.AsyncClient(
             cookies={"stacklet-auth": credentials.identity_token}, timeout=60.0
         )
