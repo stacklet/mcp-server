@@ -236,7 +236,7 @@ class AssetDBClient:
         Args:
             result_id: ID of the query result to download
             format: Download format - "csv", "json", "tsv", or "xlsx"
-            download_path: Optional path to save file. If None, uses /tmp/
+            download_path: Optional path to save file. If None, uses temp dir.
 
         Returns:
             Path to the downloaded file

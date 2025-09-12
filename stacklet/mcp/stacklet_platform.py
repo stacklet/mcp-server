@@ -49,8 +49,15 @@ class PlatformClient:
             request_data["variables"] = variables
 
         response = await self.session.post(self.credentials.endpoint, json=request_data)
-        # 400s and 500s may still contain response data, don't raise
-        return cast(dict[str, Any], response.json())
+        # Don't raise on HTTP errors initially - backend erroneously sets HTTP status codes
+        # for GraphQL-level errors. GraphQL transport should be HTTP 200 with errors in payload.
+        # However, if we can't parse JSON, then it's likely a real HTTP error.
+        try:
+            return cast(dict[str, Any], response.json())
+        except Exception:
+            # If JSON parsing fails, fall back to standard HTTP error handling
+            response.raise_for_status()
+            raise  # Re-raise the JSON parsing error
 
     async def get_schema(self) -> GraphQLSchema:
         """
