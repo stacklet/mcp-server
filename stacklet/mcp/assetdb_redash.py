@@ -78,6 +78,7 @@ class AssetDBClient:
             page: Page number (1-based)
             page_size: Number of queries per page
             search: Search query names, descriptions, and SQL content
+            tags: Filter out queries not matching all tags
 
         Returns:
             Full API response including queries and pagination metadata

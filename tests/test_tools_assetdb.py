@@ -13,14 +13,11 @@ from stacklet.mcp.mcp import mcp
 from .conftest import ExpectRequest
 
 
-@pytest.fixture(autouse=True)
-def mock_credentials(mock_stacklet_credentials):
-    """Auto-apply mock credentials for all tests in this file."""
-    return mock_stacklet_credentials
+pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
 
 
 @pytest.fixture
-async def mcp_client(mock_credentials):
+async def mcp_client(mock_stacklet_credentials):
     async with Client(mcp) as client:
         yield client
 
