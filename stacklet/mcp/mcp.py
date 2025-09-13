@@ -1,13 +1,15 @@
 from pathlib import Path
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import Middleware, MiddlewareContext
+from pydantic import Field
 
 from .assetdb_redash import AssetDBClient
 from .docs_handler import list_documentation_files, read_documentation_file
-from .models import DocContent, DocsList
+from .mcp_util import json_guard
+from .models import DocContent, DocsList, QueryUpsert
 from .stacklet_auth import load_stacklet_auth
 from .stacklet_platform import PlatformClient
 from .utils import get_package_file
@@ -24,8 +26,8 @@ The Stacklet MCP server has 3 main toolsets:
   - the "platform_graphql_info" tool is a great place to start
 - "assetdb_*" tools give access to your cloud asset inventory
   - "assetdb_sql_info" and "assetdb_sql_query" for direct SQL access
-  - "assetdb_query_list", "assetdb_query_get", and "assetdb_query_results"
-  for saved query management
+  - "assetdb_query_list", "assetdb_query_get", "assetdb_query_save" and
+  "assetdb_query_results" for saved query management
 """,
 )
 
@@ -139,6 +141,7 @@ async def platform_graphql_list_types(ctx: Context, match: str | None = None) ->
 
 
 @mcp.tool()
+@json_guard
 async def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> dict[str, str]:
     """
     Retrieve information about types in the Stacklet Platform GraphQL API.
@@ -154,6 +157,7 @@ async def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> dic
 
 
 @mcp.tool()
+@json_guard
 async def platform_graphql_query(
     ctx: Context, query: str, variables: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -176,10 +180,11 @@ async def platform_graphql_query(
 
 
 @mcp.tool()
+@json_guard
 async def assetdb_query_list(
     ctx: Context,
-    page: int = 1,
-    page_size: int = 25,
+    page: Annotated[int, Field(ge=1, default=1)],
+    page_size: Annotated[int, Field(ge=1, le=100, default=-25)],
     search: str | None = None,
     tags: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -233,6 +238,7 @@ async def assetdb_query_list(
 
 
 @mcp.tool()
+@json_guard
 async def assetdb_query_get(ctx: Context, query_id: int) -> dict[str, Any]:
     """
     Get detailed information about a specific saved query.
@@ -250,12 +256,13 @@ async def assetdb_query_get(ctx: Context, query_id: int) -> dict[str, Any]:
 
 
 @mcp.tool()
+@json_guard
 async def assetdb_query_results(
     ctx: Context,
     query_id: int,
+    max_age: Annotated[int, Field(ge=-1, default=-1)],
+    timeout: Annotated[int, Field(ge=5, le=300, default=60)],
     parameters: dict[str, Any] | None = None,
-    max_age: int = -1,
-    timeout: int = 60,
     download_format: str | None = None,
     download_path: str | None = None,
 ) -> dict[str, Any]:
@@ -302,10 +309,11 @@ async def assetdb_query_results(
 
 
 @mcp.tool()
+@json_guard
 async def assetdb_sql_query(
     ctx: Context,
     query: str,
-    timeout: int = 60,
+    timeout: Annotated[int, Field(ge=5, le=300, default=60)],
     download_format: str | None = None,
     download_path: str | None = None,
 ) -> dict[str, Any]:
@@ -329,9 +337,6 @@ async def assetdb_sql_query(
         Query results with data, columns, and metadata
         OR download information if download_format was specified
     """
-    if timeout > 300:
-        timeout = 300  # Cap at 5 minutes
-
     client = get_assetdb_client(ctx)
     result_id = await client.execute_adhoc_query(query, timeout=timeout)
     if not download_format:
@@ -346,6 +351,51 @@ async def assetdb_sql_query(
         "format": download_format,
         "result_id": result_id,
     }
+
+
+@mcp.tool()
+@json_guard
+async def assetdb_query_save(
+    ctx: Context,
+    name: str,
+    query: str,
+    query_id: int | None = None,
+    description: str | None = None,
+    tags: list[str] | None = None,
+    options: dict[str, Any] | None = None,
+    is_draft: bool | None = None,
+) -> dict[str, Any]:
+    """
+    Create a new query or update an existing one.
+
+    Args:
+        name: Query display name string
+        query: SQL query text string
+        query_id: int ID of existing query to update, or 0 to create new query (default: 0)
+        description: Optional query description string
+        tags: Optional list of string tags for categorization
+        options: Optional query options/parameters configuration dict
+        is_draft: Optional draft status (defaults to True for new queries)
+
+    Returns:
+        Complete query object with ID, timestamps, and metadata
+    """
+    upsert = QueryUpsert(
+        name=name,
+        query=query,
+        description=description,
+        tags=tags,
+        options=options,
+        is_draft=is_draft,
+    )
+
+    client = get_assetdb_client(ctx)
+    if query_id and query_id > 0:
+        return await client.update_query(query_id, upsert)
+    else:
+        if upsert.is_draft is None:
+            upsert.is_draft = True
+        return await client.create_query(upsert)
 
 
 @mcp.tool()

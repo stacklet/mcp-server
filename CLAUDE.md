@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an MCP (Model Context Protocol) server that provides comprehensive tools for interacting with the Stacklet platform. The server exposes 10 tools: 2 for documentation access, 4 for querying Stacklet's cloud governance GraphQL API, and 4 for AssetDB operations.
+This is an MCP (Model Context Protocol) server that provides comprehensive tools for interacting with the Stacklet platform. The server exposes 12 tools: 2 for documentation access, 4 for querying Stacklet's cloud governance GraphQL API, and 6 for AssetDB operations.
 
 ## Architecture
 
@@ -17,6 +17,7 @@ The codebase follows a modular design with clear separation of concerns:
 - `stacklet/mcp/assetdb_redash.py` - AssetDB client using Redash API for SQL queries and saved query management
 - `stacklet/mcp/docs_handler.py` - Documentation file reading and listing (hardcoded to ../../../docs/src)
 - `stacklet/mcp/models.py` - Pydantic models for structured responses
+- `stacklet/mcp/mcp_util.py` - JSON response guard utilities and decorators
 - `stacklet/mcp/utils.py` - Utility functions for package resources
 
 **Authentication Flow:**
@@ -73,6 +74,8 @@ just test      # Run pytest with optional args
 8. **`assetdb_sql_query`** - Execute ad-hoc SQL queries against AssetDB
 9. **`assetdb_query_list`** - List and search saved queries with pagination
 10. **`assetdb_query_get`** - Get detailed information about specific saved queries
+11. **`assetdb_query_results`** - Get results for saved queries with caching control
+12. **`assetdb_query_save`** - Create new queries or update existing ones
 
 ## Key Implementation Details
 

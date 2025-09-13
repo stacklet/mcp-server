@@ -13,6 +13,7 @@ from urllib.parse import urljoin
 
 import httpx
 
+from .models import QueryUpsert
 from .stacklet_auth import StackletCredentials
 
 
@@ -285,4 +286,33 @@ class AssetDBClient:
             Schema information with tables and columns
         """
         result = await self._make_request("GET", f"api/data_sources/{data_source_id}/schema")
+        return cast(dict[str, Any], result)
+
+    async def create_query(self, upsert: QueryUpsert) -> dict[str, Any]:
+        """
+        Create a new saved query.
+
+        Args:
+            upsert: QueryUpsert object with query data
+
+        Returns:
+            Complete query object with ID, timestamps, and metadata
+        """
+        payload = upsert.payload(data_source_id=1)
+        result = await self._make_request("POST", "api/queries", json=payload)
+        return cast(dict[str, Any], result)
+
+    async def update_query(self, query_id: int, upsert: QueryUpsert) -> dict[str, Any]:
+        """
+        Update an existing saved query.
+
+        Args:
+            query_id: ID of the query to update
+            upsert: QueryUpsert object with query data to update
+
+        Returns:
+            Complete updated query object with ID, timestamps, and metadata
+        """
+        payload = upsert.payload(data_source_id=1)
+        result = await self._make_request("POST", f"api/queries/{query_id}", json=payload)
         return cast(dict[str, Any], result)
