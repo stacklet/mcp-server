@@ -184,7 +184,7 @@ async def platform_graphql_query(
 async def assetdb_query_list(
     ctx: Context,
     page: Annotated[int, Field(ge=1, default=1)],
-    page_size: Annotated[int, Field(ge=1, le=100, default=-25)],
+    page_size: Annotated[int, Field(ge=1, le=100, default=25)],
     search: str | None = None,
     tags: list[str] | None = None,
 ) -> dict[str, Any]:

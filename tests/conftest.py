@@ -37,11 +37,11 @@ class MockHTTPXResponse:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError("HTTP Error", request=None, response=self)  # type:ignore
+            raise httpx.HTTPStatusError(f"http {self.status_code}", request=None, response=self)  # type:ignore
 
 
 class ExpectRequest:
-    def __init__(self, *, url, method="GET", data=None, status_code=200, response: Any = ""):
+    def __init__(self, url, *, method="GET", data=None, status_code=200, response: Any = ""):
         self.expect_url = url
         self.expect_method = method
         self.expect_data = data
@@ -95,30 +95,57 @@ def mock_assetdb_request(monkeypatch, mock_stacklet_credentials):
 @pytest.fixture
 def mock_assetdb_list_queries_response():
     """Sample response from Redash queries list API."""
-    return {
-        "results": [
+    from .factory import make_assetdb_query_dict, make_assetdb_query_list_response
+
+    queries = [
+        make_assetdb_query_dict(
+            id=123,
+            name="Test Query 1",
+            description="A sample query",
+            tags=["production", "monitoring"],
+            user_name="Test User",
+            parameters=[{"name": "limit", "type": "number"}],
+            include_visualizations=False,
+        ),
+        make_assetdb_query_dict(
+            id=456,
+            name="Test Query 2",
+            description="",
+            tags=[],
+            user_name="Another User",
+            is_draft=True,
+            parameters=[],
+            include_visualizations=False,
+        ),
+    ]
+
+    return make_assetdb_query_list_response(queries, total_count=2)
+
+
+@pytest.fixture
+def mock_assetdb_query_detail_response():
+    """Sample response from Redash query detail API (with visualizations that get removed)."""
+    from .factory import make_assetdb_query_dict
+
+    return make_assetdb_query_dict(
+        id=123,
+        name="Test Query Detail",
+        description="A detailed sample query",
+        query="SELECT id, name FROM resources WHERE created_at > '2024-01-01' LIMIT {{limit}}",
+        tags=["production", "monitoring", "resources"],
+        user_name="Test User",
+        user_email="test@example.com",
+        parameters=[{"name": "limit", "type": "number", "value": 10}],
+        visualizations=[
             {
-                "id": 123,
-                "name": "Test Query 1",
-                "description": "A sample query",
-                "tags": ["production", "monitoring"],
-                "user": {"name": "Test User"},
-                "is_archived": False,
-                "is_draft": False,
-                "data_source_id": 1,
-                "options": {"parameters": [{"name": "limit", "type": "number"}]},
-            },
-            {
-                "id": 456,
-                "name": "Test Query 2",
+                "id": 1,
+                "type": "TABLE",
+                "name": "Table",
                 "description": "",
-                "tags": [],
-                "user": {"name": "Another User"},
-                "is_archived": False,
-                "is_draft": True,
-                "data_source_id": 1,
                 "options": {},
-            },
+                "updated_at": "2024-01-01T00:00:00Z",
+                "created_at": "2024-01-01T00:00:00Z",
+            }
         ],
-        "count": 2,
-    }
+        include_visualizations=True,
+    )
