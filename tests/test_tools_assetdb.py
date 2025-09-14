@@ -305,8 +305,19 @@ class TestQuerySave(MCPTest):
                 }
             )
 
+    @json_guard_param("is_draft_param", True)
+    async def test_is_draft_update_true(self, is_draft_param):
+        with self.http.expect(
+            self.r(
+                {"is_draft": True},
+                update=123,
+                response=factory.redash_query(),
+            ),
+        ):
+            await self.assert_call({"query_id": 123, "is_draft": is_draft_param})
+
     @json_guard_param("is_draft_param", False)
-    async def test_is_draft(self, is_draft_param):
+    async def test_is_draft_update_false(self, is_draft_param):
         with self.http.expect(
             self.r(
                 {"is_draft": False},
@@ -316,15 +327,36 @@ class TestQuerySave(MCPTest):
         ):
             await self.assert_call({"query_id": 123, "is_draft": is_draft_param})
 
-    @json_guard_param("is_draft_param", False)
-    async def test_is_draft_create(self, is_draft_param):
+    @pytest.mark.parametrize("is_draft_param", [None, "null", ""])
+    async def test_is_draft_update_null(self, is_draft_param):
         with self.http.expect(
             self.r(
-                {"name": "q", "query": "select 1", "data_source_id": 1, "is_draft": False},
+                {"name": "x"},  # is_draft stripped
+                update=123,
+                response=factory.redash_query(),
+            ),
+        ):
+            await self.assert_call({"query_id": 123, "name": "x", "is_draft": is_draft_param})
+
+    @pytest.mark.parametrize("is_draft_param", [True, "true", None, "null", ""])
+    async def test_is_draft_create_true(self, is_draft_param):
+        with self.http.expect(
+            self.r(
+                {"name": "q", "query": "select 1", "data_source_id": 1, "is_draft": True},
                 response=factory.redash_query(),
             ),
         ):
             await self.assert_call({"name": "q", "query": "select 1", "is_draft": is_draft_param})
+
+    @json_guard_param("is_draft_param", False)
+    async def test_is_draft_create_false(self, is_draft_param):
+        with self.http.expect(
+            self.r(
+                {"is_draft": False, "name": "x", "query": "select 1"},
+                response=factory.redash_query(),
+            ),
+        ):
+            await self.assert_call({"name": "x", "query": "select 1", "is_draft": is_draft_param})
 
 
 def get_text(result: CallToolResult) -> str:
