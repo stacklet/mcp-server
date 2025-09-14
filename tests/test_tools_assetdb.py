@@ -15,7 +15,7 @@ from stacklet.mcp.mcp import mcp
 
 from . import factory
 from .conftest import ExpectRequest
-from .mcp_test import MCPTest, json_guard_param
+from .mcp_test import MCPTest, json_guard_parametrize
 
 
 pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
@@ -108,20 +108,20 @@ class TestQueryList(MCPTest):
             ],
         }
 
-    @json_guard_param("page_param", 3)
-    async def test_page(self, page_param):
+    @json_guard_parametrize([3, 5])
+    async def test_page(self, mangle, value):
         with self.http.expect(
             self.r(
-                data={"page": 3, "page_size": 1},
-                response=factory.redash_query_list([q123()], (3, 1, 7)),
+                data={"page": value, "page_size": 1},
+                response=factory.redash_query_list([q123()], (value, 1, 7)),
             ),
         ):
-            result = await self.assert_call({"page_size": 1, "page": page_param})
+            result = await self.assert_call({"page_size": 1, "page": mangle(value)})
 
         data = get_json(result)
         assert data["queries"][0]["id"] == 123
         assert data["pagination"] == {
-            "page": 3,
+            "page": value,
             "page_size": 1,
             "has_next_page": True,
             "total_count": 7,
@@ -134,29 +134,29 @@ class TestQueryList(MCPTest):
             result = await self.assert_call({"page": 999}, error=True)
 
         # XXX better errors might be nice, "page 999 out of range" is… likely?
-        assert get_text(result) == "Error calling tool 'assetdb_query_list': http 400"
+        assert get_text(result) == "Error calling tool 'assetdb_query_list': mocked http 400"
 
-    @json_guard_param("page_size_param", 10)
-    async def test_page_size(self, page_size_param):
+    @json_guard_parametrize([5, 10])
+    async def test_page_size(self, mangle, value):
         with self.http.expect(
             self.r(
-                data={"page_size": 10},
-                response=factory.redash_query_list([], (1, 10, 0)),
+                data={"page_size": value},
+                response=factory.redash_query_list([], (1, value, 0)),
             ),
         ):
-            result = await self.assert_call({"page_size": page_size_param})
+            result = await self.assert_call({"page_size": mangle(value)})
 
-        assert get_json(result) == self.empty_result_json(page_size=10)
+        assert get_json(result) == self.empty_result_json(page_size=value)
 
-    @json_guard_param("tags_param", ["production", "alerts"])
-    async def test_tags(self, tags_param):
+    @json_guard_parametrize([[], ["production", "alerts"]])
+    async def test_tags(self, mangle, value):
         with self.http.expect(
             self.r(
-                data={"tags": ["production", "alerts"]},
+                data={"tags": value} if value else {},  # http query arg list
                 response=factory.redash_query_list([], (1, 25, 0)),
             ),
         ):
-            result = await self.assert_call({"tags": tags_param})
+            result = await self.assert_call({"tags": mangle(value)})
 
         assert get_json(result) == self.empty_result_json()
 
@@ -186,15 +186,15 @@ class TestQueryList(MCPTest):
 class TestQueryGet(MCPTest):
     tool_name = "assetdb_query_get"
 
-    @json_guard_param("id_param", 123)
-    async def test_success(self, id_param):
+    @json_guard_parametrize([123])
+    async def test_success(self, mangle, value):
         """Test the assetdb_query_get tool with valid query ID."""
         with self.http.expect(
             ExpectRequest("https://example.com/api/queries/123", response=q123()),
         ):
-            result = await self.assert_call({"query_id": id_param})
+            result = await self.assert_call({"query_id": mangle(value)})
 
-        # NOTE that this is a fair amount more data than seen in query_list.
+        # NOTE that this is a fair amount more fields than seen in query_list.
         expect = q123()
         expect.pop("visualizations")
         assert get_json(result) == expect
@@ -207,12 +207,7 @@ class TestQueryGet(MCPTest):
             result = await self.assert_call({"query_id": 999}, error=True)
 
         # XXX better errors might be nice, "query 999 does not exist"
-        assert get_text(result) == "Error calling tool 'assetdb_query_get': http 404"
-
-
-def _options_value():
-    # Saves some unpleasant decorator formatting below in TestQuerySave
-    return {"parameters": [{"name": "region", "type": "text", "value": "us-east-1"}]}
+        assert get_text(result) == "Error calling tool 'assetdb_query_get': mocked http 404"
 
 
 class TestQuerySave(MCPTest):
@@ -230,9 +225,9 @@ class TestQuerySave(MCPTest):
     async def test_create_result(self):
         response = factory.redash_query(
             id=789,
-            name="New Test Query",
-            description="",
-            query="SELECT * FROM platform.account",
+            name="Untitled LLM Query",
+            query="",
+            description=None,
             is_draft=True,
         )
         expect = deepcopy(response)
@@ -241,29 +236,35 @@ class TestQuerySave(MCPTest):
         with self.http.expect(
             self.r(
                 {
-                    "name": "New Test Query",
-                    "query": "SELECT * FROM platform.account",
+                    "name": "Untitled LLM Query",
+                    "query": "",
                     "data_source_id": 1,
-                    "is_draft": True,
                 },
                 response=response,
             ),
         ):
-            result = await self.assert_call(
-                {"name": "New Test Query", "query": "SELECT * FROM platform.account"}
-            )
+            result = await self.assert_call({})
 
         assert get_json(result) == expect
 
-    @json_guard_param("null_value", None)
+    @pytest.mark.parametrize("null_value", [None, "null", ""])
     async def test_create_nulls(self, null_value):
+        params = {
+            "query_id": null_value,  # this should force "create"
+            "name": "New Test Query",
+            "query": "SELECT * FROM platform.account",
+            "description": null_value,
+            "tags": null_value,
+            "options": null_value,
+            "is_draft": null_value,
+        }
+
         with self.http.expect(
             self.r(
                 {
                     "name": "New Test Query",
                     "query": "SELECT * FROM platform.account",
                     "data_source_id": 1,
-                    "is_draft": True,
                 }
                 | (
                     # all the null_values are ignored EXCEPT description, which
@@ -275,120 +276,52 @@ class TestQuerySave(MCPTest):
                 response=factory.redash_query(),
             ),
         ):
-            await self.assert_call(
-                {
-                    "query_id": null_value,
-                    "name": "New Test Query",
-                    "query": "SELECT * FROM platform.account",
-                    "description": null_value,
-                    "tags": null_value,
-                    "options": null_value,
-                    "is_draft": null_value,
-                }
-            )
+            await self.assert_call(params)
 
-    @json_guard_param("query_id_param", 123)
-    async def test_update_result(self, query_id_param):
+    @json_guard_parametrize([123])
+    async def test_update_result(self, mangle, value):
         response = factory.redash_query(
-            id=123,
+            id=value,
             description="Updated description",
         )
         expect = deepcopy(response)
         expect.pop("visualizations")
 
         with self.http.expect(
-            self.r(
-                {"description": "Updated description"},
-                update=123,
-                response=response,
-            ),
+            self.r({"description": "Updated description"}, update=value, response=response),
         ):
             result = await self.assert_call(
-                {"query_id": query_id_param, "description": "Updated description"}
+                {"query_id": mangle(value), "description": "Updated description"}
             )
 
         assert get_json(result) == expect
 
-    @json_guard_param("tags_param", ["ping", "pong"])
-    async def test_tags(self, tags_param):
+    @json_guard_parametrize([[], ["ping", "pong"]])
+    async def test_tags(self, mangle, value):
         with self.http.expect(
-            self.r(
-                {"tags": ["ping", "pong"]},
-                update=123,
-                response=factory.redash_query(),
-            ),
+            self.r({"tags": value}, update=123, response=factory.redash_query()),
         ):
-            await self.assert_call({"query_id": 123, "tags": tags_param})
+            await self.assert_call({"query_id": 123, "tags": mangle(value)})
 
-    @json_guard_param("options_param", _options_value())
-    async def test_options(self, options_param):
+    @json_guard_parametrize(
+        [
+            {},
+            {"what": "ever"},
+            {"parameters": [{"name": "region", "type": "text", "value": "us-east-1"}]},
+        ]
+    )
+    async def test_options(self, mangle, value):
         with self.http.expect(
-            self.r(
-                {"options": _options_value()},
-                update=123,
-                response=factory.redash_query(),
-            ),
+            self.r({"options": value}, update=123, response=factory.redash_query()),
         ):
-            await self.assert_call(
-                {
-                    "query_id": 123,
-                    "options": options_param,
-                }
-            )
+            await self.assert_call({"query_id": 123, "options": mangle(value)})
 
-    @json_guard_param("is_draft_param", True)
-    async def test_is_draft_update_true(self, is_draft_param):
+    @json_guard_parametrize([True, False])
+    async def test_is_draft(self, mangle, value):
         with self.http.expect(
-            self.r(
-                {"is_draft": True},
-                update=123,
-                response=factory.redash_query(),
-            ),
+            self.r({"is_draft": value}, update=123, response=factory.redash_query()),
         ):
-            await self.assert_call({"query_id": 123, "is_draft": is_draft_param})
-
-    @json_guard_param("is_draft_param", False)
-    async def test_is_draft_update_false(self, is_draft_param):
-        with self.http.expect(
-            self.r(
-                {"is_draft": False},
-                update=123,
-                response=factory.redash_query(),
-            ),
-        ):
-            await self.assert_call({"query_id": 123, "is_draft": is_draft_param})
-
-    @json_guard_param("is_draft_param", None)
-    async def test_is_draft_update_null(self, is_draft_param):
-        with self.http.expect(
-            self.r(
-                {"name": "x"},  # is_draft stripped
-                update=123,
-                response=factory.redash_query(),
-            ),
-        ):
-            await self.assert_call({"query_id": 123, "name": "x", "is_draft": is_draft_param})
-
-    # Both truthy and noney values create as draft.
-    @json_guard_param("is_draft_param", True, None)
-    async def test_is_draft_create_true(self, is_draft_param):
-        with self.http.expect(
-            self.r(
-                {"name": "q", "query": "select 1", "data_source_id": 1, "is_draft": True},
-                response=factory.redash_query(),
-            ),
-        ):
-            await self.assert_call({"name": "q", "query": "select 1", "is_draft": is_draft_param})
-
-    @json_guard_param("is_draft_param", False)
-    async def test_is_draft_create_false(self, is_draft_param):
-        with self.http.expect(
-            self.r(
-                {"name": "x", "query": "select 1", "data_source_id": 1, "is_draft": False},
-                response=factory.redash_query(),
-            ),
-        ):
-            await self.assert_call({"name": "x", "query": "select 1", "is_draft": is_draft_param})
+            await self.assert_call({"query_id": 123, "is_draft": mangle(value)})
 
 
 def get_text(result: CallToolResult) -> str:

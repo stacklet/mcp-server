@@ -12,7 +12,7 @@ class DocsList(BaseModel):
 
 
 class DocContent(BaseModel):
-    """Content for a documxent."""
+    """Content for a document."""
 
     file_path: Path
     content: str

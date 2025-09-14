@@ -2,8 +2,7 @@ from typing import Any
 
 from fastmcp import Context
 
-from ..mcp_util import json_guard
-from ..utils import get_package_file
+from ..utils import get_package_file, json_guard
 from .graphql import PlatformClient
 
 

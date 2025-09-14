@@ -37,7 +37,11 @@ class MockHTTPXResponse:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError(f"http {self.status_code}", request=None, response=self)  # type:ignore
+            raise httpx.HTTPStatusError(
+                f"mocked http {self.status_code}",
+                request=None,  # type:ignore
+                response=self,  # type:ignore
+            )
 
 
 class ExpectRequest:

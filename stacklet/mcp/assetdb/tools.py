@@ -3,8 +3,7 @@ from typing import Annotated, Any
 from fastmcp import Context
 from pydantic import Field
 
-from ..mcp_util import json_guard
-from ..utils import get_package_file
+from ..utils import get_package_file, json_guard
 from .models import QueryUpsert
 from .redash import AssetDBClient
 
@@ -192,13 +191,12 @@ async def assetdb_query_save(
 ) -> dict[str, Any]:
     """
     With "query_id" set, updates an existing query; otherwise creates a new
-    query (in which case "name" and "query" must be set). All other arguments
-    are always optional.
+    query. All arguments are optional.
 
     Args:
+        query_id: Int ID of existing query to update
         name: Query display name string
         query: SQL query text string
-        query_id: int ID of existing query to update
         description: Query description string
         tags: List of string tags for categorization
         options: Query options/parameters configuration dict
@@ -220,8 +218,10 @@ async def assetdb_query_save(
     if query_id and query_id > 0:
         result = await client.update_query(query_id, upsert)
     else:
-        if upsert.is_draft is None:
-            upsert.is_draft = True
+        if not upsert.name:  # Accepted by redash, but unreasonable.
+            upsert.name = "Untitled LLM Query"
+        if upsert.query is None:  # This would actually 500.
+            upsert.query = ""  # Maybe also unreasonable, but will get feedback.
         result = await client.create_query(upsert)
 
     result.pop("visualizations", None)  # sometimes large, not currently relevant

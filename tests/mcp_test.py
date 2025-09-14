@@ -13,14 +13,17 @@ async def mcp_client(mock_stacklet_credentials):
         yield client
 
 
-def json_guard_param(arg, *raw_values):
-    "parametrize arg with value and JSON-encoded value, see json_guard"
-    values = []
-    for value in raw_values:
-        values = [value, json.dumps(value)]
-        if value is None:
-            values.append("")  # I haven't _seen_ this but I don't trust LLMs not to.
-    return pytest.mark.parametrize(arg, values)
+def json_guard_parametrize(values):
+    """
+    Parametrizes with `value` (taken from `values`), and `mangle` which is either
+    `json.dumps` or the identity function, to enable us to test that we treat both
+    `value` and `mangle(value)` exactly the same.
+
+    Wish we didn't have to, see json_guard.
+    """
+    mangle = pytest.mark.parametrize("mangle", [json.dumps, lambda x: x])
+    value = pytest.mark.parametrize("value", values)
+    return lambda fn: mangle(value(fn))
 
 
 class MCPTest:
