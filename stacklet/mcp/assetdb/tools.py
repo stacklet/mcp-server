@@ -112,9 +112,6 @@ async def assetdb_query_results(
         Query results with data, columns, and metadata
         OR download information if download_format was specified
     """
-    if timeout > 300:
-        timeout = 300  # Cap at 5 minutes
-
     client = AssetDBClient.get(ctx)
     result_id = await client.execute_saved_query(
         query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout

@@ -12,11 +12,10 @@ The codebase follows a modular design with clear separation of concerns:
 
 **Core Components:**
 - `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions
-- `stacklet/mcp/stacklet_auth.py` - Authentication credential loading (follows Terraform provider patterns)
+- `stacklet/mcp/stacklet_auth.py` - Authentication credential loading
 - `stacklet/mcp/docs_handler.py` - Documentation file reading and listing (hardcoded to ../../../docs/src)
 - `stacklet/mcp/models.py` - Pydantic models for structured responses
-- `stacklet/mcp/mcp_util.py` - JSON response guard utilities and decorators
-- `stacklet/mcp/utils.py` - Utility functions for package resources
+- `stacklet/mcp/utils.py` - Utility functions for tool implementations
 
 **Platform Package:**
 - `stacklet/mcp/platform/graphql.py` - Platform GraphQL client with instance-level schema caching
@@ -28,10 +27,9 @@ The codebase follows a modular design with clear separation of concerns:
 - `stacklet/mcp/assetdb/tools.py` - AssetDB tool implementations (assetdb_query_list, assetdb_sql_query, etc.)
 
 **Authentication Flow:**
-The authentication system mirrors the Stacklet Terraform provider's credential resolution:
-1. Direct parameters (endpoint, access_token, identity_token)
-2. Environment variables (`STACKLET_ENDPOINT`, `STACKLET_ACCESS_TOKEN`, `STACKLET_IDENTITY_TOKEN`)
-3. CLI config files (`~/.stacklet/config.json`, `~/.stacklet/credentials`, `~/.stacklet/id`)
+The authentication system echoes the Stacklet Terraform provider's credential resolution:
+1. Environment variables (`STACKLET_ENDPOINT`, `STACKLET_ACCESS_TOKEN`, `STACKLET_IDENTITY_TOKEN`)
+2. Config files saved by the `stacklet-admin` CLI in `~/.stacklet`
 
 Note: `identity_token` is required for AssetDB access via Redash authentication cookies.
 
@@ -53,7 +51,6 @@ uv sync
 ```bash
 uv run mcp
 # or: just run
-# or directly: python stacklet/mcp/mcp.py
 ```
 
 **Development commands (via justfile):**
@@ -92,7 +89,7 @@ just test      # Run pytest with optional args
 
 **Error Handling:** All GraphQL and SQL operations return structured responses, with network errors and JSON parsing errors handled gracefully. AssetDB supports async query polling for long-running operations.
 
-**Credential Security:** Access tokens and identity tokens are never logged or exposed in error messages. The authentication module follows secure patterns from the official Terraform provider.
+**Credential Security:** Access tokens and identity tokens are never logged or exposed in error messages.
 
 **Platform Integration:** Uses GraphQL API for Stacklet platform operations. The Platform package is organized into:
 - `graphql.py` - Core GraphQL client with schema caching and introspection
@@ -110,7 +107,6 @@ Supports query timeouts (max 300s), pagination, search, and tag filtering.
 The server requires Stacklet credentials configured through one of:
 - Environment variables: `STACKLET_ENDPOINT`, `STACKLET_ACCESS_TOKEN`, and `STACKLET_IDENTITY_TOKEN`
 - CLI config: `~/.stacklet/config.json` (endpoint), `~/.stacklet/credentials` (access token), and `~/.stacklet/id` (identity token)
-- Direct parameter passing to functions
 
 **External Dependencies:**
 - Documentation files must be available at `../../../docs/src/` relative to the MCP server location
@@ -118,11 +114,34 @@ The server requires Stacklet credentials configured through one of:
 
 ## Known Issues & Design Notes
 
+When you're editing code which matches one of these concerns, think extra hard about
+the impact of your changes; prefer to mitigate these issues rather than further
+entrench them.
+
 **Documentation Path Dependency:** The docs handler has a hardcoded path dependency (`DOCS_ROOT = Path(__file__).parent / ".." / ".." / ".." / "docs" / "src"`) which assumes a specific directory structure outside the MCP codebase.
 
-**AssetDB Data Source:** The AssetDB client defaults to `data_source_id=1` for the main AssetDB instance. This is hardcoded but can be overridden in function calls.
+**AssetDB Data Source:** The AssetDB client defaults to `data_source_id=1` for the main AssetDB instance. This is hardcoded but can be overridden in function calls
+internally.
 
-**Authentication Complexity:** Requires three different credential types (endpoint, access_token, identity_token) which must all be configured correctly for full functionality.
+**Authentication Complexity:** Requires three different credential fields (endpoint, access_token, identity_token) which must all be configured correctly for full functionality.
+
+**Test Coverage:** Most tests are end-to-end tool tests with mocked downstream HTTP
+interactions. The abstraction level is good, but coverage is severely lacking in
+platform (and, to a lesser extent, in assetdb).
+
+**Dict Returns:** Many tools and client methods should return better-structured data.
+
+**Loose Validation:** Tool parameters in particular could often benefit from further
+type annotation to encode (and advertise to clients!) expectations. Obvious examples include:
+- download_format literals
+- assetdb result timeout
+- query_id >= 1
+
+## Important Advice
+
 - When running python in this project, always use "uv run python".
-
-When you've made code changes, veryif them with "just test" and "just lint".
+- When you've made code changes, verify them with "just test" and "just lint".
+- You will find it useful to have access to the Redash source code as you work; this
+  project talks to `https://github.com/stacklet/redash`, NOT the upstream project by
+  `getredash`. Cloning that repository into a temp directory and using the filesystem
+  is the most effective way to answer questions about redah implementation details.
