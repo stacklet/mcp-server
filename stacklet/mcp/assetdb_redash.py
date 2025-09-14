@@ -385,6 +385,6 @@ class AssetDBClient:
         Returns:
             Complete updated query object with ID, timestamps, and metadata
         """
-        payload = upsert.payload(data_source_id=1)
+        payload = upsert.payload()
         result = await self._make_request("POST", f"api/queries/{query_id}", json=payload)
         return cast(dict[str, Any], result)

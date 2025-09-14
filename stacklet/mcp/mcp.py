@@ -357,25 +357,27 @@ async def assetdb_sql_query(
 @json_guard
 async def assetdb_query_save(
     ctx: Context,
-    name: str,
-    query: str,
     query_id: int | None = None,
+    name: str | None = None,
+    query: str | None = None,
     description: str | None = None,
     tags: list[str] | None = None,
     options: dict[str, Any] | None = None,
     is_draft: bool | None = None,
 ) -> dict[str, Any]:
     """
-    Create a new query or update an existing one.
+    With "query_id" set, updates an existing query; otherwise creates a new
+    query (in which case "name" and "query" must be set). All other arguments
+    are always optional.
 
     Args:
         name: Query display name string
         query: SQL query text string
-        query_id: int ID of existing query to update, or 0 to create new query (default: 0)
-        description: Optional query description string
-        tags: Optional list of string tags for categorization
-        options: Optional query options/parameters configuration dict
-        is_draft: Optional draft status (defaults to True for new queries)
+        query_id: int ID of existing query to update
+        description: Query description string
+        tags: List of string tags for categorization
+        options: Query options/parameters configuration dict
+        is_draft: Draft status (defaults to True for new queries)
 
     Returns:
         Complete query object with ID, timestamps, and metadata
@@ -391,11 +393,14 @@ async def assetdb_query_save(
 
     client = get_assetdb_client(ctx)
     if query_id and query_id > 0:
-        return await client.update_query(query_id, upsert)
+        result = await client.update_query(query_id, upsert)
     else:
         if upsert.is_draft is None:
             upsert.is_draft = True
-        return await client.create_query(upsert)
+        result = await client.create_query(upsert)
+
+    result.pop("visualizations", None)  # sometimes large, not currently relevant
+    return result
 
 
 @mcp.tool()

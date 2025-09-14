@@ -4,6 +4,7 @@ Tests for AssetDB MCP tools using FastMCP's in-memory testing pattern.
 
 import json
 
+from copy import deepcopy
 from typing import Any
 
 import pytest
@@ -128,22 +129,18 @@ class TestQueryList(MCPTest):
 
     async def test_page_missing(self):
         with self.http.expect(
-            self.r(data={"page": 999}, status_code=404),
+            self.r(data={"page": 999}, status_code=400),
         ):
             result = await self.assert_call({"page": 999}, error=True)
 
-        # XXX better errors might be nice, "page 999 does not exist"
-        assert get_text(result) == "Error calling tool 'assetdb_query_list': http 404"
+        # XXX better errors might be nice, "page 999 out of range" is… likely?
+        assert get_text(result) == "Error calling tool 'assetdb_query_list': http 400"
 
     @json_guard_param("page_size_param", 10)
     async def test_page_size(self, page_size_param):
         with self.http.expect(
-            ExpectRequest(
-                "https://example.com/api/queries",
-                data={
-                    "page": 1,
-                    "page_size": 10,
-                },
+            self.r(
+                data={"page_size": 10},
                 response=factory.redash_query_list([], (1, 10, 0)),
             ),
         ):
@@ -211,6 +208,123 @@ class TestQueryGet(MCPTest):
 
         # XXX better errors might be nice, "query 999 does not exist"
         assert get_text(result) == "Error calling tool 'assetdb_query_get': http 404"
+
+
+class TestQuerySave(MCPTest):
+    tool_name = "assetdb_query_save"
+
+    def r(self, data, *, update=None, status_code=200, response: Any = ""):
+        return ExpectRequest(
+            "https://example.com/api/queries" + (f"/{update}" if update else ""),
+            method="POST",
+            data=data,
+            status_code=status_code,
+            response=response,
+        )
+
+    async def test_create_result(self):
+        response = factory.redash_query(
+            id=789,
+            name="New Test Query",
+            description="",
+            query="SELECT * FROM platform.account",
+            is_draft=True,
+        )
+        expect = deepcopy(response)
+        expect.pop("visualizations")
+
+        with self.http.expect(
+            self.r(
+                {
+                    "name": "New Test Query",
+                    "query": "SELECT * FROM platform.account",
+                    "data_source_id": 1,
+                    "is_draft": True,
+                },
+                response=response,
+            ),
+        ):
+            result = await self.assert_call(
+                {"name": "New Test Query", "query": "SELECT * FROM platform.account"}
+            )
+
+        assert get_json(result) == expect
+
+    @json_guard_param("query_id_param", 123)
+    async def test_update_result(self, query_id_param):
+        response = factory.redash_query(
+            id=123,
+            description="Updated description",
+        )
+        expect = deepcopy(response)
+        expect.pop("visualizations")
+
+        with self.http.expect(
+            self.r(
+                {"description": "Updated description"},
+                update=123,
+                response=response,
+            ),
+        ):
+            result = await self.assert_call(
+                {"query_id": query_id_param, "description": "Updated description"}
+            )
+
+        assert get_json(result) == expect
+
+    @json_guard_param("tags_param", ["ping", "pong"])
+    async def test_tags(self, tags_param):
+        with self.http.expect(
+            self.r(
+                {"tags": ["ping", "pong"]},
+                update=123,
+                response=factory.redash_query(),
+            ),
+        ):
+            await self.assert_call({"query_id": 123, "tags": tags_param})
+
+    @json_guard_param(
+        "options_param", {"parameters": [{"name": "region", "type": "text", "value": "us-east-1"}]}
+    )
+    async def test_options(self, options_param):
+        with self.http.expect(
+            self.r(
+                {
+                    "options": {
+                        "parameters": [{"name": "region", "type": "text", "value": "us-east-1"}]
+                    },
+                },
+                update=123,
+                response=factory.redash_query(),
+            ),
+        ):
+            await self.assert_call(
+                {
+                    "query_id": 123,
+                    "options": options_param,
+                }
+            )
+
+    @json_guard_param("is_draft_param", False)
+    async def test_is_draft(self, is_draft_param):
+        with self.http.expect(
+            self.r(
+                {"is_draft": False},
+                update=123,
+                response=factory.redash_query(),
+            ),
+        ):
+            await self.assert_call({"query_id": 123, "is_draft": is_draft_param})
+
+    @json_guard_param("is_draft_param", False)
+    async def test_is_draft_create(self, is_draft_param):
+        with self.http.expect(
+            self.r(
+                {"name": "q", "query": "select 1", "data_source_id": 1, "is_draft": False},
+                response=factory.redash_query(),
+            ),
+        ):
+            await self.assert_call({"name": "q", "query": "select 1", "is_draft": is_draft_param})
 
 
 def get_text(result: CallToolResult) -> str:

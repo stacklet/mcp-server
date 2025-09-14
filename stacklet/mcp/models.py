@@ -29,7 +29,7 @@ class QueryUpsert(BaseModel):
     options: dict[str, Any] | None = None
     is_draft: bool | None = None
 
-    def payload(self, data_source_id: int) -> dict[str, Any]:
+    def payload(self, data_source_id: int | None = None) -> dict[str, Any]:
         """
         Build API payload for query create/update.
 
@@ -54,6 +54,7 @@ class QueryUpsert(BaseModel):
         if self.is_draft is not None:
             payload["is_draft"] = self.is_draft
 
-        payload["data_source_id"] = data_source_id
+        if data_source_id:
+            payload["data_source_id"] = data_source_id
 
         return payload
