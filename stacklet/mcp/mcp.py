@@ -201,38 +201,38 @@ async def assetdb_query_list(
         List of queries with pagination metadata
     """
     client = get_assetdb_client(ctx)
-
-    result = await client.list_queries(
+    response = await client.list_queries(
         page=page,
-        page_size=min(page_size, 100),  # Cap at reasonable limit
+        page_size=page_size,
         search=search,
         tags=tags,
     )
 
     # Clean up the response for LLM consumption
     queries = []
-    for q in result.get("results", []):
+    for q in response.results:
         queries.append(
             {
-                "id": q["id"],
-                "name": q["name"],
-                "description": q.get("description", ""),
-                "tags": q.get("tags", []),
-                "user": q["user"],
-                "is_archived": q.get("is_archived", False),
-                "is_draft": q.get("is_draft", False),
-                "data_source_id": q["data_source_id"],
-                "has_parameters": bool(q.get("options", {}).get("parameters")),
+                "id": q.id,
+                "name": q.name,
+                "description": q.description,
+                "has_parameters": bool(q.options.get("parameters")),
+                "data_source_id": q.data_source_id,
+                "is_archived": q.is_archived,
+                "is_draft": q.is_draft,
+                "is_favorite": q.is_favorite,
+                "tags": q.tags,
+                "user": q.user,
             }
         )
 
     return {
         "queries": queries,
         "pagination": {
-            "page": page,
-            "page_size": page_size,
-            "total_count": result.get("count", 0),
-            "has_next": page * page_size < result.get("count", 0),
+            "page": response.page,
+            "page_size": response.page_size,
+            "has_next_page": page * page_size < response.count,
+            "total_count": response.count,
         },
     }
 

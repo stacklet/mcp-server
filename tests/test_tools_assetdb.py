@@ -26,111 +26,191 @@ async def mcp_client(mock_stacklet_credentials):
         yield client
 
 
-async def test_sql_info(mcp_client):
-    """Test the assetdb_sql_info tool returns expected documentation content."""
-    result = await mcp_client.call_tool("assetdb_sql_info", {})
+class TestSQLInfo(MCPTest):
+    tool_name = "assetdb_sql_info"
 
-    # Verify we get the expected result structure
-    assert hasattr(result, "content")
-    assert len(result.content) == 1
-    assert hasattr(result.content[0], "text")
+    async def test_returns_expected_documentation(self):
+        """Test the assetdb_sql_info tool returns expected documentation content."""
+        result = await self.assert_call({})
+        content = get_text(result)
 
-    content = result.content[0].text
+        # Verify the content contains expected AssetDB documentation
+        assert "Stacklet AssetDB SQL Overview" in content
+        assert "PostgreSQL 16" in content
+        assert "resources" in content
+        assert "resource_revisions" in content
+        assert "account_cost" in content
 
-    # Verify the content contains expected AssetDB documentation
-    assert "Stacklet AssetDB SQL Overview" in content
-    assert "PostgreSQL 16" in content
-    assert "resources" in content
-    assert "resource_revisions" in content
-    assert "account_cost" in content
-
-    # Verify it contains guidance about querying
-    assert "LIMIT" in content
-    assert "indexes" in content
-    assert "EXPLAIN" in content
+        # Verify it contains guidance about querying
+        assert "LIMIT" in content
+        assert "indexes" in content
+        assert "EXPLAIN" in content
 
 
 class TestQueryList(MCPTest):
     tool_name = "assetdb_query_list"
 
-    async def test_basic(self, mock_assetdb_list_queries_response):
+    def r(self, *, data={}, status_code=200, response: Any = "") -> ExpectRequest:
+        return ExpectRequest(
+            "https://example.com/api/queries",
+            data={"page": 1, "page_size": 25} | data,
+            status_code=status_code,
+            response=response,
+        )
+
+    async def test_queries(self):
         with self.http.expect(
-            ExpectRequest(
-                "https://example.com/api/queries",
-                data={"page": 1, "page_size": 25},
-                response=mock_assetdb_list_queries_response,
-            ),
+            self.r(response=factory.redash_query_list([q123(), q456()], (1, 25, 2))),
         ):
             result = await self.assert_call({})
 
-        # Verify tool response structure and content
+        assert get_json(result) == {
+            "pagination": {
+                "page": 1,
+                "page_size": 25,
+                "has_next_page": False,
+                "total_count": 2,
+            },
+            "queries": [
+                {
+                    "id": 123,
+                    "name": "Test Query 1",
+                    "description": "The first one",
+                    "has_parameters": True,
+                    "data_source_id": 1,
+                    "is_archived": False,
+                    "is_draft": False,
+                    "is_favorite": True,
+                    "tags": ["production", "monitoring"],
+                    "user": {
+                        "email": "test@example.com",
+                        "id": 1,
+                        "name": "Test User",
+                    },
+                },
+                {
+                    "id": 456,
+                    "name": "Test Query 2",
+                    "description": "A sample query",
+                    "has_parameters": False,
+                    "data_source_id": 1,
+                    "is_archived": False,
+                    "is_draft": True,
+                    "is_favorite": False,
+                    "tags": [],
+                    "user": {
+                        "email": "test@example.com",
+                        "id": 1,
+                        "name": "Test User",
+                    },
+                },
+            ],
+        }
+
+    @json_guard_param("page_param", 3)
+    async def test_page(self, page_param):
+        with self.http.expect(
+            self.r(
+                data={"page": 3, "page_size": 1},
+                response=factory.redash_query_list([q123()], (3, 1, 7)),
+            ),
+        ):
+            result = await self.assert_call({"page_size": 1, "page": page_param})
+
         data = get_json(result)
-
-        # Check response structure
-        assert "queries" in data
-        assert "pagination" in data
-
-        # Check query data transformation
-        assert len(data["queries"]) == 2
         assert data["queries"][0]["id"] == 123
-        assert data["queries"][0]["name"] == "Test Query 1"
-        assert data["queries"][0]["has_parameters"] is True
-        assert data["queries"][1]["has_parameters"] is False
+        assert data["pagination"] == {
+            "page": 3,
+            "page_size": 1,
+            "has_next_page": True,
+            "total_count": 7,
+        }
 
-        # Check pagination
-        assert data["pagination"]["total_count"] == 2
-        assert data["pagination"]["page"] == 1
-        assert data["pagination"]["page_size"] == 25
+    async def test_page_missing(self):
+        with self.http.expect(
+            self.r(data={"page": 999}, status_code=404),
+        ):
+            result = await self.assert_call({"page": 999}, error=True)
 
-    @json_guard_param("tags_param", ["production", "alerts"])
-    async def test_tags_param(self, mock_assetdb_list_queries_response, tags_param):
-        """Test the assetdb_query_list tool with search and pagination parameters."""
+        # XXX better errors might be nice, "page 999 does not exist"
+        assert get_text(result) == "Error calling tool 'assetdb_query_list': http 404"
+
+    @json_guard_param("page_size_param", 10)
+    async def test_page_size(self, page_size_param):
         with self.http.expect(
             ExpectRequest(
                 "https://example.com/api/queries",
                 data={
                     "page": 1,
-                    "page_size": 25,
-                    "q": "monitoring metrics",
-                    "tags": ["production", "alerts"],
+                    "page_size": 10,
                 },
-                response={"results": []},
+                response=factory.redash_query_list([], (1, 10, 0)),
             ),
         ):
-            result = await self.assert_call(
-                {"search": "monitoring metrics", "tags": tags_param},
-            )
+            result = await self.assert_call({"page_size": page_size_param})
 
-        # Verify response structure is correct
-        data = get_json(result)
-        assert data["pagination"]["page"] == 1
-        assert data["pagination"]["page_size"] == 25
-        assert len(data["queries"]) == 0
+        assert get_json(result) == self.empty_result_json(page_size=10)
+
+    @json_guard_param("tags_param", ["production", "alerts"])
+    async def test_tags(self, tags_param):
+        with self.http.expect(
+            self.r(
+                data={"tags": ["production", "alerts"]},
+                response=factory.redash_query_list([], (1, 25, 0)),
+            ),
+        ):
+            result = await self.assert_call({"tags": tags_param})
+
+        assert get_json(result) == self.empty_result_json()
+
+    async def test_search(self):
+        with self.http.expect(
+            self.r(
+                data={"q": "lol whatever"},
+                response=factory.redash_query_list([], (1, 25, 0)),
+            ),
+        ):
+            result = await self.assert_call({"search": "lol whatever"})
+
+        assert get_json(result) == self.empty_result_json()
+
+    def empty_result_json(self, page_size=25):
+        return {
+            "queries": [],
+            "pagination": {
+                "page": 1,
+                "page_size": page_size,
+                "has_next_page": False,
+                "total_count": 0,
+            },
+        }
 
 
-@json_guard_param("id_param", 123)
-async def test_query_get_success(mcp_client, mock_assetdb_request, id_param):
-    """Test the assetdb_query_get tool with valid query ID."""
-    model = factory.make_assetdb_query_dict(id=123)
-    with mock_assetdb_request.expect(
-        ExpectRequest("https://example.com/api/queries/123", response=model),
-    ):
-        result = await mcp_client.call_tool("assetdb_query_get", {"query_id": id_param})
+class TestQueryGet(MCPTest):
+    tool_name = "assetdb_query_get"
 
-    expect = factory.make_assetdb_query_dict(id=123)
-    expect.pop("visualizations")
-    assert get_json(result) == expect
+    @json_guard_param("id_param", 123)
+    async def test_success(self, id_param):
+        """Test the assetdb_query_get tool with valid query ID."""
+        with self.http.expect(
+            ExpectRequest("https://example.com/api/queries/123", response=q123()),
+        ):
+            result = await self.assert_call({"query_id": id_param})
 
+        # NOTE that this is a fair amount more data than seen in query_list.
+        expect = q123()
+        expect.pop("visualizations")
+        assert get_json(result) == expect
 
-async def test_query_get_not_found(mcp_client, mock_assetdb_request):
-    """Test the assetdb_query_get tool with non-existent query ID."""
-    with mock_assetdb_request.expect(
-        ExpectRequest("https://example.com/api/queries/999", status_code=404),
-    ):
-        result = await mcp_client.call_tool_mcp("assetdb_query_get", {"query_id": 999})
+    async def test_not_found(self):
+        """Test the assetdb_query_get tool with non-existent query ID."""
+        with self.http.expect(
+            ExpectRequest("https://example.com/api/queries/999", status_code=404),
+        ):
+            result = await self.assert_call({"query_id": 999}, error=True)
 
-    assert result.isError
-    assert get_text(result) == "Error calling tool 'assetdb_query_get': http 404"
+        # XXX better errors might be nice, "query 999 does not exist"
+        assert get_text(result) == "Error calling tool 'assetdb_query_get': http 404"
 
 
 def get_text(result: CallToolResult) -> str:
@@ -140,3 +220,22 @@ def get_text(result: CallToolResult) -> str:
 
 def get_json(result: CallToolResult) -> Any:
     return json.loads(get_text(result))
+
+
+def q123():
+    return factory.redash_query(
+        id=123,
+        name="Test Query 1",
+        description="The first one",
+        tags=["production", "monitoring"],
+        parameters=[{"name": "limit", "type": "number"}],
+        is_favorite=True,
+    )
+
+
+def q456():
+    return factory.redash_query(
+        id=456,
+        name="Test Query 2",
+        is_draft=True,
+    )

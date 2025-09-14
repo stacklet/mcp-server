@@ -3,15 +3,19 @@ AssetDB client using Redash API with Stacklet authentication.
 """
 
 import asyncio
+import copy
 import tempfile
 import time
 
+from datetime import datetime
 from enum import IntEnum
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urljoin
 
 import httpx
+
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from .models import QueryUpsert
 from .stacklet_auth import StackletCredentials
@@ -25,6 +29,74 @@ class JobStatus(IntEnum):
     CANCELED = 5
     DEFERRED = 6
     SCHEDULED = 7
+
+
+class User(BaseModel):
+    """Redash user object model."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int
+    name: str | None = None
+    email: str | None = None
+
+
+class Query(BaseModel):
+    """Redash query object model based on serialize_query output."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int
+    latest_query_data_id: int | None
+    name: str
+    description: str
+    query: str
+    schedule: str | None
+    api_key: str
+    is_archived: bool
+    is_draft: bool
+    updated_at: datetime
+    created_at: datetime
+    data_source_id: int
+    options: dict[str, Any]
+    tags: list[str]
+    is_safe: bool
+    user: User
+    last_modified_by: User | None = None
+    retrieved_at: datetime | None = None
+    runtime: float | None = None
+    is_favorite: bool
+
+    @model_validator(mode="before")
+    @classmethod
+    def transform_user_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Deep copy to avoid any mutation issues
+            data = copy.deepcopy(data)
+
+            # Handle user field - convert user_id to User object if needed
+            if "user_id" in data and "user" not in data:
+                data["user"] = {"id": data["user_id"]}
+
+            # Handle last_modified_by - convert last_modified_by_id to User object if needed
+            if "last_modified_by_id" in data and "last_modified_by" not in data:
+                if data["last_modified_by_id"] is not None:
+                    data["last_modified_by"] = {"id": data["last_modified_by_id"]}
+                else:
+                    data["last_modified_by"] = None
+
+        return data
+
+
+class QueryListResponse(BaseModel):
+    """Response model for query list endpoint."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    count: int
+    page: int
+    page_size: int
+    results: list[Query]
 
 
 class AssetDBClient:
@@ -71,7 +143,7 @@ class AssetDBClient:
         page_size: int = 25,
         search: str | None = None,
         tags: list[str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> QueryListResponse:
         """
         Get list of queries with search and sorting support.
 
@@ -82,7 +154,7 @@ class AssetDBClient:
             tags: Filter out queries not matching all tags
 
         Returns:
-            Full API response including queries and pagination metadata
+            Structured response with queries and pagination metadata
         """
         params: dict[str, Any] = {"page": page, "page_size": page_size}
 
@@ -92,7 +164,7 @@ class AssetDBClient:
             params["tags"] = tags
 
         result = await self._make_request("GET", "api/queries", params=params)
-        return cast(dict[str, Any], result)
+        return QueryListResponse(**result)
 
     async def get_query(self, query_id: int) -> dict[str, Any]:
         """
