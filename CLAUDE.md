@@ -13,11 +13,14 @@ The codebase follows a modular design with clear separation of concerns:
 **Core Components:**
 - `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions
 - `stacklet/mcp/stacklet_auth.py` - Authentication credential loading (follows Terraform provider patterns)
-- `stacklet/mcp/stacklet_platform.py` - Platform GraphQL client with instance-level schema caching
 - `stacklet/mcp/docs_handler.py` - Documentation file reading and listing (hardcoded to ../../../docs/src)
 - `stacklet/mcp/models.py` - Pydantic models for structured responses
 - `stacklet/mcp/mcp_util.py` - JSON response guard utilities and decorators
 - `stacklet/mcp/utils.py` - Utility functions for package resources
+
+**Platform Package:**
+- `stacklet/mcp/platform/graphql.py` - Platform GraphQL client with instance-level schema caching
+- `stacklet/mcp/platform/tools.py` - Platform tool implementations (platform_graphql_info, platform_graphql_query, etc.)
 
 **AssetDB Package:**
 - `stacklet/mcp/assetdb/redash.py` - AssetDB client using Redash API for SQL queries and saved query management
@@ -91,7 +94,10 @@ just test      # Run pytest with optional args
 
 **Credential Security:** Access tokens and identity tokens are never logged or exposed in error messages. The authentication module follows secure patterns from the official Terraform provider.
 
-**GraphQL Integration:** Uses `graphql-core` for schema manipulation and SDL generation, enabling proper type introspection and schema documentation.
+**Platform Integration:** Uses GraphQL API for Stacklet platform operations. The Platform package is organized into:
+- `graphql.py` - Core GraphQL client with schema caching and introspection
+- `tools.py` - FastMCP tool implementations that expose platform functionality (info, list types, get types, query)
+Uses `graphql-core` for schema manipulation and SDL generation, enabling proper type introspection and schema documentation.
 
 **AssetDB Integration:** Uses Redash API for SQL query execution and saved query management. The AssetDB package is organized into:
 - `redash.py` - Core client with async operations and authentication
@@ -117,3 +123,6 @@ The server requires Stacklet credentials configured through one of:
 **AssetDB Data Source:** The AssetDB client defaults to `data_source_id=1` for the main AssetDB instance. This is hardcoded but can be overridden in function calls.
 
 **Authentication Complexity:** Requires three different credential types (endpoint, access_token, identity_token) which must all be configured correctly for full functionality.
+- When running python in this project, always use "uv run python".
+
+When you've made code changes, veryif them with "just test" and "just lint".

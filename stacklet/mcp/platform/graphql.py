@@ -11,7 +11,7 @@ import httpx
 from fastmcp import Context
 from graphql import GraphQLSchema, build_client_schema, get_introspection_query, print_type
 
-from .stacklet_auth import StackletCredentials
+from ..stacklet_auth import StackletCredentials
 
 
 class PlatformClient:
