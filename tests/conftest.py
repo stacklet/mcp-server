@@ -21,7 +21,7 @@ def mock_stacklet_credentials(monkeypatch):
         identity_token="fake-identity-token",
     )
 
-    monkeypatch.setattr("stacklet.mcp.mcp.load_stacklet_auth", lambda: fake_credentials)
+    monkeypatch.setattr("stacklet.mcp.stacklet_auth.load_stacklet_auth", lambda: fake_credentials)
     return fake_credentials
 
 

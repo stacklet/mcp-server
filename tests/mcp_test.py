@@ -13,9 +13,14 @@ async def mcp_client(mock_stacklet_credentials):
         yield client
 
 
-def json_guard_param(arg, value):
+def json_guard_param(arg, *raw_values):
     "parametrize arg with value and JSON-encoded value, see json_guard"
-    return pytest.mark.parametrize(arg, [value, json.dumps(value)])
+    values = []
+    for value in raw_values:
+        values = [value, json.dumps(value)]
+        if value is None:
+            values.append("")  # I haven't _seen_ this but I don't trust LLMs not to.
+    return pytest.mark.parametrize(arg, values)
 
 
 class MCPTest:

@@ -250,6 +250,37 @@ class TestQuerySave(MCPTest):
 
         assert get_json(result) == expect
 
+    @json_guard_param("null_value", None)
+    async def test_create_nulls(self, null_value):
+        with self.http.expect(
+            self.r(
+                {
+                    "name": "New Test Query",
+                    "query": "SELECT * FROM platform.account",
+                    "data_source_id": 1,
+                    "is_draft": True,
+                }
+                | (
+                    # all the null_values are ignored EXCEPT description, which
+                    # is a str | None already, and not json_guard-ed, so it's
+                    # passed through unimpeded when it's a string.
+                    {"description": null_value} if null_value is not None else {}
+                ),
+                response=factory.redash_query(),
+            ),
+        ):
+            await self.assert_call(
+                {
+                    "query_id": null_value,
+                    "name": "New Test Query",
+                    "query": "SELECT * FROM platform.account",
+                    "description": null_value,
+                    "tags": null_value,
+                    "options": null_value,
+                    "is_draft": null_value,
+                }
+            )
+
     @json_guard_param("query_id_param", 123)
     async def test_update_result(self, query_id_param):
         response = factory.redash_query(
@@ -327,7 +358,7 @@ class TestQuerySave(MCPTest):
         ):
             await self.assert_call({"query_id": 123, "is_draft": is_draft_param})
 
-    @pytest.mark.parametrize("is_draft_param", [None, "null", ""])
+    @json_guard_param("is_draft_param", None)
     async def test_is_draft_update_null(self, is_draft_param):
         with self.http.expect(
             self.r(
@@ -338,7 +369,8 @@ class TestQuerySave(MCPTest):
         ):
             await self.assert_call({"query_id": 123, "name": "x", "is_draft": is_draft_param})
 
-    @pytest.mark.parametrize("is_draft_param", [True, "true", None, "null", ""])
+    # Both truthy and noney values create as draft.
+    @json_guard_param("is_draft_param", True, None)
     async def test_is_draft_create_true(self, is_draft_param):
         with self.http.expect(
             self.r(
@@ -352,7 +384,7 @@ class TestQuerySave(MCPTest):
     async def test_is_draft_create_false(self, is_draft_param):
         with self.http.expect(
             self.r(
-                {"is_draft": False, "name": "x", "query": "select 1"},
+                {"name": "x", "query": "select 1", "data_source_id": 1, "is_draft": False},
                 response=factory.redash_query(),
             ),
         ):

@@ -3,104 +3,31 @@ AssetDB client using Redash API with Stacklet authentication.
 """
 
 import asyncio
-import copy
 import tempfile
 import time
 
-from datetime import datetime
-from enum import IntEnum
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Self, cast
 from urllib.parse import urljoin
 
 import httpx
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from fastmcp import Context
 
-from .models import QueryUpsert
-from .stacklet_auth import StackletCredentials
-
-
-class JobStatus(IntEnum):
-    QUEUED = 1
-    STARTED = 2
-    FINISHED = 3
-    FAILED = 4
-    CANCELED = 5
-    DEFERRED = 6
-    SCHEDULED = 7
-
-
-class User(BaseModel):
-    """Redash user object model."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    id: int
-    name: str | None = None
-    email: str | None = None
-
-
-class Query(BaseModel):
-    """Redash query object model based on serialize_query output."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    id: int
-    latest_query_data_id: int | None
-    name: str
-    description: str
-    query: str
-    schedule: str | None
-    api_key: str
-    is_archived: bool
-    is_draft: bool
-    updated_at: datetime
-    created_at: datetime
-    data_source_id: int
-    options: dict[str, Any]
-    tags: list[str]
-    is_safe: bool
-    user: User
-    last_modified_by: User | None = None
-    retrieved_at: datetime | None = None
-    runtime: float | None = None
-    is_favorite: bool
-
-    @model_validator(mode="before")
-    @classmethod
-    def transform_user_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            # Deep copy to avoid any mutation issues
-            data = copy.deepcopy(data)
-
-            # Handle user field - convert user_id to User object if needed
-            if "user_id" in data and "user" not in data:
-                data["user"] = {"id": data["user_id"]}
-
-            # Handle last_modified_by - convert last_modified_by_id to User object if needed
-            if "last_modified_by_id" in data and "last_modified_by" not in data:
-                if data["last_modified_by_id"] is not None:
-                    data["last_modified_by"] = {"id": data["last_modified_by_id"]}
-                else:
-                    data["last_modified_by"] = None
-
-        return data
-
-
-class QueryListResponse(BaseModel):
-    """Response model for query list endpoint."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    count: int
-    page: int
-    page_size: int
-    results: list[Query]
+from ..stacklet_auth import StackletCredentials
+from .models import JobStatus, QueryListResponse, QueryUpsert
 
 
 class AssetDBClient:
     """Client for AssetDB interface via Redash API using Stacklet authentication."""
+
+    @classmethod
+    def get(cls, ctx: Context) -> Self:
+        key = "ASSETDB_CLIENT"
+        if not ctx.get_state(key):
+            creds = StackletCredentials.get(ctx)
+            ctx.set_state(key, cls(creds))
+        return cast(Self, ctx.get_state(key))
 
     def __init__(self, credentials: StackletCredentials):
         """

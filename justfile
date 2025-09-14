@@ -8,8 +8,8 @@ run:
 
 # Format code
 format:
-    uv run ruff format
     uv run ruff check --fix
+    uv run ruff format
 
 # Lint code
 lint:

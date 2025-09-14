@@ -4,7 +4,9 @@ import json
 import os
 
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Self, cast
+
+from fastmcp import Context
 
 
 class StackletCredentials(NamedTuple):
@@ -13,6 +15,13 @@ class StackletCredentials(NamedTuple):
     endpoint: str
     access_token: str
     identity_token: str
+
+    @classmethod
+    def get(cls, ctx: Context) -> Self:
+        key = "STACKLET_CREDS"
+        if not ctx.get_state(key):
+            ctx.set_state(key, load_stacklet_auth())
+        return cast(Self, ctx.get_state(key))
 
 
 def get_stacklet_dir() -> Path:

@@ -11,14 +11,18 @@ This is an MCP (Model Context Protocol) server that provides comprehensive tools
 The codebase follows a modular design with clear separation of concerns:
 
 **Core Components:**
-- `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions and middleware
+- `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions
 - `stacklet/mcp/stacklet_auth.py` - Authentication credential loading (follows Terraform provider patterns)
 - `stacklet/mcp/stacklet_platform.py` - Platform GraphQL client with instance-level schema caching
-- `stacklet/mcp/assetdb_redash.py` - AssetDB client using Redash API for SQL queries and saved query management
 - `stacklet/mcp/docs_handler.py` - Documentation file reading and listing (hardcoded to ../../../docs/src)
 - `stacklet/mcp/models.py` - Pydantic models for structured responses
 - `stacklet/mcp/mcp_util.py` - JSON response guard utilities and decorators
 - `stacklet/mcp/utils.py` - Utility functions for package resources
+
+**AssetDB Package:**
+- `stacklet/mcp/assetdb/redash.py` - AssetDB client using Redash API for SQL queries and saved query management
+- `stacklet/mcp/assetdb/models.py` - Pydantic models specific to AssetDB (Query, User, JobStatus, QueryUpsert, etc.)
+- `stacklet/mcp/assetdb/tools.py` - AssetDB tool implementations (assetdb_query_list, assetdb_sql_query, etc.)
 
 **Authentication Flow:**
 The authentication system mirrors the Stacklet Terraform provider's credential resolution:
@@ -81,7 +85,7 @@ just test      # Run pytest with optional args
 
 **Schema Caching:** The `PlatformClient` class implements instance-level caching to avoid repeated introspection queries, improving performance for schema-heavy operations.
 
-**Session Management:** Uses FastMCP middleware (`AuthInitMiddleware`) to initialize both AssetDB and Platform clients once per session and store them in session context.
+**Client Management:** Both AssetDB and Platform clients use a `.get(ctx)` pattern for lazy initialization and caching in FastMCP context. Credentials are loaded once per session using `StackletCredentials.get(ctx)`.
 
 **Error Handling:** All GraphQL and SQL operations return structured responses, with network errors and JSON parsing errors handled gracefully. AssetDB supports async query polling for long-running operations.
 
@@ -89,7 +93,11 @@ just test      # Run pytest with optional args
 
 **GraphQL Integration:** Uses `graphql-core` for schema manipulation and SDL generation, enabling proper type introspection and schema documentation.
 
-**AssetDB Integration:** Uses Redash API for SQL query execution and saved query management. Supports query timeouts (max 300s), pagination, search, and tag filtering.
+**AssetDB Integration:** Uses Redash API for SQL query execution and saved query management. The AssetDB package is organized into:
+- `redash.py` - Core client with async operations and authentication
+- `models.py` - Pydantic models for Redash API responses (Query, User, JobStatus, etc.)
+- `tools.py` - FastMCP tool implementations that expose AssetDB functionality
+Supports query timeouts (max 300s), pagination, search, and tag filtering.
 
 ## Configuration
 
