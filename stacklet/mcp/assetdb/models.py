@@ -35,9 +35,8 @@ class Query(BaseModel):
     id: int
     latest_query_data_id: int | None
     name: str
-    description: str
+    description: str | None
     query: str
-    schedule: str | None
     api_key: str
     is_archived: bool
     is_draft: bool
@@ -112,9 +111,12 @@ class QueryUpsert(BaseModel):
         if self.query is not None:
             payload["query"] = self.query
         if self.description is not None:
+            # NOTE that None _is_ a valid description, but since "" is
+            # functionally equivalent there's no need to complicate with
+            # NotSet/EMPTY-style handling.
             payload["description"] = self.description
         if self.tags is not None:
-            payload["tags"] = [tag for tag in self.tags if tag]  # Filter empty tags
+            payload["tags"] = self.tags
         if self.options is not None:
             payload["options"] = self.options
         if self.is_draft is not None:

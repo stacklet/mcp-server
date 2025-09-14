@@ -30,15 +30,12 @@ def make_assetdb_user_dict(
 def redash_query(
     id: int = 123,
     name: str = "Test Query",
-    description: str = "A sample query",
     query: str = "SELECT * FROM resources LIMIT 10",
-    user_name: str = "Test User",
-    user_email: str = "test@example.com",
-    user_id: int = 1,
+    description: str | None = None,
+    data_source_id: int = 1,
     is_archived: bool = False,
     is_draft: bool = False,
     is_favorite: bool = False,
-    data_source_id: int = 1,
     tags: list[str] | None = None,
     parameters: list[dict[str, Any]] | None = None,
     visualizations: list[dict[str, Any]] | None = None,
@@ -56,12 +53,12 @@ def redash_query(
     # Base dict matching redash.serializers.serialize_query()
     return {
         "id": id,
-        "latest_query_data_id": None,
+        "latest_query_data_id": 1234567,
         "name": name,
         "description": description,
         "query": query,
         "query_hash": "abc123",
-        "schedule": None,
+        "schedule": {"interval": 7 * 24 * 3600},
         "api_key": "test-api-key",
         "is_archived": is_archived,
         "is_draft": is_draft,
@@ -74,7 +71,7 @@ def redash_query(
         "tags": tags,
         "visualizations": visualizations,
         "is_safe": True,
-        "user": make_assetdb_user_dict(id=user_id, name=user_name, email=user_email),
+        "user": user,
         "last_modified_by_id": None,
     }
 

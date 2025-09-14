@@ -92,7 +92,7 @@ class TestQueryList(MCPTest):
                 {
                     "id": 456,
                     "name": "Test Query 2",
-                    "description": "A sample query",
+                    "description": None,
                     "has_parameters": False,
                     "data_source_id": 1,
                     "is_archived": False,
@@ -210,6 +210,11 @@ class TestQueryGet(MCPTest):
         assert get_text(result) == "Error calling tool 'assetdb_query_get': http 404"
 
 
+def _options_value():
+    # Saves some unpleasant decorator formatting below in TestQuerySave
+    return {"parameters": [{"name": "region", "type": "text", "value": "us-east-1"}]}
+
+
 class TestQuerySave(MCPTest):
     tool_name = "assetdb_query_save"
 
@@ -263,7 +268,8 @@ class TestQuerySave(MCPTest):
                 | (
                     # all the null_values are ignored EXCEPT description, which
                     # is a str | None already, and not json_guard-ed, so it's
-                    # passed through unimpeded when it's a string.
+                    # passed through unimpeded when it's a string; but when it's
+                    # None, it's stripped like all the other fields.
                     {"description": null_value} if null_value is not None else {}
                 ),
                 response=factory.redash_query(),
@@ -314,17 +320,11 @@ class TestQuerySave(MCPTest):
         ):
             await self.assert_call({"query_id": 123, "tags": tags_param})
 
-    @json_guard_param(
-        "options_param", {"parameters": [{"name": "region", "type": "text", "value": "us-east-1"}]}
-    )
+    @json_guard_param("options_param", _options_value())
     async def test_options(self, options_param):
         with self.http.expect(
             self.r(
-                {
-                    "options": {
-                        "parameters": [{"name": "region", "type": "text", "value": "us-east-1"}]
-                    },
-                },
+                {"options": _options_value()},
                 update=123,
                 response=factory.redash_query(),
             ),

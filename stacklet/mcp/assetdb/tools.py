@@ -235,4 +235,4 @@ def assetdb_sql_info() -> str:
     Returns:
         Text to guide correct and effective use of the AssetDB SQL toolset.
     """
-    return get_package_file("files/assetdb_info.md").read_text()
+    return get_package_file("assetdb/sql_info.md").read_text()
