@@ -14,7 +14,7 @@ def platform_graphql_info() -> str:
     Returns:
         Text to guide correct and effective use of the toolset.
     """
-    return get_package_file("docs/graphql_info.md").read_text()
+    return get_package_file("files/graphql_info.md").read_text()
 
 
 @json_guard
