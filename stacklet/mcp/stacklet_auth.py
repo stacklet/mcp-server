@@ -8,6 +8,8 @@ from typing import NamedTuple, Self, cast
 
 from fastmcp import Context
 
+from .utils import cache_in_context
+
 
 class StackletCredentials(NamedTuple):
     """Stacklet authentication credentials."""
@@ -18,10 +20,7 @@ class StackletCredentials(NamedTuple):
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        key = "STACKLET_CREDS"
-        if not ctx.get_state(key):
-            ctx.set_state(key, load_stacklet_auth())
-        return cast(Self, ctx.get_state(key))
+        return cast(Self, cache_in_context(ctx, "STACKLET_CREDS", load_stacklet_auth))
 
     def service_endpoint(self, service: str) -> str:
         """Return the endpoint for a service."""

@@ -2,18 +2,14 @@
 Tests for AssetDB MCP tools using FastMCP's in-memory testing pattern.
 """
 
-import json
-
 from copy import deepcopy
 from typing import Any
 
 import pytest
 
-from fastmcp.client.client import CallToolResult
-
 from . import factory
 from .conftest import ExpectRequest
-from .mcp_test import MCPTest, json_guard_parametrize
+from .testing.mcp import MCPTest, json_guard_parametrize
 
 
 pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
@@ -25,19 +21,18 @@ class TestSQLInfo(MCPTest):
     async def test_returns_expected_documentation(self):
         """Test the assetdb_sql_info tool returns expected documentation content."""
         result = await self.assert_call({})
-        content = get_text(result)
 
         # Verify the content contains expected AssetDB documentation
-        assert "Stacklet AssetDB SQL Overview" in content
-        assert "PostgreSQL 16" in content
-        assert "resources" in content
-        assert "resource_revisions" in content
-        assert "account_cost" in content
+        assert "Stacklet AssetDB SQL Overview" in result.text
+        assert "PostgreSQL 16" in result.text
+        assert "resources" in result.text
+        assert "resource_revisions" in result.text
+        assert "account_cost" in result.text
 
         # Verify it contains guidance about querying
-        assert "LIMIT" in content
-        assert "indexes" in content
-        assert "EXPLAIN" in content
+        assert "LIMIT" in result.text
+        assert "indexes" in result.text
+        assert "EXPLAIN" in result.text
 
 
 class TestQueryList(MCPTest):
@@ -57,7 +52,7 @@ class TestQueryList(MCPTest):
         ):
             result = await self.assert_call({})
 
-        assert get_json(result) == {
+        assert result.json() == {
             "pagination": {
                 "page": 1,
                 "page_size": 25,
@@ -110,7 +105,7 @@ class TestQueryList(MCPTest):
         ):
             result = await self.assert_call({"page_size": 1, "page": mangle(value)})
 
-        data = get_json(result)
+        data = result.json()
         assert data["queries"][0]["id"] == 123
         assert data["pagination"] == {
             "page": value,
@@ -126,7 +121,7 @@ class TestQueryList(MCPTest):
             result = await self.assert_call({"page": 999}, error=True)
 
         # XXX better errors might be nice, "page 999 out of range" is… likely?
-        assert get_text(result) == "Error calling tool 'assetdb_query_list': mocked http 400"
+        assert result.text == "Error calling tool 'assetdb_query_list': mocked http 400"
 
     @json_guard_parametrize([5, 10])
     async def test_page_size(self, mangle, value):
@@ -138,7 +133,7 @@ class TestQueryList(MCPTest):
         ):
             result = await self.assert_call({"page_size": mangle(value)})
 
-        assert get_json(result) == self.empty_result_json(page_size=value)
+        assert result.json() == self.empty_result_json(page_size=value)
 
     @json_guard_parametrize([[], ["production", "alerts"]])
     async def test_tags(self, mangle, value):
@@ -150,7 +145,7 @@ class TestQueryList(MCPTest):
         ):
             result = await self.assert_call({"tags": mangle(value)})
 
-        assert get_json(result) == self.empty_result_json()
+        assert result.json() == self.empty_result_json()
 
     async def test_search(self):
         with self.http.expect(
@@ -161,7 +156,7 @@ class TestQueryList(MCPTest):
         ):
             result = await self.assert_call({"search": "lol whatever"})
 
-        assert get_json(result) == self.empty_result_json()
+        assert result.json() == self.empty_result_json()
 
     def empty_result_json(self, page_size=25):
         return {
@@ -189,7 +184,7 @@ class TestQueryGet(MCPTest):
         # NOTE that this is a fair amount more fields than seen in query_list.
         expect = q123()
         expect.pop("visualizations")
-        assert get_json(result) == expect
+        assert result.json() == expect
 
     async def test_not_found(self):
         """Test the assetdb_query_get tool with non-existent query ID."""
@@ -199,7 +194,7 @@ class TestQueryGet(MCPTest):
             result = await self.assert_call({"query_id": 999}, error=True)
 
         # XXX better errors might be nice, "query 999 does not exist"
-        assert get_text(result) == "Error calling tool 'assetdb_query_get': mocked http 404"
+        assert result.text == "Error calling tool 'assetdb_query_get': mocked http 404"
 
 
 class TestQuerySave(MCPTest):
@@ -237,7 +232,7 @@ class TestQuerySave(MCPTest):
         ):
             result = await self.assert_call({})
 
-        assert get_json(result) == expect
+        assert result.json() == expect
 
     @pytest.mark.parametrize("null_value", [None, "null", ""])
     async def test_create_nulls(self, null_value):
@@ -286,7 +281,7 @@ class TestQuerySave(MCPTest):
                 {"query_id": mangle(value), "description": "Updated description"}
             )
 
-        assert get_json(result) == expect
+        assert result.json() == expect
 
     @json_guard_parametrize([[], ["ping", "pong"]])
     async def test_tags(self, mangle, value):
@@ -314,15 +309,6 @@ class TestQuerySave(MCPTest):
             self.r({"is_draft": value}, update=123, response=factory.redash_query()),
         ):
             await self.assert_call({"query_id": 123, "is_draft": mangle(value)})
-
-
-def get_text(result: CallToolResult) -> str:
-    [content] = result.content
-    return content.text  # type:ignore
-
-
-def get_json(result: CallToolResult) -> Any:
-    return json.loads(get_text(result))
 
 
 def q123():
