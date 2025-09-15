@@ -12,9 +12,6 @@ from .conftest import ExpectRequest
 from .testing.mcp import MCPBearerTest, MCPTest, json_guard_parametrize
 
 
-pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
-
-
 class TestGraphQLInfo(MCPTest):
     tool_name = "platform_graphql_info"
 
@@ -154,100 +151,64 @@ class TestGraphQLListTypes(PlatformSchemaTest):
 class TestGraphQLQuery(MCPBearerTest):
     tool_name = "platform_graphql_query"
 
+    def r(self, query: str, variables: dict = None, *, response, status_code=200) -> ExpectRequest:
+        """Helper to create GraphQL request expectations."""
+        if variables is None:
+            variables = {}
+        return ExpectRequest(
+            "https://api.example.com/",
+            method="POST",
+            data={"query": query, "variables": variables},
+            response=response,
+            status_code=status_code,
+        )
+
     async def test_successful_query(self):
         """Test a successful GraphQL query."""
         query = "{ accounts { accounts { id name } } }"
         variables = {"limit": 10}
+        data = {"accounts": {"accounts": [{"id": "123", "name": "Test Account"}]}}
 
-        # Mock the GraphQL response
-        with self.http.expect(
-            ExpectRequest(
-                "https://api.example.com/",
-                method="POST",
-                data={"query": query, "variables": variables},
-                response={
-                    "data": {"accounts": {"accounts": [{"id": "123", "name": "Test Account"}]}}
-                },
-            )
-        ):
+        with self.http.expect(self.r(query, variables, response=graphql_success_response(data))):
             result = await self.assert_call({"query": query, "variables": variables})
 
-        response = result.json()
-
-        # Should have the structured response
-        assert response == {
+        assert result.json() == {
             "query": query,
             "variables": variables,
-            "data": {"accounts": {"accounts": [{"id": "123", "name": "Test Account"}]}},
+            "data": data,
             "errors": None,
         }
 
     async def test_query_with_errors(self):
         """Test a GraphQL query that returns errors."""
         query = "{ invalidField }"
+        error = graphql_field_error(
+            "Cannot query field 'invalidField' on type 'Query'.",
+            ["invalidField", 0],  # 0 is not accurate, just testing int path segments work
+        )
 
-        # Mock the GraphQL response with errors
-        with self.http.expect(
-            ExpectRequest(
-                "https://api.example.com/",
-                method="POST",
-                data={"query": query, "variables": {}},
-                response={
-                    "data": None,
-                    "errors": [
-                        {
-                            "message": "Cannot query field 'invalidField' on type 'Query'.",
-                            "locations": [{"line": 1, "column": 3}],
-                            "path": ["invalidField", 0],
-                        }
-                    ],
-                },
-            )
-        ):
+        with self.http.expect(self.r(query, response=graphql_error_response([error]))):
             result = await self.assert_call({"query": query})
 
-        response = result.json()
-
-        # Should have the structured response with errors
-        assert response == {
+        assert result.json() == {
             "query": query,
             "variables": {},
             "data": None,
-            "errors": [
-                {
-                    "message": "Cannot query field 'invalidField' on type 'Query'.",
-                    "locations": [{"line": 1, "column": 3}],
-                    "path": [
-                        "invalidField",
-                        0,
-                    ],  # 0 is not accurate, just testing int path segments work
-                    "extensions": None,
-                }
-            ],
+            "errors": [error | {"extensions": None}],  # Add extensions field for our model
         }
 
     async def test_query_minimal(self):
         """Test a minimal GraphQL query without variables."""
         query = "{ __typename }"
+        data = {"__typename": "Query"}
 
-        # Mock the GraphQL response
-        with self.http.expect(
-            ExpectRequest(
-                "https://api.example.com/",
-                method="POST",
-                data={"query": query, "variables": {}},
-                response={"data": {"__typename": "Query"}},
-            )
-        ):
+        with self.http.expect(self.r(query, response=graphql_success_response(data))):
             result = await self.assert_call({"query": query})
 
-        response = result.json()
-
-        # Should have the structured response
-        assert response == {
+        assert result.json() == {
             "query": query,
             "variables": {},
-            "data": {"__typename": "Query"},
+            "data": data,
             "errors": None,
         }
 
@@ -262,19 +223,29 @@ class TestGraphQLQuery(MCPBearerTest):
     async def test_json_guard_variables(self, mangle, value):
         """Test that variables parameter works with JSON guard."""
         query = "{ accounts }"
+        data = {"accounts": []}
 
-        # Mock the GraphQL response - we don't care about the result,
-        # just that both JSON and plain forms get delivered the same way
-        with self.http.expect(
-            ExpectRequest(
-                "https://api.example.com/",
-                method="POST",
-                data={"query": query, "variables": value},
-                response={"data": {"accounts": []}},
-            )
-        ):
+        with self.http.expect(self.r(query, value, response=graphql_success_response(data))):
             result = await self.assert_call({"query": query, "variables": mangle(value)})
 
-        response = result.json()
         # Verify that the variables were passed through correctly
-        assert response["variables"] == value
+        assert result.json()["variables"] == value
+
+
+def graphql_success_response(data):
+    """Factory for successful GraphQL responses."""
+    return {"data": data}
+
+
+def graphql_error_response(errors):
+    """Factory for GraphQL error responses."""
+    return {"data": None, "errors": errors}
+
+
+def graphql_field_error(message: str, field_path: list, line: int = 1, column: int = 3):
+    """Factory for GraphQL field errors with extensions."""
+    return {
+        "message": message,
+        "locations": [{"line": line, "column": column}],
+        "path": field_path,
+    }
