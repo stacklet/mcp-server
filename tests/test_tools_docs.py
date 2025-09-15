@@ -5,10 +5,10 @@ Tests for docs-related MCP tools.
 import json
 
 from .testing.http import ExpectRequest
-from .testing.mcp import MCPTest
+from .testing.mcp import MCPCookieTest
 
 
-class TestDocsList(MCPTest):
+class TestDocsList(MCPCookieTest):
     tool_name = "docs_list"
 
     async def test_list(self):
@@ -51,7 +51,7 @@ class TestDocsList(MCPTest):
         assert result1.json() == result2.json()
 
 
-class TestDocsRead(MCPTest):
+class TestDocsRead(MCPCookieTest):
     tool_name = "docs_read"
 
     async def test_read_doc(self):
