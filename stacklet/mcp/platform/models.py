@@ -26,4 +26,3 @@ class GraphQLQueryResult(BaseModel):
     variables: dict[str, Any]
     data: dict[str, Any] | None = None
     errors: list[GraphQLError] | None = None
-    extensions: dict[str, Any] | None = None

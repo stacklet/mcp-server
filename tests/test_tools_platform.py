@@ -175,13 +175,12 @@ class TestGraphQLQuery(MCPBearerTest):
         response = result.json()
 
         # Should have the structured response
-        assert response["query"] == query
-        assert response["variables"] == variables
-        assert response["data"] == {
-            "accounts": {"accounts": [{"id": "123", "name": "Test Account"}]}
+        assert response == {
+            "query": query,
+            "variables": variables,
+            "data": {"accounts": {"accounts": [{"id": "123", "name": "Test Account"}]}},
+            "errors": None,
         }
-        assert response["errors"] is None
-        assert response["extensions"] is None
 
     async def test_query_with_errors(self):
         """Test a GraphQL query that returns errors."""
@@ -199,7 +198,7 @@ class TestGraphQLQuery(MCPBearerTest):
                         {
                             "message": "Cannot query field 'invalidField' on type 'Query'.",
                             "locations": [{"line": 1, "column": 3}],
-                            "path": ["invalidField"],
+                            "path": ["invalidField", 0],
                         }
                     ],
                 },
@@ -210,15 +209,22 @@ class TestGraphQLQuery(MCPBearerTest):
         response = result.json()
 
         # Should have the structured response with errors
-        assert response["query"] == query
-        assert response["variables"] == {}
-        assert response["data"] is None
-        assert len(response["errors"]) == 1
-
-        error = response["errors"][0]
-        assert error["message"] == "Cannot query field 'invalidField' on type 'Query'."
-        assert error["locations"] == [{"line": 1, "column": 3}]
-        assert error["path"] == ["invalidField"]
+        assert response == {
+            "query": query,
+            "variables": {},
+            "data": None,
+            "errors": [
+                {
+                    "message": "Cannot query field 'invalidField' on type 'Query'.",
+                    "locations": [{"line": 1, "column": 3}],
+                    "path": [
+                        "invalidField",
+                        0,
+                    ],  # 0 is not accurate, just testing int path segments work
+                    "extensions": None,
+                }
+            ],
+        }
 
     async def test_query_minimal(self):
         """Test a minimal GraphQL query without variables."""
@@ -238,10 +244,12 @@ class TestGraphQLQuery(MCPBearerTest):
         response = result.json()
 
         # Should have the structured response
-        assert response["query"] == query
-        assert response["variables"] == {}
-        assert response["data"] == {"__typename": "Query"}
-        assert response["errors"] is None
+        assert response == {
+            "query": query,
+            "variables": {},
+            "data": {"__typename": "Query"},
+            "errors": None,
+        }
 
     @json_guard_parametrize(
         [

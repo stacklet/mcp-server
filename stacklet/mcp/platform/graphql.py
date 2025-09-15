@@ -76,7 +76,6 @@ class PlatformClient:
             variables=variables,
             data=raw_result.get("data"),
             errors=errors,
-            extensions=raw_result.get("extensions"),
         )
 
     async def get_schema(self) -> GraphQLSchema:
