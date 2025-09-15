@@ -8,6 +8,7 @@ import pytest
 
 from graphql import build_schema
 
+from .conftest import ExpectRequest
 from .testing.mcp import MCPBearerTest, MCPTest, json_guard_parametrize
 
 
@@ -148,3 +149,124 @@ class TestGraphQLListTypes(PlatformSchemaTest):
             "searched_for": "NonExistent",
             "found_types": [],
         }
+
+
+class TestGraphQLQuery(MCPBearerTest):
+    tool_name = "platform_graphql_query"
+
+    async def test_successful_query(self):
+        """Test a successful GraphQL query."""
+        query = "{ accounts { accounts { id name } } }"
+        variables = {"limit": 10}
+
+        # Mock the GraphQL response
+        with self.http.expect(
+            ExpectRequest(
+                "https://api.example.com/",
+                method="POST",
+                data={"query": query, "variables": variables},
+                response={
+                    "data": {"accounts": {"accounts": [{"id": "123", "name": "Test Account"}]}}
+                },
+            )
+        ):
+            result = await self.assert_call({"query": query, "variables": variables})
+
+        response = result.json()
+
+        # Should have the structured response
+        assert response["query"] == query
+        assert response["variables"] == variables
+        assert response["data"] == {
+            "accounts": {"accounts": [{"id": "123", "name": "Test Account"}]}
+        }
+        assert response["errors"] is None
+        assert response["extensions"] is None
+
+    async def test_query_with_errors(self):
+        """Test a GraphQL query that returns errors."""
+        query = "{ invalidField }"
+
+        # Mock the GraphQL response with errors
+        with self.http.expect(
+            ExpectRequest(
+                "https://api.example.com/",
+                method="POST",
+                data={"query": query, "variables": {}},
+                response={
+                    "data": None,
+                    "errors": [
+                        {
+                            "message": "Cannot query field 'invalidField' on type 'Query'.",
+                            "locations": [{"line": 1, "column": 3}],
+                            "path": ["invalidField"],
+                        }
+                    ],
+                },
+            )
+        ):
+            result = await self.assert_call({"query": query})
+
+        response = result.json()
+
+        # Should have the structured response with errors
+        assert response["query"] == query
+        assert response["variables"] == {}
+        assert response["data"] is None
+        assert len(response["errors"]) == 1
+
+        error = response["errors"][0]
+        assert error["message"] == "Cannot query field 'invalidField' on type 'Query'."
+        assert error["locations"] == [{"line": 1, "column": 3}]
+        assert error["path"] == ["invalidField"]
+
+    async def test_query_minimal(self):
+        """Test a minimal GraphQL query without variables."""
+        query = "{ __typename }"
+
+        # Mock the GraphQL response
+        with self.http.expect(
+            ExpectRequest(
+                "https://api.example.com/",
+                method="POST",
+                data={"query": query, "variables": {}},
+                response={"data": {"__typename": "Query"}},
+            )
+        ):
+            result = await self.assert_call({"query": query})
+
+        response = result.json()
+
+        # Should have the structured response
+        assert response["query"] == query
+        assert response["variables"] == {}
+        assert response["data"] == {"__typename": "Query"}
+        assert response["errors"] is None
+
+    @json_guard_parametrize(
+        [
+            {},
+            {"limit": 10},
+            {"userId": "123", "active": True},
+            {"filters": {"region": "us-east-1", "tags": ["prod", "api"]}},
+        ]
+    )
+    async def test_json_guard_variables(self, mangle, value):
+        """Test that variables parameter works with JSON guard."""
+        query = "{ accounts }"
+
+        # Mock the GraphQL response - we don't care about the result,
+        # just that both JSON and plain forms get delivered the same way
+        with self.http.expect(
+            ExpectRequest(
+                "https://api.example.com/",
+                method="POST",
+                data={"query": query, "variables": value},
+                response={"data": {"accounts": []}},
+            )
+        ):
+            result = await self.assert_call({"query": query, "variables": mangle(value)})
+
+        response = result.json()
+        # Verify that the variables were passed through correctly
+        assert response["variables"] == value

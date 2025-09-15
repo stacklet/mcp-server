@@ -4,7 +4,7 @@ from fastmcp import Context
 
 from ..utils import get_package_file, json_guard
 from .graphql import PlatformClient
-from .models import GetTypesResult, ListTypesResult
+from .models import GetTypesResult, GraphQLQueryResult, ListTypesResult
 
 
 def tools() -> list[Callable[..., Any]]:
@@ -60,7 +60,7 @@ async def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> Get
 @json_guard
 async def platform_graphql_query(
     ctx: Context, query: str, variables: dict[str, Any] | None = None
-) -> dict[str, Any]:
+) -> GraphQLQueryResult:
     """
     Execute a GraphQL query against the Stacklet API.
 
@@ -73,7 +73,7 @@ async def platform_graphql_query(
         variables: Variables dict for the query
 
     Returns:
-        Complete GraphQL query result
+        Structured GraphQL query result with context
     """
     client = PlatformClient.get(ctx)
     return await client.query(query, variables or {})

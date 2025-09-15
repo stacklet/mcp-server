@@ -13,7 +13,7 @@ from graphql import GraphQLSchema, build_client_schema, get_introspection_query,
 
 from ..lifespan import server_cached
 from ..stacklet_auth import StackletCredentials
-from .models import GetTypesResult, ListTypesResult
+from .models import GetTypesResult, GraphQLError, GraphQLQueryResult, ListTypesResult
 
 
 class PlatformClient:
@@ -43,7 +43,7 @@ class PlatformClient:
         )
         self._schema_cache = None
 
-    async def query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def query(self, query: str, variables: dict[str, Any]) -> GraphQLQueryResult:
         """
         Execute a GraphQL query against the Stacklet Platform API.
 
@@ -52,22 +52,32 @@ class PlatformClient:
             variables: Optional variables for the query
 
         Returns:
-            Query result as dictionary
+            Structured GraphQL query result
         """
-        request_data: dict[str, Any] = {"query": query}
-        if variables:
-            request_data["variables"] = variables
-
+        request_data = {"query": query, "variables": variables}
         response = await self.session.post(self.credentials.endpoint, json=request_data)
         # Don't raise on HTTP errors initially - backend erroneously sets HTTP status codes
         # for GraphQL-level errors. GraphQL transport should be HTTP 200 with errors in payload.
         # However, if we can't parse JSON, then it's likely a real HTTP error.
         try:
-            return cast(dict[str, Any], response.json())
+            raw_result = cast(dict[str, Any], response.json())
         except Exception:
             # If JSON parsing fails, fall back to standard HTTP error handling
             response.raise_for_status()
             raise  # Re-raise the JSON parsing error
+
+        # Parse GraphQL errors if present
+        errors = None
+        if raw_errors := raw_result.get("errors"):
+            errors = [GraphQLError(**error) for error in raw_errors]
+
+        return GraphQLQueryResult(
+            query=query,
+            variables=variables,
+            data=raw_result.get("data"),
+            errors=errors,
+            extensions=raw_result.get("extensions"),
+        )
 
     async def get_schema(self) -> GraphQLSchema:
         """
