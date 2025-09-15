@@ -81,6 +81,9 @@ class ExpectationContext:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_val:
+            return
+
         if self.expected_requests:
             remaining = [x.expect_url for x in self.expected_requests]
             self.expected_requests.clear()

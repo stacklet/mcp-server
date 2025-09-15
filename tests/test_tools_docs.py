@@ -39,12 +39,18 @@ class TestDocsList(MCPTest):
 class TestDocsRead(MCPTest):
     tool_name = "docs_read"
 
-    async def test_read(self):
+    async def test_read_doc(self):
         """Reading a document returns its content."""
         path = "some/file.md"
         doc_text = "This is a sample doc"
 
+        index = [{"path": path, "title": "Sample doc"}]
+
         with self.http.expect(
+            ExpectRequest(
+                url="https://docs.example.com/index.json",
+                response=json.dumps(index),
+            ),
             ExpectRequest(
                 url="https://docs.example.com/some/file.md",
                 response=doc_text,
@@ -59,3 +65,20 @@ class TestDocsRead(MCPTest):
             "path": path,
             "content": doc_text,
         }
+
+    async def test_read_other_file(self):
+        """Reading a document returns its content."""
+        index = [{"path": "some/file.md", "title": "Sample doc"}]
+
+        with self.http.expect(
+            ExpectRequest(
+                url="https://docs.example.com/index.json",
+                response=json.dumps(index),
+            ),
+        ):
+            result = await self.assert_call({"file_path": "some_other_file.md"}, error=True)
+
+        assert hasattr(result, "content")
+        assert len(result.content) == 1
+        content = result.content[0].text
+        assert content == "Error calling tool 'docs_read': Resource is not a known document file"
