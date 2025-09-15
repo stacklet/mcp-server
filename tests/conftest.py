@@ -21,7 +21,7 @@ def mock_stacklet_credentials(monkeypatch):
         identity_token="fake-identity-token",
     )
 
-    monkeypatch.setattr("stacklet.mcp.mcp.load_stacklet_auth", lambda: fake_credentials)
+    monkeypatch.setattr("stacklet.mcp.stacklet_auth.load_stacklet_auth", lambda: fake_credentials)
     return fake_credentials
 
 
@@ -37,11 +37,15 @@ class MockHTTPXResponse:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError("HTTP Error", request=None, response=self)  # type:ignore
+            raise httpx.HTTPStatusError(
+                f"mocked http {self.status_code}",
+                request=None,  # type:ignore
+                response=self,  # type:ignore
+            )
 
 
 class ExpectRequest:
-    def __init__(self, *, url, method="GET", data=None, status_code=200, response: Any = ""):
+    def __init__(self, url, *, method="GET", data=None, status_code=200, response: Any = ""):
         self.expect_url = url
         self.expect_method = method
         self.expect_data = data
@@ -90,35 +94,3 @@ def mock_assetdb_request(monkeypatch, mock_stacklet_credentials):
             return ExpectationContext()
 
     return MockController()
-
-
-@pytest.fixture
-def mock_assetdb_list_queries_response():
-    """Sample response from Redash queries list API."""
-    return {
-        "results": [
-            {
-                "id": 123,
-                "name": "Test Query 1",
-                "description": "A sample query",
-                "tags": ["production", "monitoring"],
-                "user": {"name": "Test User"},
-                "is_archived": False,
-                "is_draft": False,
-                "data_source_id": 1,
-                "options": {"parameters": [{"name": "limit", "type": "number"}]},
-            },
-            {
-                "id": 456,
-                "name": "Test Query 2",
-                "description": "",
-                "tags": [],
-                "user": {"name": "Another User"},
-                "is_archived": False,
-                "is_draft": True,
-                "data_source_id": 1,
-                "options": {},
-            },
-        ],
-        "count": 2,
-    }

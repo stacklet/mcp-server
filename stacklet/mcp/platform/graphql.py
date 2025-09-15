@@ -4,17 +4,26 @@ Stacklet Platform client for GraphQL API operations.
 
 import re
 
-from typing import Any, cast
+from typing import Any, Self, cast
 
 import httpx
 
+from fastmcp import Context
 from graphql import GraphQLSchema, build_client_schema, get_introspection_query, print_type
 
-from .stacklet_auth import StackletCredentials
+from ..stacklet_auth import StackletCredentials
 
 
 class PlatformClient:
     """Client for Stacklet Platform GraphQL API."""
+
+    @classmethod
+    def get(cls, ctx: Context) -> Self:
+        key = "PLATFORM_CLIENT"
+        if not ctx.get_state(key):
+            creds = StackletCredentials.get(ctx)
+            ctx.set_state(key, cls(creds))
+        return cast(Self, ctx.get_state(key))
 
     def __init__(self, credentials: StackletCredentials):
         """

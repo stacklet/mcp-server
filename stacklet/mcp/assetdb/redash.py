@@ -6,28 +6,28 @@ import asyncio
 import tempfile
 import time
 
-from enum import IntEnum
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Self, cast
 from urllib.parse import urljoin
 
 import httpx
 
-from .stacklet_auth import StackletCredentials
+from fastmcp import Context
 
-
-class JobStatus(IntEnum):
-    QUEUED = 1
-    STARTED = 2
-    FINISHED = 3
-    FAILED = 4
-    CANCELED = 5
-    DEFERRED = 6
-    SCHEDULED = 7
+from ..stacklet_auth import StackletCredentials
+from .models import JobStatus, QueryListResponse, QueryUpsert
 
 
 class AssetDBClient:
     """Client for AssetDB interface via Redash API using Stacklet authentication."""
+
+    @classmethod
+    def get(cls, ctx: Context) -> Self:
+        key = "ASSETDB_CLIENT"
+        if not ctx.get_state(key):
+            creds = StackletCredentials.get(ctx)
+            ctx.set_state(key, cls(creds))
+        return cast(Self, ctx.get_state(key))
 
     def __init__(self, credentials: StackletCredentials):
         """
@@ -70,7 +70,7 @@ class AssetDBClient:
         page_size: int = 25,
         search: str | None = None,
         tags: list[str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> QueryListResponse:
         """
         Get list of queries with search and sorting support.
 
@@ -81,7 +81,7 @@ class AssetDBClient:
             tags: Filter out queries not matching all tags
 
         Returns:
-            Full API response including queries and pagination metadata
+            Structured response with queries and pagination metadata
         """
         params: dict[str, Any] = {"page": page, "page_size": page_size}
 
@@ -91,7 +91,7 @@ class AssetDBClient:
             params["tags"] = tags
 
         result = await self._make_request("GET", "api/queries", params=params)
-        return cast(dict[str, Any], result)
+        return QueryListResponse(**result)
 
     async def get_query(self, query_id: int) -> dict[str, Any]:
         """
@@ -285,4 +285,33 @@ class AssetDBClient:
             Schema information with tables and columns
         """
         result = await self._make_request("GET", f"api/data_sources/{data_source_id}/schema")
+        return cast(dict[str, Any], result)
+
+    async def create_query(self, upsert: QueryUpsert) -> dict[str, Any]:
+        """
+        Create a new saved query.
+
+        Args:
+            upsert: QueryUpsert object with query data
+
+        Returns:
+            Complete query object with ID, timestamps, and metadata
+        """
+        payload = upsert.payload(data_source_id=1)
+        result = await self._make_request("POST", "api/queries", json=payload)
+        return cast(dict[str, Any], result)
+
+    async def update_query(self, query_id: int, upsert: QueryUpsert) -> dict[str, Any]:
+        """
+        Update an existing saved query.
+
+        Args:
+            query_id: ID of the query to update
+            upsert: QueryUpsert object with query data to update
+
+        Returns:
+            Complete updated query object with ID, timestamps, and metadata
+        """
+        payload = upsert.payload()
+        result = await self._make_request("POST", f"api/queries/{query_id}", json=payload)
         return cast(dict[str, Any], result)

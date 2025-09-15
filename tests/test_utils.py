@@ -3,7 +3,7 @@ from stacklet.mcp.utils import get_package_file
 
 class TestGetPackageFile:
     def test_exists(self):
-        doc = get_package_file("docs/graphql_info.md")
+        doc = get_package_file("platform/graphql_info.md")
         assert doc.exists()
         assert "Stacklet GraphQL API Overview" in doc.read_text()
 

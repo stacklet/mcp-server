@@ -4,26 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an MCP (Model Context Protocol) server that provides comprehensive tools for interacting with the Stacklet platform. The server exposes 10 tools: 2 for documentation access, 4 for querying Stacklet's cloud governance GraphQL API, and 4 for AssetDB operations.
+This is an MCP (Model Context Protocol) server that provides comprehensive tools for interacting with the Stacklet platform. The server exposes 12 tools: 2 for documentation access, 4 for querying Stacklet's cloud governance GraphQL API, and 6 for AssetDB operations.
 
 ## Architecture
 
 The codebase follows a modular design with clear separation of concerns:
 
 **Core Components:**
-- `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions and middleware
-- `stacklet/mcp/stacklet_auth.py` - Authentication credential loading (follows Terraform provider patterns)
-- `stacklet/mcp/stacklet_platform.py` - Platform GraphQL client with instance-level schema caching
-- `stacklet/mcp/assetdb_redash.py` - AssetDB client using Redash API for SQL queries and saved query management
+- `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions
+- `stacklet/mcp/stacklet_auth.py` - Authentication credential loading
 - `stacklet/mcp/docs_handler.py` - Documentation file reading and listing (hardcoded to ../../../docs/src)
 - `stacklet/mcp/models.py` - Pydantic models for structured responses
-- `stacklet/mcp/utils.py` - Utility functions for package resources
+- `stacklet/mcp/utils.py` - Utility functions for tool implementations
+
+**Platform Package:**
+- `stacklet/mcp/platform/graphql.py` - Platform GraphQL client with instance-level schema caching
+- `stacklet/mcp/platform/tools.py` - Platform tool implementations (platform_graphql_info, platform_graphql_query, etc.)
+
+**AssetDB Package:**
+- `stacklet/mcp/assetdb/redash.py` - AssetDB client using Redash API for SQL queries and saved query management
+- `stacklet/mcp/assetdb/models.py` - Pydantic models specific to AssetDB (Query, User, JobStatus, QueryUpsert, etc.)
+- `stacklet/mcp/assetdb/tools.py` - AssetDB tool implementations (assetdb_query_list, assetdb_sql_query, etc.)
 
 **Authentication Flow:**
-The authentication system mirrors the Stacklet Terraform provider's credential resolution:
-1. Direct parameters (endpoint, access_token, identity_token)
-2. Environment variables (`STACKLET_ENDPOINT`, `STACKLET_ACCESS_TOKEN`, `STACKLET_IDENTITY_TOKEN`)
-3. CLI config files (`~/.stacklet/config.json`, `~/.stacklet/credentials`, `~/.stacklet/id`)
+The authentication system echoes the Stacklet Terraform provider's credential resolution:
+1. Environment variables (`STACKLET_ENDPOINT`, `STACKLET_ACCESS_TOKEN`, `STACKLET_IDENTITY_TOKEN`)
+2. Config files saved by the `stacklet-admin` CLI in `~/.stacklet`
 
 Note: `identity_token` is required for AssetDB access via Redash authentication cookies.
 
@@ -45,7 +51,6 @@ uv sync
 ```bash
 uv run mcp
 # or: just run
-# or directly: python stacklet/mcp/mcp.py
 ```
 
 **Development commands (via justfile):**
@@ -73,27 +78,35 @@ just test      # Run pytest with optional args
 8. **`assetdb_sql_query`** - Execute ad-hoc SQL queries against AssetDB
 9. **`assetdb_query_list`** - List and search saved queries with pagination
 10. **`assetdb_query_get`** - Get detailed information about specific saved queries
+11. **`assetdb_query_results`** - Get results for saved queries with caching control
+12. **`assetdb_query_save`** - Create new queries or update existing ones
 
 ## Key Implementation Details
 
 **Schema Caching:** The `PlatformClient` class implements instance-level caching to avoid repeated introspection queries, improving performance for schema-heavy operations.
 
-**Session Management:** Uses FastMCP middleware (`AuthInitMiddleware`) to initialize both AssetDB and Platform clients once per session and store them in session context.
+**Client Management:** Both AssetDB and Platform clients use a `.get(ctx)` pattern for lazy initialization and caching in FastMCP context. Credentials are loaded once per session using `StackletCredentials.get(ctx)`.
 
 **Error Handling:** All GraphQL and SQL operations return structured responses, with network errors and JSON parsing errors handled gracefully. AssetDB supports async query polling for long-running operations.
 
-**Credential Security:** Access tokens and identity tokens are never logged or exposed in error messages. The authentication module follows secure patterns from the official Terraform provider.
+**Credential Security:** Access tokens and identity tokens are never logged or exposed in error messages.
 
-**GraphQL Integration:** Uses `graphql-core` for schema manipulation and SDL generation, enabling proper type introspection and schema documentation.
+**Platform Integration:** Uses GraphQL API for Stacklet platform operations. The Platform package is organized into:
+- `graphql.py` - Core GraphQL client with schema caching and introspection
+- `tools.py` - FastMCP tool implementations that expose platform functionality (info, list types, get types, query)
+Uses `graphql-core` for schema manipulation and SDL generation, enabling proper type introspection and schema documentation.
 
-**AssetDB Integration:** Uses Redash API for SQL query execution and saved query management. Supports query timeouts (max 300s), pagination, search, and tag filtering.
+**AssetDB Integration:** Uses Redash API for SQL query execution and saved query management. The AssetDB package is organized into:
+- `redash.py` - Core client with async operations and authentication
+- `models.py` - Pydantic models for Redash API responses (Query, User, JobStatus, etc.)
+- `tools.py` - FastMCP tool implementations that expose AssetDB functionality
+Supports query timeouts (max 300s), pagination, search, and tag filtering.
 
 ## Configuration
 
 The server requires Stacklet credentials configured through one of:
 - Environment variables: `STACKLET_ENDPOINT`, `STACKLET_ACCESS_TOKEN`, and `STACKLET_IDENTITY_TOKEN`
 - CLI config: `~/.stacklet/config.json` (endpoint), `~/.stacklet/credentials` (access token), and `~/.stacklet/id` (identity token)
-- Direct parameter passing to functions
 
 **External Dependencies:**
 - Documentation files must be available at `../../../docs/src/` relative to the MCP server location
@@ -101,8 +114,34 @@ The server requires Stacklet credentials configured through one of:
 
 ## Known Issues & Design Notes
 
+When you're editing code which matches one of these concerns, think extra hard about
+the impact of your changes; prefer to mitigate these issues rather than further
+entrench them.
+
 **Documentation Path Dependency:** The docs handler has a hardcoded path dependency (`DOCS_ROOT = Path(__file__).parent / ".." / ".." / ".." / "docs" / "src"`) which assumes a specific directory structure outside the MCP codebase.
 
-**AssetDB Data Source:** The AssetDB client defaults to `data_source_id=1` for the main AssetDB instance. This is hardcoded but can be overridden in function calls.
+**AssetDB Data Source:** The AssetDB client defaults to `data_source_id=1` for the main AssetDB instance. This is hardcoded but can be overridden in function calls
+internally.
 
-**Authentication Complexity:** Requires three different credential types (endpoint, access_token, identity_token) which must all be configured correctly for full functionality.
+**Authentication Complexity:** Requires three different credential fields (endpoint, access_token, identity_token) which must all be configured correctly for full functionality.
+
+**Test Coverage:** Most tests are end-to-end tool tests with mocked downstream HTTP
+interactions. The abstraction level is good, but coverage is severely lacking in
+platform (and, to a lesser extent, in assetdb).
+
+**Dict Returns:** Many tools and client methods should return better-structured data.
+
+**Loose Validation:** Tool parameters in particular could often benefit from further
+type annotation to encode (and advertise to clients!) expectations. Obvious examples include:
+- download_format literals
+- assetdb result timeout
+- query_id >= 1
+
+## Important Advice
+
+- When running python in this project, always use "uv run python".
+- When you've made code changes, verify them with "just test" and "just lint".
+- You will find it useful to have access to the Redash source code as you work; this
+  project talks to `https://github.com/stacklet/redash`, NOT the upstream project by
+  `getredash`. Cloning that repository into a temp directory and using the filesystem
+  is the most effective way to answer questions about redah implementation details.
