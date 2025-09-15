@@ -55,20 +55,22 @@ class Query(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def transform_user_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            # Deep copy to avoid any mutation issues
-            data = copy.deepcopy(data)
+        if not isinstance(data, dict):
+            return data
 
-            # Handle user field - convert user_id to User object if needed
-            if "user_id" in data and "user" not in data:
-                data["user"] = {"id": data["user_id"]}
+        # Deep copy to avoid any mutation issues
+        data = copy.deepcopy(data)
 
-            # Handle last_modified_by - convert last_modified_by_id to User object if needed
-            if "last_modified_by_id" in data and "last_modified_by" not in data:
-                if data["last_modified_by_id"] is not None:
-                    data["last_modified_by"] = {"id": data["last_modified_by_id"]}
-                else:
-                    data["last_modified_by"] = None
+        # Handle user field - convert user_id to User object if needed
+        if "user_id" in data and "user" not in data:
+            data["user"] = {"id": data["user_id"]}
+
+        # Handle last_modified_by - convert last_modified_by_id to User object if needed
+        if "last_modified_by_id" in data and "last_modified_by" not in data:
+            if data["last_modified_by_id"] is not None:
+                data["last_modified_by"] = {"id": data["last_modified_by_id"]}
+            else:
+                data["last_modified_by"] = None
 
         return data
 

@@ -64,7 +64,7 @@ def _maybe_load_json(value: Any, info: ValidationInfo) -> Any:
 
     if isinstance(value, str):
         raise ValueError(
-            "Field %s, if a string, must be a non-string encoded as JSON." % info.field_name
+            f"Field {info.field_name}, if a string, must be a non-string encoded as JSON."
         )
 
     return value
