@@ -30,6 +30,7 @@ class TestDocsList(MCPTest):
         assert len(result.content) == 1
         content = json.loads(result.content[0].text)
         assert content == {
+            "base_url": "https://docs.example.com/",
             "available_document_files": docs,
             "note": "Use docs_read with any of these file paths to read the content",
             "recommended_start": "index_llms.md",

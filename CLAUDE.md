@@ -13,18 +13,23 @@ The codebase follows a modular design with clear separation of concerns:
 **Core Components:**
 - `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions
 - `stacklet/mcp/stacklet_auth.py` - Authentication credential loading
-- `stacklet/mcp/docs_handler.py` - Documentation file reading and listing (hardcoded to ../../../docs/src)
-- `stacklet/mcp/models.py` - Pydantic models for structured responses
 - `stacklet/mcp/utils.py` - Utility functions for tool implementations
+
+**Docs Package:**
+- `stacklet/mcp/docs/client.py` - Documentation client for fetching docs from Stacklet deployment
+- `stacklet/mcp/docs/tools.py` - Documentation tool implementations (docs_list, docs_read)
+- `stacklet/mcp/docs/models.py` - Pydantic models for documentation responses
 
 **Platform Package:**
 - `stacklet/mcp/platform/graphql.py` - Platform GraphQL client with instance-level schema caching
 - `stacklet/mcp/platform/tools.py` - Platform tool implementations (platform_graphql_info, platform_graphql_query, etc.)
+- `stacklet/mcp/platform/graphql_info.md` - Detailed guidance for using the Platform GraphQL API
 
 **AssetDB Package:**
 - `stacklet/mcp/assetdb/redash.py` - AssetDB client using Redash API for SQL queries and saved query management
 - `stacklet/mcp/assetdb/models.py` - Pydantic models specific to AssetDB (Query, User, JobStatus, QueryUpsert, etc.)
 - `stacklet/mcp/assetdb/tools.py` - AssetDB tool implementations (assetdb_query_list, assetdb_sql_query, etc.)
+- `stacklet/mcp/assetdb/sql_info.md` - Comprehensive guide to AssetDB structure and querying best practices
 
 **Authentication Flow:**
 The authentication system echoes the Stacklet Terraform provider's credential resolution:
@@ -109,8 +114,9 @@ The server requires Stacklet credentials configured through one of:
 - CLI config: `~/.stacklet/config.json` (endpoint), `~/.stacklet/credentials` (access token), and `~/.stacklet/id` (identity token)
 
 **External Dependencies:**
-- Documentation files must be available at `../../../docs/src/` relative to the MCP server location
+- Documentation files are fetched from the live Stacklet docs service at runtime
 - Redash endpoint is derived by replacing "api." with "redash." in the platform endpoint
+- Docs endpoint is derived by replacing "api." with "docs." in the platform endpoint
 
 ## Known Issues & Design Notes
 
@@ -118,7 +124,7 @@ When you're editing code which matches one of these concerns, think extra hard a
 the impact of your changes; prefer to mitigate these issues rather than further
 entrench them.
 
-**Documentation Path Dependency:** The docs handler has a hardcoded path dependency (`DOCS_ROOT = Path(__file__).parent / ".." / ".." / ".." / "docs" / "src"`) which assumes a specific directory structure outside the MCP codebase.
+**Documentation Service Dependency:** The docs client fetches documentation from a live Stacklet deployment's docs service (derived by replacing "api." with "docs." in the platform endpoint). This requires proper authentication and network access to the docs service.
 
 **AssetDB Data Source:** The AssetDB client defaults to `data_source_id=1` for the main AssetDB instance. This is hardcoded but can be overridden in function calls
 internally.
