@@ -132,8 +132,7 @@ internally.
 **Authentication Complexity:** Requires three different credential fields (endpoint, access_token, identity_token) which must all be configured correctly for full functionality.
 
 **Test Coverage:** Most tests are end-to-end tool tests with mocked downstream HTTP
-interactions. The abstraction level is good, but coverage is severely lacking in
-platform (and, to a lesser extent, in assetdb).
+interactions, which is an appropriate level of abstraction for most cases in this codebase. AssetDB in particular is lacking test coverage in some areas, but most tools are well tested, and the patterns seen in the existing tests should be repeated where possible.
 
 **Dict Returns:** Many tools and client methods should return better-structured data.
 
