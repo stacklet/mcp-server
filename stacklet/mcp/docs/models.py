@@ -11,6 +11,7 @@ class DocFile(BaseModel):
 class DocsList(BaseModel):
     """Available documentation files."""
 
+    base_url: str
     available_document_files: list[DocFile]
     note: str
     recommended_start: str = "index_llms.md"

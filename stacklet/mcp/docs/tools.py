@@ -21,6 +21,7 @@ async def docs_list(ctx: Context) -> DocsList:
     client = DocsClient.get(ctx)
     index = await client.get_index()
     return DocsList(
+        base_url=client.docs_url,
         available_document_files=index,
         note="Use docs_read with any of these file paths to read the content",
     )
