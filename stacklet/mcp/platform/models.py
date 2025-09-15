@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class ListTypesResult(BaseModel):
@@ -26,3 +26,10 @@ class GraphQLQueryResult(BaseModel):
     variables: dict[str, Any]
     data: dict[str, Any] | None = None
     errors: list[GraphQLError] | None = None
+
+    @model_validator(mode="after")
+    def validate_graphql_structure(self) -> Self:
+        """Ensure this looks like a valid GraphQL response with either data or errors."""
+        if not (self.data or self.errors):
+            raise ValueError("GraphQL response must contain either 'data' or 'errors' field")
+        return self

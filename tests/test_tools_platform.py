@@ -151,14 +151,14 @@ class TestGraphQLListTypes(PlatformSchemaTest):
 class TestGraphQLQuery(MCPBearerTest):
     tool_name = "platform_graphql_query"
 
-    def r(self, query: str, variables: dict = None, *, response, status_code=200) -> ExpectRequest:
+    def r(
+        self, query: str, variables: dict | None = None, *, response, status_code=200
+    ) -> ExpectRequest:
         """Helper to create GraphQL request expectations."""
-        if variables is None:
-            variables = {}
         return ExpectRequest(
             "https://api.example.com/",
             method="POST",
-            data={"query": query, "variables": variables},
+            data={"query": query, "variables": variables or {}},
             response=response,
             status_code=status_code,
         )
@@ -230,6 +230,45 @@ class TestGraphQLQuery(MCPBearerTest):
 
         # Verify that the variables were passed through correctly
         assert result.json()["variables"] == value
+
+    @pytest.mark.parametrize("status_code", [400, 403, 500, 502])
+    async def test_http_error_with_valid_graphql(self, status_code):
+        """Test HTTP 4xx/5xx status but with valid GraphQL response - should parse GraphQL."""
+        query = "{ platform { version } }"
+        data = {"platform": {"version": "test-version"}}
+
+        # Backend erroneously returns error status but with valid GraphQL data
+        with self.http.expect(
+            self.r(query, response=graphql_success_response(data), status_code=status_code)
+        ):
+            result = await self.assert_call({"query": query})
+
+        # Should parse the GraphQL data despite HTTP error status
+        assert result.json() == {
+            "query": query,
+            "variables": {},
+            "data": data,
+            "errors": None,
+        }
+
+    @pytest.mark.parametrize("status_code", [200, 400, 403, 500, 502])
+    @pytest.mark.parametrize(
+        "response_content",
+        [
+            "invalid json content",  # Invalid JSON
+            '{"unexpected": "format"}',  # Valid JSON but not GraphQL structure
+            '{"data": "not an object"}',  # GraphQL-like but invalid data type
+        ],
+    )
+    async def test_http_codes_with_invalid_response(self, status_code, response_content):
+        """Test HTTP 4xx/5xx with invalid JSON or unexpected format - should raise HTTP error."""
+        query = "{ platform { version } }"
+
+        with self.http.expect(self.r(query, response=response_content, status_code=status_code)):
+            # Should raise an error due to invalid response content
+            result = await self.assert_call({"query": query}, error=True)
+            # The error should contain the original response content
+            assert response_content in result.text
 
 
 def graphql_success_response(data):

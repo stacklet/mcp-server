@@ -56,27 +56,24 @@ class PlatformClient:
         """
         request_data = {"query": query, "variables": variables}
         response = await self.session.post(self.credentials.endpoint, json=request_data)
-        # Don't raise on HTTP errors initially - backend erroneously sets HTTP status codes
-        # for GraphQL-level errors. GraphQL transport should be HTTP 200 with errors in payload.
-        # However, if we can't parse JSON, then it's likely a real HTTP error.
+
+        # Try to parse as a valid GraphQL response, because platform backend
+        # sometimes sets 4xx/5xx error codes on valid graphql responses.
         try:
             raw_result = cast(dict[str, Any], response.json())
+            errors = None
+            if raw_errors := raw_result.get("errors"):
+                errors = [GraphQLError(**error) for error in raw_errors]
+
+            return GraphQLQueryResult(
+                query=query,
+                variables=variables,
+                data=raw_result.get("data"),
+                errors=errors,
+            )
         except Exception:
-            # If JSON parsing fails, fall back to standard HTTP error handling
-            response.raise_for_status()
-            raise  # Re-raise the JSON parsing error
-
-        # Parse GraphQL errors if present
-        errors = None
-        if raw_errors := raw_result.get("errors"):
-            errors = [GraphQLError(**error) for error in raw_errors]
-
-        return GraphQLQueryResult(
-            query=query,
-            variables=variables,
-            data=raw_result.get("data"),
-            errors=errors,
-        )
+            # Any failure (JSON parsing, validation, etc.) -> unexpected response
+            raise Exception(f"Unexpected response: {response.text}")
 
     async def get_schema(self) -> GraphQLSchema:
         """

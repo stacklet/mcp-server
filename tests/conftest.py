@@ -57,6 +57,10 @@ class MockHTTPXResponse:
     def content(self):
         return self._data.encode()
 
+    @property
+    def text(self):
+        return self._data
+
     def raise_for_status(self):
         if self.status_code >= 400:
             raise httpx.HTTPStatusError(
