@@ -1,10 +1,19 @@
-from typing import Any, Callable
+from typing import Annotated, Any, Callable
 
 from fastmcp import Context
+from pydantic import Field
 
 from ..utils import get_package_file, json_guard
 from .graphql import PlatformClient
-from .models import GetTypesResult, GraphQLQueryResult, ListTypesResult
+from .models import (
+    ExportColumn,
+    ExportConnectionInput,
+    ExportParam,
+    ExportResult,
+    GetTypesResult,
+    GraphQLQueryResult,
+    ListTypesResult,
+)
 
 
 def tools() -> list[Callable[..., Any]]:
@@ -14,6 +23,7 @@ def tools() -> list[Callable[..., Any]]:
         platform_graphql_list_types,
         platform_graphql_get_types,
         platform_graphql_query,
+        platform_dataset_export,
     ]
 
 
@@ -77,3 +87,35 @@ async def platform_graphql_query(
     """
     client = PlatformClient.get(ctx)
     return await client.query(query, variables or {})
+
+
+@json_guard
+async def platform_dataset_export(
+    ctx: Context,
+    connection_field: str,
+    columns: list[ExportColumn],
+    node_id: str | None = None,
+    params: list[ExportParam] | None = None,
+    filename: str | None = None,
+    timeout: Annotated[int, Field(ge=5, le=600, default=300)] = 300,
+    download_path: str | None = None,
+) -> ExportResult:
+    """
+    Export a full dataset from a Stacklet Platform GraphQL connection to CSV format.
+
+    This tool initiates a server-side export that pages through all data accessible
+    via a Connection node, generates a CSV file, and makes it available for download.
+    """
+    # Create the export input with validation
+    export_input = ExportConnectionInput(
+        connection_field=connection_field,
+        columns=columns,
+        node_id=node_id,
+        params=params,
+        filename=filename,
+        timeout=timeout,
+        download_path=download_path,
+    )
+
+    client = PlatformClient.get(ctx)
+    return await client.export_dataset(export_input)
