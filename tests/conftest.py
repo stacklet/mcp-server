@@ -9,6 +9,9 @@ from typing import Any
 import httpx
 import pytest
 
+from fastmcp import Client
+
+from stacklet.mcp.mcp import mcp
 from stacklet.mcp.stacklet_auth import StackletCredentials
 
 
@@ -16,13 +19,19 @@ from stacklet.mcp.stacklet_auth import StackletCredentials
 def mock_stacklet_credentials(monkeypatch):
     """Mock load_stacklet_auth to return fake test credentials."""
     fake_credentials = StackletCredentials(
-        endpoint="https://example.com/",
+        endpoint="https://api.example.com/",
         access_token="fake-access-token",
         identity_token="fake-identity-token",
     )
 
     monkeypatch.setattr("stacklet.mcp.stacklet_auth.load_stacklet_auth", lambda: fake_credentials)
     return fake_credentials
+
+
+@pytest.fixture
+async def mcp_client(mock_stacklet_credentials):
+    async with Client(mcp) as client:
+        yield client
 
 
 class MockHTTPXResponse:
@@ -34,6 +43,10 @@ class MockHTTPXResponse:
 
     def json(self):
         return json.loads(self._data)
+
+    @property
+    def content(self):
+        return self._data.encode()
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -60,37 +73,48 @@ class ExpectRequest:
         return MockHTTPXResponse(self.response, self.status_code)
 
 
+class ExpectationContext:
+    def __init__(self, expected_requests: list[ExpectRequest]):
+        self.expected_requests = expected_requests
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_val:
+            return
+
+        if self.expected_requests:
+            remaining = [x.expect_url for x in self.expected_requests]
+            self.expected_requests.clear()
+            raise AssertionError(f"Expected requests not made: {remaining}")
+
+
+class ExpectedRequestsController:
+    def __init__(self):
+        self.expected_requests = []
+
+    def next_request(self) -> ExpectRequest:
+        """Return the next request."""
+        assert self.expected_requests
+        return self.expected_requests.pop(0)
+
+    def expect(self, *requests: ExpectRequest) -> ExpectationContext:
+        """Return a Context manager that sets up expectations and verifies completion."""
+        self.expected_requests = list(requests)  # track the shared state
+        return ExpectationContext(self.expected_requests)
+
+
 @pytest.fixture
-def mock_assetdb_request(monkeypatch, mock_stacklet_credentials):
+def mock_http_request(monkeypatch, mock_stacklet_credentials):
     """Mock httpx.AsyncClient.request with ordered expectations."""
 
-    # Funky shared state with ExpectationContext
-    expected_requests: list[ExpectRequest] = []
+    controller = ExpectedRequestsController()
 
     async def mock_request(self, method, url, **kwargs):
-        assert expected_requests
         assert self.cookies["stacklet-auth"] == mock_stacklet_credentials.identity_token
-        return expected_requests.pop(0).respond(method, url, **kwargs)
+        return controller.next_request().respond(method, url, **kwargs)
 
     monkeypatch.setattr("httpx.AsyncClient.request", mock_request)
 
-    # Return controller object
-    class MockController:
-        def expect(self, *requests: ExpectRequest):
-            """Context manager that sets up expectations and verifies completion."""
-
-            class ExpectationContext:
-                def __enter__(self):
-                    # Add all expectations to the queue
-                    expected_requests.extend(requests)
-                    return self
-
-                def __exit__(self, exc_type, exc_val, exc_tb):
-                    if expected_requests:
-                        remaining = [x.expect_url for x in expected_requests]
-                        expected_requests.clear()  # Clean up
-                        raise AssertionError(f"Expected requests not made: {remaining}")
-
-            return ExpectationContext()
-
-    return MockController()
+    return controller

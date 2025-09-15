@@ -23,6 +23,13 @@ class StackletCredentials(NamedTuple):
             ctx.set_state(key, load_stacklet_auth())
         return cast(Self, ctx.get_state(key))
 
+    def service_endpoint(self, service: str) -> str:
+        """Return the endpoint for a service."""
+        endpoint = self.endpoint.replace("api.", f"{service}.", 1)
+        if not endpoint.endswith("/"):
+            endpoint += "/"
+        return endpoint
+
 
 def get_stacklet_dir() -> Path:
     """
