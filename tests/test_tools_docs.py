@@ -5,7 +5,7 @@ Tests for docs-related MCP tools.
 import json
 
 from .conftest import ExpectRequest
-from .mcp_test import MCPTest
+from .testing.mcp import MCPTest
 
 
 class TestDocsList(MCPTest):
@@ -26,10 +26,7 @@ class TestDocsList(MCPTest):
         ):
             result = await self.assert_call({})
 
-        assert hasattr(result, "content")
-        assert len(result.content) == 1
-        content = json.loads(result.content[0].text)
-        assert content == {
+        assert result.json() == {
             "base_url": "https://docs.example.com/",
             "available_document_files": docs,
             "note": "Use docs_read with any of these file paths to read the content",
@@ -59,10 +56,7 @@ class TestDocsRead(MCPTest):
         ):
             result = await self.assert_call({"file_path": path})
 
-        assert hasattr(result, "content")
-        assert len(result.content) == 1
-        content = json.loads(result.content[0].text)
-        assert content == {
+        assert result.json() == {
             "path": path,
             "content": doc_text,
         }
@@ -79,7 +73,6 @@ class TestDocsRead(MCPTest):
         ):
             result = await self.assert_call({"file_path": "some_other_file.md"}, error=True)
 
-        assert hasattr(result, "content")
-        assert len(result.content) == 1
-        content = result.content[0].text
-        assert content == "Error calling tool 'docs_read': Resource is not a known document file"
+        assert (
+            result.text == "Error calling tool 'docs_read': Resource is not a known document file"
+        )
