@@ -4,6 +4,7 @@ from fastmcp import Context
 
 from ..utils import get_package_file, json_guard
 from .graphql import PlatformClient
+from .models import GetTypesResult, ListTypesResult
 
 
 def tools() -> list[Callable[..., Any]]:
@@ -27,7 +28,7 @@ def platform_graphql_info() -> str:
 
 
 @json_guard
-async def platform_graphql_list_types(ctx: Context, match: str | None = None) -> list[str]:
+async def platform_graphql_list_types(ctx: Context, match: str | None = None) -> ListTypesResult:
     """
     List the types available in the Stacklet Platform GraphQL API.
 
@@ -35,14 +36,14 @@ async def platform_graphql_list_types(ctx: Context, match: str | None = None) ->
         match: Optional regular expression filter
 
     Returns:
-        List of type names
+        Structured response with context
     """
     client = PlatformClient.get(ctx)
     return await client.list_types(match)
 
 
 @json_guard
-async def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> dict[str, str]:
+async def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> GetTypesResult:
     """
     Retrieve information about types in the Stacklet Platform GraphQL API.
 

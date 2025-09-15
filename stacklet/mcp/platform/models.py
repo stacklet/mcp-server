@@ -1,0 +1,12 @@
+from pydantic import BaseModel
+
+
+class ListTypesResult(BaseModel):
+    searched_for: str | None
+    found_types: list[str]
+
+
+class GetTypesResult(BaseModel):
+    asked_for: list[str]
+    found_sdl: dict[str, str]
+    not_found: list[str]

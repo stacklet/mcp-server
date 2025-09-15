@@ -13,6 +13,7 @@ from graphql import GraphQLSchema, build_client_schema, get_introspection_query,
 
 from ..lifespan import server_cached
 from ..stacklet_auth import StackletCredentials
+from .models import GetTypesResult, ListTypesResult
 
 
 class PlatformClient:
@@ -97,7 +98,7 @@ class PlatformClient:
         self._schema_cache = build_client_schema({"__schema": schema})
         return self._schema_cache
 
-    async def list_types(self, match: str | None = None) -> list[str]:
+    async def list_types(self, match: str | None = None) -> ListTypesResult:
         """
         List the types available in the GraphQL API.
 
@@ -105,7 +106,7 @@ class PlatformClient:
             match: Optional regular expression filter
 
         Returns:
-            List of type names
+            Structured result with context
         """
         schema = await self.get_schema()
         names = schema.type_map.keys()
@@ -114,9 +115,9 @@ class PlatformClient:
             f = re.compile(match)
             names = filter(f.search, names)
 
-        return sorted(names)
+        return ListTypesResult(searched_for=match, found_types=sorted(names))
 
-    async def get_types(self, type_names: list[str]) -> dict[str, str]:
+    async def get_types(self, type_names: list[str]) -> GetTypesResult:
         """
         Retrieve information about specific types in the GraphQL API.
 
@@ -124,13 +125,16 @@ class PlatformClient:
             type_names: Names of requested types
 
         Returns:
-            Dictionary mapping valid type names to GraphQL SDL definitions
+            Structured result with context
         """
         schema = await self.get_schema()
         found = {}
+        missing = []
 
-        for type_name in type_names:
+        for type_name in sorted(set(type_names)):
             if match := schema.type_map.get(type_name):
                 found[type_name] = print_type(match)
+            else:
+                missing.append(type_name)
 
-        return found
+        return GetTypesResult(asked_for=type_names, found_sdl=found, not_found=missing)
