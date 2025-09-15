@@ -9,8 +9,8 @@ import httpx
 
 from fastmcp import Context
 
+from ..lifespan import server_cached
 from ..stacklet_auth import StackletCredentials
-from ..utils import cache_in_context
 from .models import DocContent, DocFile
 
 
@@ -32,7 +32,7 @@ class DocsClient:
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        return cache_in_context(ctx, "DOCS_CLIENT", lambda: cls(StackletCredentials.get(ctx)))
+        return server_cached(ctx, "DOCS_CLIENT", lambda: cls(StackletCredentials.get(ctx)))
 
     async def get_index(self) -> list[DocFile]:
         """Fetch documents index.

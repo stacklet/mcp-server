@@ -12,6 +12,7 @@ from .docs.tools import (
     docs_list,
     docs_read,
 )
+from .lifespan import server_state_lifespan
 from .platform.tools import (
     platform_graphql_get_types,
     platform_graphql_info,
@@ -48,6 +49,7 @@ The Stacklet MCP server has 3 main toolsets:
         platform_graphql_get_types,
         platform_graphql_query,
     ],
+    lifespan=server_state_lifespan,
 )
 
 

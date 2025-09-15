@@ -33,6 +33,23 @@ class TestDocsList(MCPTest):
             "recommended_start": "index_llms.md",
         }
 
+    async def test_cached(self):
+        """Document listing is cached across requests.."""
+        docs = [
+            {"path": "foo.md", "title": "How to foo"},
+            {"path": "bar.md", "title": "How to bar"},
+        ]
+
+        with self.http.expect(
+            ExpectRequest(
+                url="https://docs.example.com/index.json",
+                response=json.dumps(docs),
+            ),
+        ):
+            result1 = await self.assert_call({})
+            result2 = await self.assert_call({})
+        assert result1.json() == result2.json()
+
 
 class TestDocsRead(MCPTest):
     tool_name = "docs_read"
@@ -62,7 +79,7 @@ class TestDocsRead(MCPTest):
         }
 
     async def test_read_other_file(self):
-        """Reading a document returns its content."""
+        """Trying to read a document with an unknown file returns an error."""
         index = [{"path": "some/file.md", "title": "Sample doc"}]
 
         with self.http.expect(

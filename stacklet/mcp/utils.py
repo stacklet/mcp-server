@@ -4,9 +4,8 @@ from functools import wraps
 from importlib import resources
 from inspect import get_annotations
 from pathlib import Path
-from typing import Annotated, Any, Callable, TypeVar, cast
+from typing import Annotated, Any, Callable, cast
 
-from fastmcp import Context
 from fastmcp.utilities.types import is_class_member_of_type
 from pydantic import BeforeValidator, ValidationInfo
 
@@ -15,18 +14,6 @@ def get_package_file(path: str) -> Path:
     """Return a file under the stacklet/mcp package."""
     # the Traversable is always a path in practice
     return cast(Path, resources.files("stacklet") / "mcp" / path)
-
-
-ObjInContext = TypeVar("ObjInContext")
-
-
-def cache_in_context(ctx: Context, key: str, construct: Callable[[], ObjInContext]) -> ObjInContext:
-    """Get or construct and cache an object in the context state, with the provided key."""
-    obj = ctx.get_state(key)
-    if obj is None:
-        obj = construct()
-        ctx.set_state(key, obj)
-    return cast(ObjInContext, obj)
 
 
 def json_guard(fn: Callable[..., Any]) -> Callable[..., Any]:
