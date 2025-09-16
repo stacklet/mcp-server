@@ -14,8 +14,8 @@ import httpx
 
 from fastmcp import Context
 
+from ..lifespan import server_cached
 from ..stacklet_auth import StackletCredentials
-from ..utils import cache_in_context
 from .models import JobStatus, QueryListResponse, QueryUpsert
 
 
@@ -24,7 +24,10 @@ class AssetDBClient:
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        return cache_in_context(ctx, "ASSETDB_CLIENT", lambda: cls(StackletCredentials.get(ctx)))
+        def construct() -> AssetDBClient:
+            return cls(StackletCredentials.get(ctx))
+
+        return cast(Self, server_cached(ctx, "ASSETDB_CLIENT", construct))
 
     def __init__(self, credentials: StackletCredentials):
         """

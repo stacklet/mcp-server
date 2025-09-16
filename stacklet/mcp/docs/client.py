@@ -2,15 +2,15 @@
 Client for accessing Stacklet documentation.
 """
 
-from typing import Self
+from typing import Self, cast
 from urllib.parse import urljoin
 
 import httpx
 
 from fastmcp import Context
 
+from ..lifespan import server_cached
 from ..stacklet_auth import StackletCredentials
-from ..utils import cache_in_context
 from .models import DocContent, DocFile
 
 
@@ -32,7 +32,10 @@ class DocsClient:
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        return cache_in_context(ctx, "DOCS_CLIENT", lambda: cls(StackletCredentials.get(ctx)))
+        def construct() -> DocsClient:
+            return cls(StackletCredentials.get(ctx))
+
+        return cast(Self, server_cached(ctx, "DOCS_CLIENT", construct))
 
     async def get_index(self) -> list[DocFile]:
         """Fetch documents index.

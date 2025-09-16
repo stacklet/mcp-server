@@ -1,7 +1,4 @@
-import httpx
-
 from fastmcp import Context
-from fastmcp.exceptions import ToolError
 
 from .client import DocsClient
 from .models import DocContent, DocsList
@@ -42,12 +39,4 @@ async def docs_read(ctx: Context, file_path: str) -> DocContent:
         of all available documentation.
     """
     client = DocsClient.get(ctx)
-    try:
-        return await client.get_doc_file(file_path)
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == httpx.codes.NOT_FOUND:
-            raise ToolError(
-                f"File '{file_path}' not found, "
-                "Check docs_list or try 'index_llms.md' as a starting point",
-            )
-        raise
+    return await client.get_doc_file(file_path)

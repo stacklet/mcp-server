@@ -11,8 +11,8 @@ import httpx
 from fastmcp import Context
 from graphql import GraphQLSchema, build_client_schema, get_introspection_query, print_type
 
+from ..lifespan import server_cached
 from ..stacklet_auth import StackletCredentials
-from ..utils import cache_in_context
 
 
 class PlatformClient:
@@ -20,7 +20,10 @@ class PlatformClient:
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        return cache_in_context(ctx, "PLATFORM_CLIENT", lambda: cls(StackletCredentials.get(ctx)))
+        def construct() -> PlatformClient:
+            return cls(StackletCredentials.get(ctx))
+
+        return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
 
     def __init__(self, credentials: StackletCredentials):
         """
