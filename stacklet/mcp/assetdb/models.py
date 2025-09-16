@@ -106,24 +106,7 @@ class QueryUpsert(BaseModel):
         Returns:
             Payload dictionary with non-None values
         """
-        payload: dict[str, Any] = {}
-
-        if self.name is not None:
-            payload["name"] = self.name
-        if self.query is not None:
-            payload["query"] = self.query
-        if self.description is not None:
-            # NOTE that None _is_ a valid description, but since "" is
-            # functionally equivalent there's no need to complicate with
-            # NotSet/EMPTY-style handling.
-            payload["description"] = self.description
-        if self.tags is not None:
-            payload["tags"] = self.tags
-        if self.options is not None:
-            payload["options"] = self.options
-        if self.is_draft is not None:
-            payload["is_draft"] = self.is_draft
-
+        payload = self.model_dump(exclude_none=True)
         if data_source_id:
             payload["data_source_id"] = data_source_id
 

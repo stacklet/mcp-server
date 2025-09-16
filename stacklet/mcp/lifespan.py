@@ -2,7 +2,10 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Callable, TypeVar, cast
 
 from fastmcp import Context, FastMCP
+from fastmcp.utilities.logging import get_logger
 from mcp.server.lowlevel.server import LifespanResultT
+
+from .settings import MCPSettings
 
 
 # an object cached in the server global state
@@ -26,8 +29,15 @@ class ServerState(dict[str, Any]):
 
 
 @asynccontextmanager
-async def server_state_lifespan(server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerState]:
-    """Lifespan context manager for global state in the server."""
+async def lifespan(server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerState]:
+    """Server lifespan context manager."""
+    logger = get_logger("stacklet")
+
+    # startup logging
+    settings = MCPSettings()
+    logger.info(f"Server settings: {settings.model_dump()}")
+
+    # return shared state
     yield ServerState()
 
 

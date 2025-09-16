@@ -15,6 +15,7 @@ import httpx
 from fastmcp import Context
 
 from ..lifespan import server_cached
+from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 from .models import JobStatus, QueryListResponse, QueryUpsert
 
@@ -22,25 +23,28 @@ from .models import JobStatus, QueryListResponse, QueryUpsert
 class AssetDBClient:
     """Client for AssetDB interface via Redash API using Stacklet authentication."""
 
-    @classmethod
-    def get(cls, ctx: Context) -> Self:
-        def construct() -> AssetDBClient:
-            return cls(StackletCredentials.get(ctx))
-
-        return cast(Self, server_cached(ctx, "ASSETDB_CLIENT", construct))
-
-    def __init__(self, credentials: StackletCredentials):
+    def __init__(self, credentials: StackletCredentials, data_source_id: int = 1) -> None:
         """
         Initialize AssetDB client with Stacklet credentials.
 
         Args:
             credentials: StackletCredentials object containing endpoint and id_token
+            data_source_id: ID of the Redash data source (default 1 for main AssetDB)
         """
         self.credentials = credentials
+        self.data_source_id = data_source_id
+
         self.redash_url = self.credentials.service_endpoint("redash")
         self.session = httpx.AsyncClient(
             cookies={"stacklet-auth": credentials.identity_token}, timeout=60.0
         )
+
+    @classmethod
+    def get(cls, ctx: Context) -> Self:
+        def construct() -> AssetDBClient:
+            return cls(StackletCredentials.get(ctx), SETTINGS.assetdb_datasource)
+
+        return cast(Self, server_cached(ctx, "ASSETDB_CLIENT", construct))
 
     async def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any:
         """
@@ -127,15 +131,12 @@ class AssetDBClient:
         result = await self._make_request("POST", f"api/queries/{query_id}/results", json=payload)
         return await self._get_query_result_id(result, timeout)
 
-    async def execute_adhoc_query(
-        self, query: str, data_source_id: int = 1, timeout: int = 60
-    ) -> int:
+    async def execute_adhoc_query(self, query: str, timeout: int = 60) -> int:
         """
         Execute an ad-hoc SQL query without saving it.
 
         Args:
             query: SQL query string to execute
-            data_source_id: ID of the data source (default 1 for main AssetDB)
             timeout: Timeout in seconds for query execution
 
         Returns:
@@ -143,7 +144,7 @@ class AssetDBClient:
         """
         payload = {
             "query": query,
-            "data_source_id": data_source_id,
+            "data_source_id": self.data_source_id,
             "max_age": 0,  # Force fresh results
             "apply_auto_limit": True,
             "parameters": {},
@@ -259,29 +260,6 @@ class AssetDBClient:
 
         return download_path
 
-    async def get_data_sources(self) -> list[dict[str, Any]]:
-        """
-        Get available data sources.
-
-        Returns:
-            List of data source objects with id, name, type, etc.
-        """
-        result = await self._make_request("GET", "api/data_sources")
-        return cast(list[dict[str, Any]], result)
-
-    async def get_schema(self, data_source_id: int = 1) -> dict[str, Any]:
-        """
-        Get database schema for a data source.
-
-        Args:
-            data_source_id: ID of the data source (default 1 for main AssetDB)
-
-        Returns:
-            Schema information with tables and columns
-        """
-        result = await self._make_request("GET", f"api/data_sources/{data_source_id}/schema")
-        return cast(dict[str, Any], result)
-
     async def create_query(self, upsert: QueryUpsert) -> dict[str, Any]:
         """
         Create a new saved query.
@@ -292,7 +270,7 @@ class AssetDBClient:
         Returns:
             Complete query object with ID, timestamps, and metadata
         """
-        payload = upsert.payload(data_source_id=1)
+        payload = upsert.payload(data_source_id=self.data_source_id)
         result = await self._make_request("POST", "api/queries", json=payload)
         return cast(dict[str, Any], result)
 

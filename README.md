@@ -9,3 +9,15 @@ Currently extremely rudimentary:
 When primed with e.g. "tell me about the stacklet graphql api", Claude appears to pull in enough context to answer subsequent questions like "tell me about my stacklet deployment" by running exploratory queries, fixing its own mistakes in the process; can be cajoled into exporting datasets and downloading them locally for subsequent analysis with better-suited tools.
 
 When primed with e.g. "tell me about querying assetdb", and "explore the assetdb schema and tell me about it", Claude appears to generate and run sensible queries around cost and tagging use cases.
+
+
+# Server configuration
+
+The MCP server can be configured via environment variables.
+
+When the MCP is run from an agent, those can be set in the `"env"` section of
+he `.mcp.json` file.
+
+The following variables are available:
+
+- `STACKLET_MCP_ASSETDB_DATASOURCE`: the datasource ID for AssetDB in Redash, defaulting to `1`
