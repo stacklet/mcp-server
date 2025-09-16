@@ -5,7 +5,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.utilities.logging import get_logger
 from mcp.server.lowlevel.server import LifespanResultT
 
-from .settings import MCPSettings
+from .settings import Settings
 
 
 # an object cached in the server global state
@@ -34,7 +34,7 @@ async def lifespan(server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerStat
     logger = get_logger("stacklet")
 
     # startup logging
-    settings = MCPSettings()
+    settings = Settings()
     logger.info(f"Server settings: {settings.model_dump()}")
 
     # return shared state

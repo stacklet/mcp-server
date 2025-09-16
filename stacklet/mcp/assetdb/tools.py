@@ -1,11 +1,26 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Callable
 
 from fastmcp import Context
 from pydantic import Field
 
+from ..settings import Settings
 from ..utils import get_package_file, json_guard
 from .models import QueryUpsert
 from .redash import AssetDBClient
+
+
+def tools(settings: Settings) -> list[Callable[..., Any]]:
+    """List of available AssetDB tools."""
+    tools: list[Callable[..., Any]] = [
+        assetdb_sql_info,
+        assetdb_sql_query,
+        assetdb_query_list,
+        assetdb_query_get,
+        assetdb_query_results,
+    ]
+    if settings.assetdb_save:
+        tools.append(assetdb_query_save)
+    return tools
 
 
 @json_guard

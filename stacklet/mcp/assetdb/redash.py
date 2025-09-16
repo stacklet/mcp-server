@@ -15,7 +15,7 @@ import httpx
 from fastmcp import Context
 
 from ..lifespan import server_cached
-from ..settings import SETTINGS
+from ..settings import Settings
 from ..stacklet_auth import StackletCredentials
 from .models import JobStatus, QueryListResponse, QueryUpsert
 
@@ -42,7 +42,7 @@ class AssetDBClient:
     @classmethod
     def get(cls, ctx: Context) -> Self:
         def construct() -> AssetDBClient:
-            return cls(StackletCredentials.get(ctx), SETTINGS.assetdb_datasource)
+            return cls(StackletCredentials.get(ctx), Settings().assetdb_datasource)
 
         return cast(Self, server_cached(ctx, "ASSETDB_CLIENT", construct))
 

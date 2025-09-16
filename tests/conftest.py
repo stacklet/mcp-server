@@ -6,7 +6,7 @@ import pytest
 
 from fastmcp import Client
 
-from stacklet.mcp.mcp import mcp
+from stacklet.mcp.mcp import make_server
 from stacklet.mcp.stacklet_auth import StackletCredentials
 
 from .testing.http import mock_http_request
@@ -30,7 +30,11 @@ def mock_stacklet_credentials(monkeypatch):
 
 
 @pytest.fixture
-async def mcp_client(mock_stacklet_credentials):
+async def mcp_client(monkeypatch, mock_stacklet_credentials):
     """A client for the MCP server."""
-    async with Client(mcp) as client:
+
+    # enable all tools
+    monkeypatch.setenv("STACKLET_MCP_ASSETDB_SAVE", "true")
+
+    async with Client(make_server()) as client:
         yield client

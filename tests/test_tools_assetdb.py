@@ -7,12 +7,21 @@ from typing import Any
 
 import pytest
 
+from stacklet.mcp.assetdb.tools import assetdb_query_save, tools
+from stacklet.mcp.settings import Settings
+
 from . import factory
 from .testing.http import ExpectRequest
 from .testing.mcp import MCPTest, json_guard_parametrize
 
 
 pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
+
+
+@pytest.mark.parametrize("save", [True, False])
+def test_tools_save(save: bool):
+    settings = Settings(assetdb_save=save)
+    assert (assetdb_query_save in tools(settings)) == save
 
 
 class TestSQLInfo(MCPTest):
