@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from . import factory
-from .conftest import ExpectRequest
+from .testing.http import ExpectRequest
 from .testing.mcp import MCPTest, json_guard_parametrize
 
 

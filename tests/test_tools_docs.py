@@ -4,7 +4,7 @@ Tests for docs-related MCP tools.
 
 import json
 
-from .conftest import ExpectRequest
+from .testing.http import ExpectRequest
 from .testing.mcp import MCPTest
 
 
