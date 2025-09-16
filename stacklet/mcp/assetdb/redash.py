@@ -24,7 +24,10 @@ class AssetDBClient:
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        return server_cached(ctx, "ASSETDB_CLIENT", lambda: cls(StackletCredentials.get(ctx)))
+        def construct() -> AssetDBClient:
+            return cls(StackletCredentials.get(ctx))
+
+        return cast(Self, server_cached(ctx, "ASSETDB_CLIENT", construct))
 
     def __init__(self, credentials: StackletCredentials):
         """

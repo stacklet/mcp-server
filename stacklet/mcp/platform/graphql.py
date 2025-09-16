@@ -20,7 +20,10 @@ class PlatformClient:
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        return server_cached(ctx, "PLATFORM_CLIENT", lambda: cls(StackletCredentials.get(ctx)))
+        def construct() -> PlatformClient:
+            return cls(StackletCredentials.get(ctx))
+
+        return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
 
     def __init__(self, credentials: StackletCredentials):
         """

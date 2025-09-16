@@ -2,7 +2,7 @@
 Client for accessing Stacklet documentation.
 """
 
-from typing import Self
+from typing import Self, cast
 from urllib.parse import urljoin
 
 import httpx
@@ -32,7 +32,10 @@ class DocsClient:
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        return server_cached(ctx, "DOCS_CLIENT", lambda: cls(StackletCredentials.get(ctx)))
+        def construct() -> DocsClient:
+            return cls(StackletCredentials.get(ctx))
+
+        return cast(Self, server_cached(ctx, "DOCS_CLIENT", construct))
 
     async def get_index(self) -> list[DocFile]:
         """Fetch documents index.
