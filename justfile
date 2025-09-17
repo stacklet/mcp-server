@@ -10,6 +10,7 @@ run:
 format:
     uv run ruff check --fix
     uv run ruff format
+    - uv run pyproject-fmt -n pyproject.toml
 
 # Lint code
 lint:
