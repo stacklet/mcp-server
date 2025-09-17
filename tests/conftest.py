@@ -10,10 +10,11 @@ from stacklet.mcp.mcp import make_server
 from stacklet.mcp.stacklet_auth import StackletCredentials
 
 from .testing.http import mock_http_request
+from .testing.settings import default_settings, override_setting
 
 
 # add imported fixtures to __all__ so they're considered in use in the module
-__all__ = ["mock_http_request"]
+__all__ = ["mock_http_request", "default_settings", "override_setting"]
 
 
 @pytest.fixture
@@ -30,11 +31,11 @@ def mock_stacklet_credentials(monkeypatch):
 
 
 @pytest.fixture
-async def mcp_client(monkeypatch, mock_stacklet_credentials):
+async def mcp_client(override_setting, mock_stacklet_credentials):
     """A client for the MCP server."""
 
     # enable all tools
-    monkeypatch.setenv("STACKLET_MCP_ASSETDB_SAVE", "true")
+    override_setting("assetdb_save", True)
 
     async with Client(make_server()) as client:
         yield client

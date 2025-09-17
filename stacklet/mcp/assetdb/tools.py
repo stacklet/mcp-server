@@ -3,13 +3,13 @@ from typing import Annotated, Any, Callable
 from fastmcp import Context
 from pydantic import Field
 
-from ..settings import Settings
+from ..settings import SETTINGS
 from ..utils import get_package_file, json_guard
 from .models import QueryUpsert
 from .redash import AssetDBClient
 
 
-def tools(settings: Settings) -> list[Callable[..., Any]]:
+def tools() -> list[Callable[..., Any]]:
     """List of available AssetDB tools."""
     tools: list[Callable[..., Any]] = [
         assetdb_sql_info,
@@ -18,7 +18,7 @@ def tools(settings: Settings) -> list[Callable[..., Any]]:
         assetdb_query_get,
         assetdb_query_results,
     ]
-    if settings.assetdb_save:
+    if SETTINGS.assetdb_save:
         tools.append(assetdb_query_save)
     return tools
 

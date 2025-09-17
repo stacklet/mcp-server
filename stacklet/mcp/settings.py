@@ -5,7 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Server settings."""
 
-    model_config = SettingsConfigDict(env_prefix="stacklet_mcp_")
+    model_config = SettingsConfigDict(
+        env_prefix="stacklet_mcp_",
+        validate_assignment=True,
+    )
 
     assetdb_datasource: int = Field(
         default=1,

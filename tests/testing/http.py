@@ -43,7 +43,7 @@ class ExpectRequest:
         assert url == self.expect_url
         assert method == self.expect_method
         data = kwargs.get("params" if method == "GET" else "json")
-        assert data == self.expect_data
+        assert data == self.expect_data, data
         return MockHTTPXResponse(self.response, self.status_code)
 
 

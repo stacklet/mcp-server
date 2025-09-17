@@ -8,7 +8,6 @@ from typing import Any
 import pytest
 
 from stacklet.mcp.assetdb.tools import assetdb_query_save, tools
-from stacklet.mcp.settings import Settings
 
 from . import factory
 from .testing.http import ExpectRequest
@@ -19,9 +18,9 @@ pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
 
 
 @pytest.mark.parametrize("save", [True, False])
-def test_tools_save(save: bool):
-    settings = Settings(assetdb_save=save)
-    assert (assetdb_query_save in tools(settings)) == save
+def test_tools_save(override_setting, save: bool):
+    override_setting("assetdb_save", save)
+    assert (assetdb_query_save in tools()) == save
 
 
 class TestSQLInfo(MCPTest):
@@ -235,6 +234,33 @@ class TestQuerySave(MCPTest):
                     "name": "Untitled LLM Query",
                     "query": "",
                     "data_source_id": 1,
+                },
+                response=response,
+            ),
+        ):
+            result = await self.assert_call({})
+
+        assert result.json() == expect
+
+    async def test_other_data_source_id(self, override_setting):
+        override_setting("assetdb_datasource", 123)
+
+        response = factory.redash_query(
+            id=789,
+            name="Untitled LLM Query",
+            query="",
+            description=None,
+            is_draft=True,
+        )
+        expect = deepcopy(response)
+        expect.pop("visualizations")
+
+        with self.http.expect(
+            self.r(
+                {
+                    "name": "Untitled LLM Query",
+                    "query": "",
+                    "data_source_id": 123,
                 },
                 response=response,
             ),
