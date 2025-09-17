@@ -215,7 +215,9 @@ class PlatformClient:
         }
     """
 
-    async def _query(self, query: str, variables: dict[str, Any] | None = None) -> GraphQLQueryResult:
+    async def _query(
+        self, query: str, variables: dict[str, Any] | None = None
+    ) -> GraphQLQueryResult:
         request_data = {"query": query, "variables": variables}
         response = await self.session.post(self.credentials.endpoint, json=request_data)
 
