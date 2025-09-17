@@ -11,7 +11,6 @@ from graphql import build_schema
 from stacklet.mcp.platform.graphql import PlatformClient
 from stacklet.mcp.platform.models import ExportParam
 
-from . import factory
 from .testing.http import ExpectRequest
 from .testing.mcp import MCPBearerTest, MCPTest, json_guard_parametrize
 
@@ -297,6 +296,94 @@ def graphql_field_error(message: str, field_path: list, line: int = 1, column: i
 class PlatformDatasetTest(MCPBearerTest):
     EXPORT_ID = "node-123"
 
+    @staticmethod
+    def platform_export(export_id, started=False, succeeded=None):
+        node = {
+            "id": export_id,
+            "started": None,
+            "processed": None,
+            "completed": None,
+            "success": succeeded,
+            "message": None,
+            "downloadURL": None,
+            "availableUntil": None,
+        }
+        if started:
+            node |= {"started": "2024-12-06T03:15:07+00:00", "processed": 11}
+        if succeeded is not None:
+            assert started, "test should make sense"
+            node |= {"completed": "2024-12-06T03:15:09+00:00", "processed": 23}
+            if succeeded:
+                node |= {
+                    "message": "yay!",
+                    "downloadURL": "https://example.com/x.csv",
+                    "availableUntil": "2024-12-07T03:15:09+00:00",
+                }
+            else:
+                node |= {"message": "meh."}
+        return node
+
+    @staticmethod
+    def trivial_export_columns():
+        return [
+            {"name": "id", "path": "id"},
+        ]
+
+    @staticmethod
+    def fancy_export_columns():
+        return [
+            {"name": "Arbitrary Text", "path": "a.b.c"},
+            {"name": "🤯", "path": "huh", "subpath": "foo.bar"},
+        ]
+
+    @staticmethod
+    def trivial_export_param():
+        return {"name": "id", "type": "ID!", "value": "opaque-node-id"}
+
+    @staticmethod
+    def fancy_export_param():
+        return {
+            "name": "filterElement",
+            "type": "FilterElementInput",
+            "value": {
+                "multiple": {
+                    "operator": "or",
+                    "operands": [
+                        {"single": {"name": "foo", "operator": "equals", "value": "bob"}},
+                        {"single": {"name": "bar"}},
+                    ],
+                }
+            },
+        }
+
+    def assert_result(self, result, started=False, succeeded=None):
+        """Assert that result matches expected export state from factory args."""
+        expected = {
+            "export_id": self.EXPORT_ID,
+            "started": None,
+            "processed_rows": None,
+            "completed": None,
+            "success": succeeded,
+            "message": None,
+            "download_url": None,
+            "available_until": None,
+        }
+        if started:
+            expected["started"] = "2024-12-06T03:15:07Z"
+            expected["processed_rows"] = 11
+        if succeeded is not None:
+            assert started, "test should make sense"
+            expected["completed"] = "2024-12-06T03:15:09Z"
+            expected["processed_rows"] = 23
+            if succeeded:
+                expected["message"] = "yay!"
+                expected["download_url"] = "https://example.com/x.csv"
+                expected["available_until"] = "2024-12-07T03:15:09Z"
+            else:
+                expected["message"] = "meh."
+
+        assert result.json() == expected
+
     def expect_start_export(self, columns, connection="someConnection", node_id=None, params=None):
         """Create expectation for the export mutation request."""
         input_ = {
@@ -337,12 +424,12 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
 
     @json_guard_parametrize(
         [
-            factory.trivial_export_columns(),
-            factory.fancy_export_columns(),
+            PlatformDatasetTest.trivial_export_columns(),
+            PlatformDatasetTest.fancy_export_columns(),
         ]
     )
     async def test_columns(self, mangle, value):
-        export = factory.platform_export(self.EXPORT_ID)
+        export = self.platform_export(self.EXPORT_ID)
         with self.http.expect(
             self.expect_start_export(value),
             self.expect_get_export(export),
@@ -351,16 +438,16 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
 
     @json_guard_parametrize(
         [
-            factory.trivial_export_param(),
-            factory.fancy_export_param(),
+            PlatformDatasetTest.trivial_export_param(),
+            PlatformDatasetTest.fancy_export_param(),
         ]
     )
     async def test_params(self, mangle, value):
         # params goes through an extra layer of deliberate mangling
         expect = [ExportParam(**value).for_graphql()]
 
-        export = factory.platform_export(self.EXPORT_ID)
-        columns = factory.trivial_export_columns()
+        export = self.platform_export(self.EXPORT_ID)
+        columns = self.trivial_export_columns()
         with self.http.expect(
             self.expect_start_export(columns, params=expect),
             self.expect_get_export(export),
@@ -374,8 +461,8 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
             )
 
     async def test_node_id(self):
-        export = factory.platform_export(self.EXPORT_ID)
-        columns = factory.trivial_export_columns()
+        export = self.platform_export(self.EXPORT_ID)
+        columns = self.trivial_export_columns()
         with self.http.expect(
             self.expect_start_export(columns, node_id="some-value"),
             self.expect_get_export(export),
@@ -389,8 +476,8 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
             )
 
     async def test_response_unstarted(self):
-        columns = factory.trivial_export_columns()
-        export = factory.platform_export(self.EXPORT_ID)
+        columns = self.trivial_export_columns()
+        export = self.platform_export(self.EXPORT_ID)
 
         with self.http.expect(
             self.expect_start_export(columns),
@@ -403,21 +490,11 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
                 }
             )
 
-        # This is a perfectly legitimate response for a just-queued export.
-        assert result.json() == {
-            "export_id": self.EXPORT_ID,
-            "started": None,
-            "processed_rows": None,
-            "completed": None,
-            "success": None,
-            "message": None,
-            "download_url": None,
-            "available_until": None,
-        }
+        self.assert_result(result, started=False, succeeded=None)
 
     async def test_response_complete(self):
-        export = factory.platform_export(self.EXPORT_ID, started=True, succeeded=True)
-        columns = factory.trivial_export_columns()
+        export = self.platform_export(self.EXPORT_ID, started=True, succeeded=True)
+        columns = self.trivial_export_columns()
 
         with self.http.expect(
             self.expect_start_export(columns),
@@ -430,31 +507,20 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
                 }
             )
 
-        # Along with the response_unstarted test, this should be sufficient to
-        # demonstrate that all the fields make it through de/serialization.
-        assert result.json() == {
-            "export_id": self.EXPORT_ID,
-            "started": "2024-12-06T03:15:07Z",
-            "processed_rows": 23,
-            "completed": "2024-12-06T03:15:09Z",
-            "success": True,
-            "message": "yay!",
-            "download_url": "https://example.com/x.csv",
-            "available_until": "2024-12-07T03:15:09Z",
-        }
+        self.assert_result(result, started=True, succeeded=True)
 
-    @json_guard_parametrize([1])
-    async def test_timeout_minimal(self, mangle, value, async_time):
+    @json_guard_parametrize([1, 2])
+    async def test_timeout_minimal(self, mangle, value, async_sleeps):
         # We'll hit more cases in TestDatasetLookup
-        columns = factory.trivial_export_columns()
-        export = factory.platform_export(self.EXPORT_ID)
+        columns = self.trivial_export_columns()
+        export = self.platform_export(self.EXPORT_ID)
 
         with self.http.expect(
             self.expect_start_export(columns),
             self.expect_get_export(export),
             self.expect_get_export(export),
         ):
-            await self.assert_call(
+            result = await self.assert_call(
                 {
                     "connection_field": "someConnection",
                     "columns": columns,
@@ -462,9 +528,80 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
                 }
             )
 
+        assert async_sleeps == [value]
+        self.assert_result(result, started=False, succeeded=None)
+
 
 class TestPlatformDatasetLookup(PlatformDatasetTest):
     tool_name = "platform_dataset_lookup"
 
-    def test_fail(self):
-        self.fail()
+    @pytest.mark.parametrize("started", [True, False])
+    async def test_incomplete(self, started):
+        # Test looking up an export that hasn't started yet
+        export = self.platform_export(self.EXPORT_ID, started=started)
+
+        with self.http.expect(self.expect_get_export(export)):
+            result = await self.assert_call({"export_id": self.EXPORT_ID})
+
+        self.assert_result(result, started=started)
+
+    @pytest.mark.parametrize("started", [True, False])
+    @json_guard_parametrize([1, 2])
+    async def test_incomplete_timeout(self, started, mangle, value, async_sleeps):
+        # Test looking up a non-started export with a timeout - should poll and timeout
+        export = self.platform_export(self.EXPORT_ID, started=started)
+
+        with self.http.expect(
+            self.expect_get_export(export),
+            self.expect_get_export(export),
+        ):
+            result = await self.assert_call({"export_id": self.EXPORT_ID, "timeout": mangle(value)})
+
+        assert async_sleeps == [value]
+        self.assert_result(result, started=started, succeeded=None)
+
+    @json_guard_parametrize([60])
+    async def test_incomplete_long_timeout(self, mangle, value, async_sleeps):
+        # Test looking up a non-started export with long timeout - should use exponential backoff
+        export = self.platform_export(self.EXPORT_ID, started=False)
+        started = self.platform_export(self.EXPORT_ID, started=True)
+
+        with self.http.expect(
+            *[self.expect_get_export(export)] * 2,
+            *[self.expect_get_export(started)] * 4,
+        ):
+            result = await self.assert_call({"export_id": self.EXPORT_ID, "timeout": mangle(value)})
+
+        assert async_sleeps == [2, 4, 8, 16, 30]
+        self.assert_result(result, started=True, succeeded=None)
+
+    @pytest.mark.parametrize("succeeded", [True, False])
+    @json_guard_parametrize([60])
+    async def test_complete_timeout_immediate(self, succeeded, mangle, value, async_sleeps):
+        # Test successful export on first call - should return immediately
+        export = self.platform_export(self.EXPORT_ID, started=True, succeeded=succeeded)
+
+        with self.http.expect(
+            self.expect_get_export(export),
+        ):
+            result = await self.assert_call({"export_id": self.EXPORT_ID, "timeout": mangle(value)})
+
+        assert async_sleeps == []
+        self.assert_result(result, started=True, succeeded=succeeded)
+
+    @pytest.mark.parametrize("succeeded", [True, False])
+    @json_guard_parametrize([60])
+    async def test_complete_timeout_delayed(self, succeeded, mangle, value, async_sleeps):
+        # Test successful export on 3rd call - should sleep [2, 4] then succeed
+        non_started_export = self.platform_export(self.EXPORT_ID, started=False)
+        successful_export = self.platform_export(self.EXPORT_ID, started=True, succeeded=succeeded)
+
+        with self.http.expect(
+            self.expect_get_export(non_started_export),
+            self.expect_get_export(non_started_export),
+            self.expect_get_export(successful_export),
+        ):
+            result = await self.assert_call({"export_id": self.EXPORT_ID, "timeout": mangle(value)})
+
+        assert async_sleeps == [2, 4]
+        self.assert_result(result, started=True, succeeded=succeeded)

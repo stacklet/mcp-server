@@ -124,9 +124,10 @@ async def platform_dataset_export(
     return await client.wait_for_export(export_id, timeout)
 
 
+@json_guard
 async def platform_dataset_lookup(
     ctx: Context,
-    export_id: Annotated[str, Field(min_length=10)],
+    export_id: str,
     timeout: Annotated[int, Field(ge=0, le=600, default=0)] = 0,
 ) -> ConnectionExport:
     """

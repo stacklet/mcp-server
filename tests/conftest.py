@@ -44,11 +44,14 @@ async def mcp_client(override_setting, mock_stacklet_credentials):
 
 
 @pytest.fixture
-def async_time(monkeypatch):
+def async_sleeps(monkeypatch):
+    sleeps = []
     mock_time = MagicMock(return_value=12345)
 
     async def mock_sleep(duration):
+        sleeps.append(duration)
         mock_time.return_value += duration
 
     monkeypatch.setattr("asyncio.sleep", mock_sleep)
     monkeypatch.setattr("time.time", mock_time)
+    return sleeps
