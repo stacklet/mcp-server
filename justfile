@@ -16,7 +16,10 @@ format:
 lint:
 	uv run pre-commit run --all-files
 
-
 # Run tests
 test *args:
     uv run pytest {{args}}
+
+# Run tests with coverage
+test-coverage *args:
+    just test --cov {{args}}

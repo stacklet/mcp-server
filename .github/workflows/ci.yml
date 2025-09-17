@@ -32,4 +32,4 @@ jobs:
 
       - name: Unit tests
         run: |
-          just test
+          just test-coverage
