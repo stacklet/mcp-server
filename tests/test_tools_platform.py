@@ -8,6 +8,9 @@ import pytest
 
 from graphql import build_schema
 
+from stacklet.mcp.platform.graphql import PlatformClient
+
+from . import factory
 from .conftest import ExpectRequest
 from .testing.mcp import MCPBearerTest, MCPTest, json_guard_parametrize
 
@@ -288,3 +291,112 @@ def graphql_field_error(message: str, field_path: list, line: int = 1, column: i
         "locations": [{"line": line, "column": column}],
         "path": field_path,
     }
+
+
+class TestPlatformDatasetExport(MCPBearerTest):
+    tool_name = "platform_dataset_export"
+
+    @staticmethod
+    def make_test_columns():
+        """Create standard test column definitions."""
+        return [
+            {"name": "Resource ID", "path": "key"},
+            {"name": "Name", "path": "name"},
+            {"name": "Type", "path": "resourceType"},
+        ]
+
+    def expect_start_export(self, columns, export_id):
+        """Create expectation for the export mutation request."""
+        return ExpectRequest(
+            "https://api.example.com/",
+            method="POST",
+            data={
+                "query": PlatformClient.Q_START_EXPORT,
+                "variables": {
+                    "input": {
+                        "field": "resources",
+                        "columns": columns,
+                        "format": "CSV",
+                    }
+                },
+            },
+            response={"data": {"exportConnection": {"export": {"id": export_id}}}},
+        )
+
+    def expect_get_export(self, export):
+        """Create expectation for the export polling request."""
+        return ExpectRequest(
+            "https://api.example.com/",
+            method="POST",
+            data={
+                "query": PlatformClient.Q_GET_EXPORT,
+                "variables": {"id": export["id"]},
+            },
+            response={"data": {"node": export}},
+        )
+
+    @json_guard_parametrize([make_test_columns()])
+    async def test_timeout_0(self, mangle, value):
+        export_id = "node-123"
+        export = factory.platform_export(export_id)
+
+        with self.http.expect(
+            self.expect_start_export(value, export_id),
+            self.expect_get_export(export),
+        ):
+            result = await self.assert_call(
+                {
+                    "connection_field": "resources",
+                    "columns": mangle(value),
+                }
+            )
+
+        # This is a perfectly legitimate response for a queued export.
+        assert result.json() == {
+            "export_id": "node-123",
+            "started": None,
+            "processed_rows": None,
+            "completed": None,
+            "success": None,
+            "message": None,
+            "download_url": None,
+            "available_until": None,
+        }
+
+    async def test_timeout_0_complete(self):
+        export_id = "node-123"
+        export = factory.platform_export(
+            export_id,
+            started="2024-12-06T03:15:07+00:00",
+            processed=33,
+            completed="2024-12-06T03:15:07+00:00",
+            success=True,
+            message="bob's yer uncle",
+            downloadURL="https://example.com/file.csv",
+            availableUntil="2024-12-07T03:15:07+00:00",
+        )
+        columns = self.make_test_columns()
+
+        with self.http.expect(
+            self.expect_start_export(columns, export_id),
+            self.expect_get_export(export),
+        ):
+            result = await self.assert_call(
+                {
+                    "connection_field": "resources",
+                    "columns": columns,
+                }
+            )
+
+        # Along with the other timeout_0 test, this should be sufficient to
+        # demonstrate that all the fields make it through de/serialization.
+        assert result.json() == {
+            "export_id": "node-123",
+            "started": "2024-12-06T03:15:07Z",
+            "processed_rows": 33,
+            "completed": "2024-12-06T03:15:07Z",
+            "success": True,
+            "message": "bob's yer uncle",
+            "download_url": "https://example.com/file.csv",
+            "available_until": "2024-12-07T03:15:07Z",
+        }

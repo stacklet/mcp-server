@@ -4,10 +4,8 @@ Stacklet Platform client for GraphQL API operations.
 
 import asyncio
 import re
-import tempfile
 import time
 
-from pathlib import Path
 from typing import Any, Self, cast
 
 import httpx
@@ -18,9 +16,8 @@ from graphql import GraphQLSchema, build_client_schema, get_introspection_query,
 from ..lifespan import server_cached
 from ..stacklet_auth import StackletCredentials
 from .models import (
-    ConnectionExportStatus,
-    ExportConnectionInput,
-    ExportResult,
+    ConnectionExport,
+    ExportRequest,
     GetTypesResult,
     GraphQLError,
     GraphQLQueryResult,
@@ -157,52 +154,57 @@ class PlatformClient:
 
         return GetTypesResult(asked_for=type_names, found_sdl=found, not_found=missing)
 
-    async def export_dataset(self, export_input: ExportConnectionInput) -> ExportResult:
+    async def start_export(self, spec: ExportRequest) -> str:
         """
         Start a dataset export and poll for completion, then download the result.
 
         Args:
-            export_input: Validated export configuration with connection field, columns, and options
+            spec: Validated export configuration with connection field, columns, and options
 
         Returns:
-            ExportResult with download information and file path
-        """
-        # Build the GraphQL input from the validated Pydantic model
-        graphql_input = {
-            "field": export_input.connection_field,
-            "columns": [col.model_dump(by_alias=True) for col in export_input.columns],
-            "format": export_input.format.value,
-        }
-
-        if export_input.node_id:
-            graphql_input["node"] = export_input.node_id
-        if export_input.params:
-            graphql_input["params"] = [
-                param.model_dump(by_alias=True) for param in export_input.params
-            ]
-        if export_input.filename:
-            graphql_input["filename"] = export_input.filename
-
-        # Start the export
-        export_mutation = """
-        mutation exportConnection($input: ExportConnectionInput!) {
-          exportConnection(input: $input) {
-            export {
-              id
-            }
-          }
-        }
+            Node ID of started export job.
         """
 
-        result = await self.query(export_mutation, {"input": graphql_input})
+        result = await self.query(self.Q_START_EXPORT, {"input": spec.for_graphql()})
         if result.errors:
             raise RuntimeError(f"Export mutation failed: {result.errors}")
 
-        # Type assertion: if no errors, data is guaranteed to be present per GraphQL spec
-        export_id = cast(dict[str, Any], result.data)["exportConnection"]["export"]["id"]
+        # If no errors, data is at least guaranteed truthy.
+        export = cast(dict[str, Any], result.data)["exportConnection"]["export"]
+        return cast(dict[str, str], export)["id"]
 
-        # Poll for completion
-        poll_query = """
+    Q_START_EXPORT = """
+        mutation exportConnection($input: ExportConnectionInput!) {
+            exportConnection(input: $input) { export { id } }
+        }
+    """
+
+    async def wait_for_export(self, export_id: str, timeout_s: int) -> ConnectionExport:
+        cutoff = time.time() + timeout_s
+        interval_s = 2
+        while True:
+            # Always try at least once.
+            export = await self._get_export(export_id)
+            if export.completed:
+                return export
+
+            # Aim for the final attempt to happen at cutoff time.
+            remaining_s = cutoff - time.time()
+            if remaining_s < 0:
+                return export
+            await asyncio.sleep(min(interval_s, remaining_s))
+            interval_s *= 2
+
+    async def _get_export(self, export_id: str) -> ConnectionExport:
+        result = await self.query(self.Q_GET_EXPORT, {"id": export_id})
+        if result.errors:
+            raise RuntimeError(f"GraphQL errors: {result.errors}")
+
+        # If no errors, data is at least guaranteed guaranteed truthy.
+        fields = cast(dict[str, Any], result.data)["node"]
+        return ConnectionExport(**fields)
+
+    Q_GET_EXPORT = """
         query getExport($id: ID!) {
           node(id: $id) {
             ... on ConnectionExport {
@@ -216,95 +218,4 @@ class PlatformClient:
             }
           }
         }
-        """
-
-        export_status = await self._poll_export_completion(
-            poll_query, export_id, export_input.timeout
-        )
-
-        if not export_status.is_successful:
-            error_msg = export_status.message or "Export failed with no error message"
-            raise RuntimeError(f"Export failed: {error_msg}")
-
-        # Download the file
-        if not export_status.download_url:
-            raise RuntimeError("Export completed but no download URL provided")
-        file_path = await self._download_export_file(
-            export_status.download_url, export_input.download_path, export_input.filename
-        )
-
-        return ExportResult(
-            downloaded=True,
-            file_path=file_path,
-            format="csv",
-            export_id=export_id,
-            processed_rows=export_status.processed,
-            available_until=export_status.available_until,
-        )
-
-    async def _poll_export_completion(
-        self, poll_query: str, export_id: str, timeout: int, interval: float = 2.0
-    ) -> ConnectionExportStatus:
-        """
-        Poll for export completion using GraphQL queries.
-
-        Args:
-            poll_query: GraphQL query to check export status
-            export_id: ID of the export to poll
-            timeout: Timeout in seconds
-            interval: Polling interval in seconds
-
-        Returns:
-            ConnectionExportStatus when export is complete
-        """
-        end_time = time.time() + timeout
-
-        while time.time() < end_time:
-            result = await self.query(poll_query, {"id": export_id})
-            if result.errors:
-                raise RuntimeError(f"Export polling failed: {result.errors}")
-
-            # Type assertion: if no errors, data is guaranteed to be present per GraphQL spec
-            export_data = cast(dict[str, Any], result.data)["node"]
-
-            # Check if completed
-            if export_data.get("completed"):
-                return ConnectionExportStatus(id=export_id, **export_data)
-
-            await asyncio.sleep(interval)
-
-        raise RuntimeError(f"Export timed out after {timeout} seconds")
-
-    async def _download_export_file(
-        self, download_url: str, download_path: str | None, filename: str | None
-    ) -> str:
-        """
-        Download export file from URL.
-
-        Args:
-            download_url: URL to download the file from
-            download_path: Optional path to save file
-            filename: Optional filename hint
-
-        Returns:
-            Path to the downloaded file
-        """
-        if not download_path:
-            # Generate a temp file name
-            suffix = ".csv"
-            if filename and "." in filename:
-                suffix = "." + filename.split(".")[-1]
-            download_path = f"{tempfile.gettempdir()}/platform_export_{int(time.time())}{suffix}"
-
-        # Ensure directory exists
-        Path(download_path).parent.mkdir(parents=True, exist_ok=True)
-
-        # Stream download for potentially large files
-        async with self.session.stream("GET", download_url) as response:
-            response.raise_for_status()
-
-            with open(download_path, "wb") as f:
-                async for chunk in response.aiter_bytes():
-                    f.write(chunk)
-
-        return download_path
+    """

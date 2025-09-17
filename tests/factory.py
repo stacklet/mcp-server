@@ -5,7 +5,7 @@ Test data factories for creating mock AssetDB responses that match real Redash A
 from typing import Any
 
 
-def make_assetdb_user_dict(
+def redash_user(
     id: int = 1,
     name: str = "Test User",
     email: str = "test@example.com",
@@ -48,7 +48,7 @@ def redash_query(
     if visualizations is None:
         visualizations = []
     if user is None:
-        user = make_assetdb_user_dict()
+        user = redash_user()
 
     # Base dict matching redash.serializers.serialize_query()
     return {
@@ -94,3 +94,16 @@ def redash_query_list(
         "count": total,
         "results": queries,
     }
+
+
+def platform_export(export_id, **fields):
+    return {
+        "id": export_id,
+        "started": None,
+        "processed": None,
+        "completed": None,
+        "success": None,
+        "message": None,
+        "downloadURL": None,
+        "availableUntil": None,
+    } | fields

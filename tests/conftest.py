@@ -127,7 +127,13 @@ def _mock_http_request_with_auth_check(monkeypatch, mock_stacklet_credentials, a
         auth_check_func(self, mock_stacklet_credentials)
         return controller.next_request().respond(method, url, **kwargs)
 
+    def mock_stream(self, method, url, **kwargs):
+        """Mock streaming requests - returns the response directly as async context manager."""
+        auth_check_func(self, mock_stacklet_credentials)
+        return controller.next_request().respond(method, url, **kwargs)
+
     monkeypatch.setattr("httpx.AsyncClient.request", mock_request)
+    monkeypatch.setattr("httpx.AsyncClient.stream", mock_stream)
     return controller
 
 

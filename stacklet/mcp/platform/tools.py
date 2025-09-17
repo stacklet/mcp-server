@@ -6,10 +6,10 @@ from pydantic import Field
 from ..utils import get_package_file, json_guard
 from .graphql import PlatformClient
 from .models import (
+    ConnectionExport,
     ExportColumn,
-    ExportConnectionInput,
     ExportParam,
-    ExportResult,
+    ExportRequest,
     GetTypesResult,
     GraphQLQueryResult,
     ListTypesResult,
@@ -92,30 +92,25 @@ async def platform_graphql_query(
 @json_guard
 async def platform_dataset_export(
     ctx: Context,
-    connection_field: str,
-    columns: list[ExportColumn],
-    node_id: str | None = None,
+    connection_field: Annotated[str, Field(min_length=1)],
+    columns: Annotated[list[ExportColumn], Field(min_length=1)],
+    node_id: Annotated[str, Field(min_length=1)] | None = None,
     params: list[ExportParam] | None = None,
-    filename: str | None = None,
-    timeout: Annotated[int, Field(ge=5, le=600, default=300)] = 300,
-    download_path: str | None = None,
-) -> ExportResult:
+    timeout: Annotated[int, Field(ge=0, le=600, default=30)] = 0,
+) -> ConnectionExport:
     """
     Export a full dataset from a Stacklet Platform GraphQL connection to CSV format.
 
     This tool initiates a server-side export that pages through all data accessible
     via a Connection node, generates a CSV file, and makes it available for download.
     """
-    # Create the export input with validation
-    export_input = ExportConnectionInput(
+    export_input = ExportRequest(
         connection_field=connection_field,
         columns=columns,
         node_id=node_id,
         params=params,
-        filename=filename,
-        timeout=timeout,
-        download_path=download_path,
     )
 
     client = PlatformClient.get(ctx)
-    return await client.export_dataset(export_input)
+    export_id = await client.start_export(export_input)
+    return await client.wait_for_export(export_id, timeout)
