@@ -27,6 +27,19 @@ class TestGraphQLInfo(MCPTest):
         assert "GraphQL" in result.text
 
 
+class TestDatasetInfo(MCPTest):
+    tool_name = "platform_dataset_info"
+
+    async def test_returns_expected_documentation(self):
+        """Test the platform_dataset_info tool returns expected documentation content."""
+        result = await self.assert_call({})
+
+        # Verify the content contains expected Platform dataset export documentation
+        assert "Stacklet Platform Dataset Export Guide" in result.text
+        assert "dataset export" in result.text
+        assert "Scale Considerations" in result.text
+
+
 class PlatformSchemaTest(MCPBearerTest):
     """Base test class for Platform tools that need a mocked GraphQL schema."""
 
