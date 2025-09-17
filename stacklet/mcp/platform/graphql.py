@@ -190,7 +190,7 @@ class PlatformClient:
 
             # Aim for the final attempt to happen at cutoff time.
             remaining_s = cutoff - time.time()
-            if remaining_s < 0:
+            if remaining_s <= 0:
                 return export
             await asyncio.sleep(min(interval_s, remaining_s))
             interval_s *= 2

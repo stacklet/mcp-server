@@ -24,6 +24,7 @@ def tools() -> list[Callable[..., Any]]:
         platform_graphql_get_types,
         platform_graphql_query,
         platform_dataset_export,
+        platform_dataset_lookup,
     ]
 
 
@@ -96,13 +97,19 @@ async def platform_dataset_export(
     columns: Annotated[list[ExportColumn], Field(min_length=1)],
     node_id: Annotated[str, Field(min_length=1)] | None = None,
     params: list[ExportParam] | None = None,
-    timeout: Annotated[int, Field(ge=0, le=600, default=30)] = 0,
+    timeout: Annotated[int, Field(ge=0, le=600, default=0)] = 0,
 ) -> ConnectionExport:
     """
-    Export a full dataset from a Stacklet Platform GraphQL connection to CSV format.
+    Export a full dataset from a Stacklet Platform GraphQL Connection field into CSV
+    format.
 
     This tool initiates a server-side export that pages through all data accessible
     via a Connection node, generates a CSV file, and makes it available for download.
+
+    By default, this tool returns immediately, with an `export_id` that can be used
+    with the `platform_dataset_lookup` tool to check progress and eventually get a
+    download URL. When `timeout` is greater than 0, the tool will periodically check
+    status and return only when the export completes or the timeout expires.
     """
     export_input = ExportRequest(
         connection_field=connection_field,
@@ -113,4 +120,20 @@ async def platform_dataset_export(
 
     client = PlatformClient.get(ctx)
     export_id = await client.start_export(export_input)
+    return await client.wait_for_export(export_id, timeout)
+
+
+async def platform_dataset_lookup(
+    ctx: Context,
+    export_id: Annotated[str, Field(min_length=10)],
+    timeout: Annotated[int, Field(ge=0, le=600, default=0)] = 0,
+) -> ConnectionExport:
+    """
+    Check the status of a `platform_dataset_export`.
+
+    By default, this tool returns immediately. When `timeout` is greater than 0, the
+    tool will periodically check status and return only when the export completes or
+    the timeout expires.
+    """
+    client = PlatformClient.get(ctx)
     return await client.wait_for_export(export_id, timeout)

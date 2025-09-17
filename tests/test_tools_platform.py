@@ -9,9 +9,10 @@ import pytest
 from graphql import build_schema
 
 from stacklet.mcp.platform.graphql import PlatformClient
+from stacklet.mcp.platform.models import ExportParam
 
 from . import factory
-from .conftest import ExpectRequest
+from .testing.http import ExpectRequest
 from .testing.mcp import MCPBearerTest, MCPTest, json_guard_parametrize
 
 
@@ -293,34 +294,29 @@ def graphql_field_error(message: str, field_path: list, line: int = 1, column: i
     }
 
 
-class TestPlatformDatasetExport(MCPBearerTest):
-    tool_name = "platform_dataset_export"
+class PlatformDatasetTest(MCPBearerTest):
+    EXPORT_ID = "node-123"
 
-    @staticmethod
-    def make_test_columns():
-        """Create standard test column definitions."""
-        return [
-            {"name": "Resource ID", "path": "key"},
-            {"name": "Name", "path": "name"},
-            {"name": "Type", "path": "resourceType"},
-        ]
-
-    def expect_start_export(self, columns, export_id):
+    def expect_start_export(self, columns, connection="someConnection", node_id=None, params=None):
         """Create expectation for the export mutation request."""
+        input_ = {
+            "field": connection,
+            "columns": columns,
+            "format": "CSV",
+        }
+        if params:
+            input_["params"] = params
+        if node_id:
+            input_["node"] = node_id
+
         return ExpectRequest(
             "https://api.example.com/",
             method="POST",
             data={
                 "query": PlatformClient.Q_START_EXPORT,
-                "variables": {
-                    "input": {
-                        "field": "resources",
-                        "columns": columns,
-                        "format": "CSV",
-                    }
-                },
+                "variables": {"input": input_},
             },
-            response={"data": {"exportConnection": {"export": {"id": export_id}}}},
+            response={"data": {"exportConnection": {"export": {"id": self.EXPORT_ID}}}},
         )
 
     def expect_get_export(self, export):
@@ -335,25 +331,81 @@ class TestPlatformDatasetExport(MCPBearerTest):
             response={"data": {"node": export}},
         )
 
-    @json_guard_parametrize([make_test_columns()])
-    async def test_timeout_0(self, mangle, value):
-        export_id = "node-123"
-        export = factory.platform_export(export_id)
+
+class TestPlatformDatasetExport(PlatformDatasetTest):
+    tool_name = "platform_dataset_export"
+
+    @json_guard_parametrize(
+        [
+            factory.trivial_export_columns(),
+            factory.fancy_export_columns(),
+        ]
+    )
+    async def test_columns(self, mangle, value):
+        export = factory.platform_export(self.EXPORT_ID)
+        with self.http.expect(
+            self.expect_start_export(value),
+            self.expect_get_export(export),
+        ):
+            await self.assert_call({"connection_field": "someConnection", "columns": mangle(value)})
+
+    @json_guard_parametrize(
+        [
+            factory.trivial_export_param(),
+            factory.fancy_export_param(),
+        ]
+    )
+    async def test_params(self, mangle, value):
+        # params goes through an extra layer of deliberate mangling
+        expect = [ExportParam(**value).for_graphql()]
+
+        export = factory.platform_export(self.EXPORT_ID)
+        columns = factory.trivial_export_columns()
+        with self.http.expect(
+            self.expect_start_export(columns, params=expect),
+            self.expect_get_export(export),
+        ):
+            await self.assert_call(
+                {
+                    "connection_field": "someConnection",
+                    "columns": columns,
+                    "params": mangle([value]),
+                }
+            )
+
+    async def test_node_id(self):
+        export = factory.platform_export(self.EXPORT_ID)
+        columns = factory.trivial_export_columns()
+        with self.http.expect(
+            self.expect_start_export(columns, node_id="some-value"),
+            self.expect_get_export(export),
+        ):
+            await self.assert_call(
+                {
+                    "connection_field": "someConnection",
+                    "columns": columns,
+                    "node_id": "some-value",
+                }
+            )
+
+    async def test_response_unstarted(self):
+        columns = factory.trivial_export_columns()
+        export = factory.platform_export(self.EXPORT_ID)
 
         with self.http.expect(
-            self.expect_start_export(value, export_id),
+            self.expect_start_export(columns),
             self.expect_get_export(export),
         ):
             result = await self.assert_call(
                 {
-                    "connection_field": "resources",
-                    "columns": mangle(value),
+                    "connection_field": "someConnection",
+                    "columns": columns,
                 }
             )
 
-        # This is a perfectly legitimate response for a queued export.
+        # This is a perfectly legitimate response for a just-queued export.
         assert result.json() == {
-            "export_id": "node-123",
+            "export_id": self.EXPORT_ID,
             "started": None,
             "processed_rows": None,
             "completed": None,
@@ -363,40 +415,56 @@ class TestPlatformDatasetExport(MCPBearerTest):
             "available_until": None,
         }
 
-    async def test_timeout_0_complete(self):
-        export_id = "node-123"
-        export = factory.platform_export(
-            export_id,
-            started="2024-12-06T03:15:07+00:00",
-            processed=33,
-            completed="2024-12-06T03:15:07+00:00",
-            success=True,
-            message="bob's yer uncle",
-            downloadURL="https://example.com/file.csv",
-            availableUntil="2024-12-07T03:15:07+00:00",
-        )
-        columns = self.make_test_columns()
+    async def test_response_complete(self):
+        export = factory.platform_export(self.EXPORT_ID, started=True, succeeded=True)
+        columns = factory.trivial_export_columns()
 
         with self.http.expect(
-            self.expect_start_export(columns, export_id),
+            self.expect_start_export(columns),
             self.expect_get_export(export),
         ):
             result = await self.assert_call(
                 {
-                    "connection_field": "resources",
+                    "connection_field": "someConnection",
                     "columns": columns,
                 }
             )
 
-        # Along with the other timeout_0 test, this should be sufficient to
+        # Along with the response_unstarted test, this should be sufficient to
         # demonstrate that all the fields make it through de/serialization.
         assert result.json() == {
-            "export_id": "node-123",
+            "export_id": self.EXPORT_ID,
             "started": "2024-12-06T03:15:07Z",
-            "processed_rows": 33,
-            "completed": "2024-12-06T03:15:07Z",
+            "processed_rows": 23,
+            "completed": "2024-12-06T03:15:09Z",
             "success": True,
-            "message": "bob's yer uncle",
-            "download_url": "https://example.com/file.csv",
-            "available_until": "2024-12-07T03:15:07Z",
+            "message": "yay!",
+            "download_url": "https://example.com/x.csv",
+            "available_until": "2024-12-07T03:15:09Z",
         }
+
+    @json_guard_parametrize([1])
+    async def test_timeout_minimal(self, mangle, value, async_time):
+        # We'll hit more cases in TestDatasetLookup
+        columns = factory.trivial_export_columns()
+        export = factory.platform_export(self.EXPORT_ID)
+
+        with self.http.expect(
+            self.expect_start_export(columns),
+            self.expect_get_export(export),
+            self.expect_get_export(export),
+        ):
+            await self.assert_call(
+                {
+                    "connection_field": "someConnection",
+                    "columns": columns,
+                    "timeout": mangle(value),
+                }
+            )
+
+
+class TestPlatformDatasetLookup(PlatformDatasetTest):
+    tool_name = "platform_dataset_lookup"
+
+    def test_fail(self):
+        self.fail()
