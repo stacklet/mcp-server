@@ -18,6 +18,10 @@ class Settings(BaseSettings):
         default=False,
         description="Enable tools that make modifications to AssetDB",
     )
+    platform_mutations: bool = Field(
+        default=False,
+        description="Enable calling mutations in the Platform GraphQL API",
+    )
 
 
 SETTINGS = Settings()
