@@ -15,8 +15,9 @@ class TestHasMutations:
         [
             "mutation { foo(x: Number) { foo bar } }",
             "mutation Baz { foo(x: Number) { foo bar } }",
-            "mutation { foo(x: Number) { bar } baz(y: Bool) { bza } }",
-            "mutation { foo(x: Number) { bar } } mutation { baz(y: Bool) { bza } }",
+            "mutation { foo(x: Int) { bar } baz(y: Boolean) { bza } }",
+            "mutation { foo(x: Int) { bar } } mutation { baz(y: Boolean) { bza } }",
+            "query { foo } mutation { bar(x: Boolean) { baz } }",
         ],
     )
     def test_with_mutations(self, query: str):
