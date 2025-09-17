@@ -21,4 +21,4 @@ he `.mcp.json` file.
 The following variables are available:
 
 - `STACKLET_MCP_ASSETDB_DATASOURCE`: the datasource ID for AssetDB in Redash (default: `1`)
-- `STACKLET_MCP_ASSETDB_SAVE`: whether to enable write oprations in assetdb (default: `false`)
+- `STACKLET_MCP_ASSETDB_SAVE`: whether to enable write operations in assetdb (default: `false`)
