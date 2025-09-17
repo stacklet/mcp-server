@@ -179,12 +179,12 @@ class PlatformClient:
         }
     """
 
-    async def wait_for_export(self, export_id: str, timeout_s: int) -> ConnectionExport:
+    async def wait_for_export(self, dataset_id: str, timeout_s: int) -> ConnectionExport:
         cutoff = time.time() + timeout_s
         interval_s = 2
         while True:
             # Always try at least once.
-            export = await self._get_export(export_id)
+            export = await self._get_export(dataset_id)
             if export.completed:
                 return export
 
@@ -195,8 +195,8 @@ class PlatformClient:
             await asyncio.sleep(min(interval_s, remaining_s))
             interval_s *= 2
 
-    async def _get_export(self, export_id: str) -> ConnectionExport:
-        result = await self.query(self.Q_GET_EXPORT, {"id": export_id})
+    async def _get_export(self, dataset_id: str) -> ConnectionExport:
+        result = await self.query(self.Q_GET_EXPORT, {"id": dataset_id})
         if result.errors:
             raise RuntimeError(f"GraphQL errors: {result.errors}")
 

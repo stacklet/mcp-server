@@ -101,7 +101,7 @@ class ExportRequest(BaseModel):
 class ConnectionExport(BaseModel):
     """Result of a completed dataset export."""
 
-    export_id: str = Field(..., validation_alias="id", description="Export job node ID")
+    dataset_id: str = Field(..., validation_alias="id", description="Dataset export node ID")
     started: datetime | None = Field(None, description="When processing started")
     processed_rows: int | None = Field(
         None, validation_alias="processed", description="Number of rows exported so far"

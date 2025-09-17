@@ -294,12 +294,12 @@ def graphql_field_error(message: str, field_path: list, line: int = 1, column: i
 
 
 class PlatformDatasetTest(MCPBearerTest):
-    EXPORT_ID = "node-123"
+    DATASET_ID = "node-123"
 
     @staticmethod
-    def platform_export(export_id, started=False, succeeded=None):
+    def dataset_result(dataset_id, started=False, succeeded=None):
         node = {
-            "id": export_id,
+            "id": dataset_id,
             "started": None,
             "processed": None,
             "completed": None,
@@ -357,9 +357,9 @@ class PlatformDatasetTest(MCPBearerTest):
         }
 
     def assert_result(self, result, started=False, succeeded=None):
-        """Assert that result matches expected export state from factory args."""
+        """Assert that result matches expected dataset state from factory args."""
         expected = {
-            "export_id": self.EXPORT_ID,
+            "dataset_id": self.DATASET_ID,
             "started": None,
             "processed_rows": None,
             "completed": None,
@@ -403,7 +403,7 @@ class PlatformDatasetTest(MCPBearerTest):
                 "query": PlatformClient.Q_START_EXPORT,
                 "variables": {"input": input_},
             },
-            response={"data": {"exportConnection": {"export": {"id": self.EXPORT_ID}}}},
+            response={"data": {"exportConnection": {"export": {"id": self.DATASET_ID}}}},
         )
 
     def expect_get_export(self, export):
@@ -429,10 +429,10 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
         ]
     )
     async def test_columns(self, mangle, value):
-        export = self.platform_export(self.EXPORT_ID)
+        dataset = self.dataset_result(self.DATASET_ID)
         with self.http.expect(
             self.expect_start_export(value),
-            self.expect_get_export(export),
+            self.expect_get_export(dataset),
         ):
             await self.assert_call({"connection_field": "someConnection", "columns": mangle(value)})
 
@@ -446,11 +446,11 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
         # params goes through an extra layer of deliberate mangling
         expect = [ExportParam(**value).for_graphql()]
 
-        export = self.platform_export(self.EXPORT_ID)
+        dataset = self.dataset_result(self.DATASET_ID)
         columns = self.trivial_export_columns()
         with self.http.expect(
             self.expect_start_export(columns, params=expect),
-            self.expect_get_export(export),
+            self.expect_get_export(dataset),
         ):
             await self.assert_call(
                 {
@@ -461,11 +461,11 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
             )
 
     async def test_node_id(self):
-        export = self.platform_export(self.EXPORT_ID)
+        dataset = self.dataset_result(self.DATASET_ID)
         columns = self.trivial_export_columns()
         with self.http.expect(
             self.expect_start_export(columns, node_id="some-value"),
-            self.expect_get_export(export),
+            self.expect_get_export(dataset),
         ):
             await self.assert_call(
                 {
@@ -477,11 +477,11 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
 
     async def test_response_unstarted(self):
         columns = self.trivial_export_columns()
-        export = self.platform_export(self.EXPORT_ID)
+        dataset = self.dataset_result(self.DATASET_ID)
 
         with self.http.expect(
             self.expect_start_export(columns),
-            self.expect_get_export(export),
+            self.expect_get_export(dataset),
         ):
             result = await self.assert_call(
                 {
@@ -493,12 +493,12 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
         self.assert_result(result, started=False, succeeded=None)
 
     async def test_response_complete(self):
-        export = self.platform_export(self.EXPORT_ID, started=True, succeeded=True)
+        dataset = self.dataset_result(self.DATASET_ID, started=True, succeeded=True)
         columns = self.trivial_export_columns()
 
         with self.http.expect(
             self.expect_start_export(columns),
-            self.expect_get_export(export),
+            self.expect_get_export(dataset),
         ):
             result = await self.assert_call(
                 {
@@ -513,12 +513,12 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
     async def test_timeout_minimal(self, mangle, value, async_sleeps):
         # We'll hit more cases in TestDatasetLookup
         columns = self.trivial_export_columns()
-        export = self.platform_export(self.EXPORT_ID)
+        dataset = self.dataset_result(self.DATASET_ID)
 
         with self.http.expect(
             self.expect_start_export(columns),
-            self.expect_get_export(export),
-            self.expect_get_export(export),
+            self.expect_get_export(dataset),
+            self.expect_get_export(dataset),
         ):
             result = await self.assert_call(
                 {
@@ -537,40 +537,44 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
 
     @pytest.mark.parametrize("started", [True, False])
     async def test_incomplete(self, started):
-        # Test looking up an export that hasn't started yet
-        export = self.platform_export(self.EXPORT_ID, started=started)
+        # Test looking up a dataset that hasn't started yet
+        incomplete = self.dataset_result(self.DATASET_ID, started=started)
 
-        with self.http.expect(self.expect_get_export(export)):
-            result = await self.assert_call({"export_id": self.EXPORT_ID})
+        with self.http.expect(self.expect_get_export(incomplete)):
+            result = await self.assert_call({"dataset_id": self.DATASET_ID})
 
         self.assert_result(result, started=started)
 
     @pytest.mark.parametrize("started", [True, False])
     @json_guard_parametrize([1, 2])
     async def test_incomplete_timeout(self, started, mangle, value, async_sleeps):
-        # Test looking up a non-started export with a timeout - should poll and timeout
-        export = self.platform_export(self.EXPORT_ID, started=started)
+        # Test looking up a non-started dataset with a timeout - should poll and timeout
+        incomplete = self.dataset_result(self.DATASET_ID, started=started)
 
         with self.http.expect(
-            self.expect_get_export(export),
-            self.expect_get_export(export),
+            self.expect_get_export(incomplete),
+            self.expect_get_export(incomplete),
         ):
-            result = await self.assert_call({"export_id": self.EXPORT_ID, "timeout": mangle(value)})
+            result = await self.assert_call(
+                {"dataset_id": self.DATASET_ID, "timeout": mangle(value)}
+            )
 
         assert async_sleeps == [value]
         self.assert_result(result, started=started, succeeded=None)
 
     @json_guard_parametrize([60])
     async def test_incomplete_long_timeout(self, mangle, value, async_sleeps):
-        # Test looking up a non-started export with long timeout - should use exponential backoff
-        export = self.platform_export(self.EXPORT_ID, started=False)
-        started = self.platform_export(self.EXPORT_ID, started=True)
+        # Test looking up a non-started dataset with long timeout - should use exponential backoff
+        incomplete = self.dataset_result(self.DATASET_ID, started=False)
+        complete = self.dataset_result(self.DATASET_ID, started=True)
 
         with self.http.expect(
-            *[self.expect_get_export(export)] * 2,
-            *[self.expect_get_export(started)] * 4,
+            *[self.expect_get_export(incomplete)] * 2,
+            *[self.expect_get_export(complete)] * 4,
         ):
-            result = await self.assert_call({"export_id": self.EXPORT_ID, "timeout": mangle(value)})
+            result = await self.assert_call(
+                {"dataset_id": self.DATASET_ID, "timeout": mangle(value)}
+            )
 
         assert async_sleeps == [2, 4, 8, 16, 30]
         self.assert_result(result, started=True, succeeded=None)
@@ -578,13 +582,15 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
     @pytest.mark.parametrize("succeeded", [True, False])
     @json_guard_parametrize([60])
     async def test_complete_timeout_immediate(self, succeeded, mangle, value, async_sleeps):
-        # Test successful export on first call - should return immediately
-        export = self.platform_export(self.EXPORT_ID, started=True, succeeded=succeeded)
+        # Test successful dataset on first call - should return immediately
+        complete = self.dataset_result(self.DATASET_ID, started=True, succeeded=succeeded)
 
         with self.http.expect(
-            self.expect_get_export(export),
+            self.expect_get_export(complete),
         ):
-            result = await self.assert_call({"export_id": self.EXPORT_ID, "timeout": mangle(value)})
+            result = await self.assert_call(
+                {"dataset_id": self.DATASET_ID, "timeout": mangle(value)}
+            )
 
         assert async_sleeps == []
         self.assert_result(result, started=True, succeeded=succeeded)
@@ -592,16 +598,18 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
     @pytest.mark.parametrize("succeeded", [True, False])
     @json_guard_parametrize([60])
     async def test_complete_timeout_delayed(self, succeeded, mangle, value, async_sleeps):
-        # Test successful export on 3rd call - should sleep [2, 4] then succeed
-        non_started_export = self.platform_export(self.EXPORT_ID, started=False)
-        successful_export = self.platform_export(self.EXPORT_ID, started=True, succeeded=succeeded)
+        # Test successful dataset on 3rd call - should sleep [2, 4] then succeed
+        incomplete = self.dataset_result(self.DATASET_ID, started=False)
+        complete = self.dataset_result(self.DATASET_ID, started=True, succeeded=succeeded)
 
         with self.http.expect(
-            self.expect_get_export(non_started_export),
-            self.expect_get_export(non_started_export),
-            self.expect_get_export(successful_export),
+            self.expect_get_export(incomplete),
+            self.expect_get_export(incomplete),
+            self.expect_get_export(complete),
         ):
-            result = await self.assert_call({"export_id": self.EXPORT_ID, "timeout": mangle(value)})
+            result = await self.assert_call(
+                {"dataset_id": self.DATASET_ID, "timeout": mangle(value)}
+            )
 
         assert async_sleeps == [2, 4]
         self.assert_result(result, started=True, succeeded=succeeded)

@@ -183,7 +183,7 @@ mcp__stacklet__platform_dataset_export(
 
 ```python
 # Start export without waiting
-export_result = mcp__stacklet__platform_dataset_export(
+dataset_result = mcp__stacklet__platform_dataset_export(
     connection_field="resources",
     columns=[...],
     timeout=0  # Return immediately
@@ -191,7 +191,7 @@ export_result = mcp__stacklet__platform_dataset_export(
 
 # Monitor progress with timeout
 final_result = mcp__stacklet__platform_dataset_lookup(
-    export_id=export_result["export_id"],
+    dataset_id=dataset_result["dataset_id"],
     timeout=60  # Wait up to 60 seconds for completion
 )
 ```
@@ -200,7 +200,7 @@ final_result = mcp__stacklet__platform_dataset_lookup(
 
 | Field | Description |
 |-------|-------------|
-| `export_id` | Unique identifier for the export |
+| `dataset_id` | Unique identifier for the export |
 | `started` | ISO timestamp when export began |
 | `processed_rows` | Number of rows processed so far |
 | `completed` | ISO timestamp when export finished (null if still running) |

@@ -107,12 +107,12 @@ async def platform_dataset_export(
     This tool initiates a server-side export that pages through all data accessible
     via a Connection node, generates a CSV file, and makes it available for download.
 
-    By default, this tool returns immediately, with an `export_id` that can be used
+    By default, this tool returns immediately, with a `dataset_id` that can be used
     with the `platform_dataset_lookup` tool to check progress and eventually get a
     download URL. When `timeout` is greater than 0, the tool will periodically check
     status and return only when the export completes or the timeout expires.
     """
-    export_input = ExportRequest(
+    dataset_input = ExportRequest(
         connection_field=connection_field,
         columns=columns,
         node_id=node_id,
@@ -120,14 +120,14 @@ async def platform_dataset_export(
     )
 
     client = PlatformClient.get(ctx)
-    export_id = await client.start_export(export_input)
-    return await client.wait_for_export(export_id, timeout)
+    dataset_id = await client.start_export(dataset_input)
+    return await client.wait_for_export(dataset_id, timeout)
 
 
 @json_guard
 async def platform_dataset_lookup(
     ctx: Context,
-    export_id: str,
+    dataset_id: str,
     timeout: Annotated[int, Field(ge=0, le=600, default=0)] = 0,
 ) -> ConnectionExport:
     """
@@ -138,7 +138,7 @@ async def platform_dataset_lookup(
     the timeout expires.
     """
     client = PlatformClient.get(ctx)
-    return await client.wait_for_export(export_id, timeout)
+    return await client.wait_for_export(dataset_id, timeout)
 
 
 def platform_dataset_info() -> str:
