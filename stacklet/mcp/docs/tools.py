@@ -1,7 +1,18 @@
+from typing import Any, Callable
+
 from fastmcp import Context
 
+from ..settings import Settings
 from .client import DocsClient
 from .models import DocContent, DocsList
+
+
+def tools(settings: Settings) -> list[Callable[..., Any]]:
+    """List of available Documentation tools."""
+    return [
+        docs_list,
+        docs_read,
+    ]
 
 
 async def docs_list(ctx: Context) -> DocsList:
