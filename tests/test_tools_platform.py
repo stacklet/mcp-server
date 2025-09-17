@@ -8,7 +8,7 @@ import pytest
 
 from graphql import build_schema
 
-from stacklet.mcp.platform.graphql import PlatformClient
+from stacklet.mcp.platform.graphql import PlatformClient, has_mutations
 from stacklet.mcp.platform.models import ExportParam
 
 from .testing.http import ExpectRequest
@@ -626,3 +626,24 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
 
         assert async_sleeps == [2, 4]
         self.assert_result(result, started=True, succeeded=succeeded)
+
+
+class TestHasMutations:
+    @pytest.mark.parametrize(
+        "query", ["query { foo bar }", "query Baz { foo bar }", "query { foo } query { bar }"]
+    )
+    def test_no_mutations(self, query: str):
+        assert not has_mutations(query)
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "mutation { foo(x: Number) { foo bar } }",
+            "mutation Baz { foo(x: Number) { foo bar } }",
+            "mutation { foo(x: Int) { bar } baz(y: Boolean) { bza } }",
+            "mutation { foo(x: Int) { bar } } mutation { baz(y: Boolean) { bza } }",
+            "query { foo } mutation { bar(x: Boolean) { baz } }",
+        ],
+    )
+    def test_with_mutations(self, query: str):
+        assert has_mutations(query)

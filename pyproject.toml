@@ -1,49 +1,62 @@
 [build-system]
-requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+requires = [ "hatchling" ]
 
 [project]
 name = "stacklet-mcp-server"
 description = "A simple MCP server using FastMCP 2"
-dependencies = [
-    "fastmcp>=2.0.0",
-    "graphql-core>=3.2.0",
-    "httpx>=0.28.1",
-    "pydantic>=2.11.7",
-    "pydantic-settings>=2.10.1",
-]
 requires-python = ">=3.12"
-dynamic = ["version"]
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dynamic = [ "version" ]
+
+dependencies = [
+  "fastmcp>=2",
+  "graphql-core>=3.2",
+  "httpx>=0.28.1",
+  "pydantic>=2.11.7",
+  "pydantic-settings>=2.10.1",
+]
+scripts.mcp = "stacklet.mcp.mcp:main"
 
 [dependency-groups]
 dev = [
-    "mypy>=1.8.0",
-    "pre-commit>=4.2.0",
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "ruff>=0.12.0",
+  "mypy>=1.8",
+  "pre-commit>=4.2",
+  "pyproject-fmt>=2.6",
+  "pytest>=7",
+  "pytest-asyncio>=0.21",
+  "pytest-cov>=7",
+  "ruff>=0.12",
 ]
-
-[project.scripts]
-mcp = "stacklet.mcp.mcp:main"
 
 [tool.hatch.version]
 path = "stacklet/mcp/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["stacklet"]
+packages = [ "stacklet" ]
 
 [tool.ruff]
 line-length = 100
 
-[tool.ruff.lint]
 # Add `line-too-long` and isort to the enforced rule set.
-extend-select = ["E501", "I"]
-
-[tool.ruff.lint.isort]
+lint.extend-select = [ "E501", "I" ]
+lint.isort.lines-after-imports = 2
 # Use a single line between direct and from import.
-lines-between-types = 1
-lines-after-imports = 2
+lint.isort.lines-between-types = 1
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "--no-cov-on-fail"
+
+[tool.coverage.report]
+fail_under = 86.0
+show_missing = true
+skip_covered = true
 
 [tool.mypy]
 strict = true
@@ -56,8 +69,5 @@ warn_unused_ignores = true
 warn_no_return = true
 ignore_missing_imports = true
 non_interactive = true
-exclude = ["tests/"]
-plugins = ["pydantic.mypy"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
+exclude = [ "tests/" ]
+plugins = [ "pydantic.mypy" ]

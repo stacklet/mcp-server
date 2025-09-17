@@ -11,9 +11,17 @@ from typing import Any, Self, cast
 import httpx
 
 from fastmcp import Context
-from graphql import GraphQLSchema, build_client_schema, get_introspection_query, print_type
+from graphql import (
+    GraphQLSchema,
+    OperationType,
+    build_client_schema,
+    get_introspection_query,
+    parse,
+    print_type,
+)
 
 from ..lifespan import server_cached
+from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 from .models import (
     ConnectionExport,
@@ -28,21 +36,17 @@ from .models import (
 class PlatformClient:
     """Client for Stacklet Platform GraphQL API."""
 
-    @classmethod
-    def get(cls, ctx: Context) -> Self:
-        def construct() -> PlatformClient:
-            return cls(StackletCredentials.get(ctx))
-
-        return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
-
-    def __init__(self, credentials: StackletCredentials):
+    def __init__(self, credentials: StackletCredentials, enable_mutations: bool = False):
         """
         Initialize Platform client with Stacklet credentials.
 
         Args:
             credentials: StackletCredentials object containing endpoint and access_token
+            enable_nutations: Whether to allow executing mutations
         """
         self.credentials = credentials
+        self.enable_mutations = enable_mutations
+
         self.session = httpx.AsyncClient(
             headers={
                 "Content-Type": "application/json",
@@ -51,6 +55,13 @@ class PlatformClient:
             timeout=30.0,
         )
         self._schema_cache = None
+
+    @classmethod
+    def get(cls, ctx: Context) -> Self:
+        def construct() -> PlatformClient:
+            return cls(StackletCredentials.get(ctx), SETTINGS.platform_allow_mutations)
+
+        return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
 
     async def query(self, query: str, variables: dict[str, Any]) -> GraphQLQueryResult:
         """
@@ -63,26 +74,10 @@ class PlatformClient:
         Returns:
             Structured GraphQL query result
         """
-        request_data = {"query": query, "variables": variables}
-        response = await self.session.post(self.credentials.endpoint, json=request_data)
+        if not self.enable_mutations and has_mutations(query):
+            raise Exception("Mutations not allowed in the client")
 
-        # Try to parse as a valid GraphQL response, because platform backend
-        # sometimes sets 4xx/5xx error codes on valid graphql responses.
-        try:
-            raw_result = cast(dict[str, Any], response.json())
-            errors = None
-            if raw_errors := raw_result.get("errors"):
-                errors = [GraphQLError(**error) for error in raw_errors]
-
-            return GraphQLQueryResult(
-                query=query,
-                variables=variables,
-                data=raw_result.get("data"),
-                errors=errors,
-            )
-        except Exception:
-            # Any failure (JSON parsing, validation, etc.) -> unexpected response
-            raise Exception(f"Unexpected response: {response.text}")
+        return await self._query(query, variables)
 
     async def get_schema(self) -> GraphQLSchema:
         """
@@ -164,8 +159,7 @@ class PlatformClient:
         Returns:
             Node ID of started export job.
         """
-
-        result = await self.query(self.Q_START_EXPORT, {"input": spec.for_graphql()})
+        result = await self._query(self.Q_START_EXPORT, {"input": spec.for_graphql()})
         if result.errors:
             raise RuntimeError(f"Export mutation failed: {result.errors}")
 
@@ -220,3 +214,32 @@ class PlatformClient:
           }
         }
     """
+
+    async def _query(self, query: str, variables: dict[str, Any] | None = None) -> GraphQLQueryResult:
+        request_data = {"query": query, "variables": variables}
+        response = await self.session.post(self.credentials.endpoint, json=request_data)
+
+        # Try to parse as a valid GraphQL response, because platform backend
+        # sometimes sets 4xx/5xx error codes on valid graphql responses.
+        try:
+            raw_result = cast(dict[str, Any], response.json())
+            errors = None
+            if raw_errors := raw_result.get("errors"):
+                errors = [GraphQLError(**error) for error in raw_errors]
+
+            return GraphQLQueryResult(
+                query=query,
+                variables=variables,
+                data=raw_result.get("data"),
+                errors=errors,
+            )
+        except Exception:
+            # Any failure (JSON parsing, validation, etc.) -> unexpected response
+            raise Exception(f"Unexpected response: {response.text}")
+
+
+def has_mutations(query: str) -> bool:
+    """Return whether a GraphQL query string calls mutations."""
+    doc = parse(query)
+    operations = {dd.operation for dd in doc.definitions}
+    return OperationType.MUTATION in operations

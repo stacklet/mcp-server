@@ -10,12 +10,16 @@ run:
 format:
     uv run ruff check --fix
     uv run ruff format
+    - uv run pyproject-fmt -n pyproject.toml
 
 # Lint code
 lint:
 	uv run pre-commit run --all-files
 
-
 # Run tests
 test *args:
     uv run pytest {{args}}
+
+# Run tests with coverage
+test-coverage *args:
+    just test --cov {{args}}
