@@ -35,8 +35,8 @@ async def mcp_client(override_setting, mock_stacklet_credentials):
     """A client for the MCP server."""
 
     # enable all tools
-    override_setting("assetdb_save", True)
-    override_setting("platform_mutations", True)
+    override_setting("assetdb_allow_save", True)
+    override_setting("platform_allow_mutations", True)
 
     async with Client(make_server()) as client:
         yield client

@@ -14,11 +14,11 @@ class Settings(BaseSettings):
         default=1,
         description="AssetDB datasource",
     )
-    assetdb_save: bool = Field(
+    assetdb_allow_save: bool = Field(
         default=False,
         description="Enable tools that make modifications to AssetDB",
     )
-    platform_mutations: bool = Field(
+    platform_allow_mutations: bool = Field(
         default=False,
         description="Enable calling mutations in the Platform GraphQL API",
     )

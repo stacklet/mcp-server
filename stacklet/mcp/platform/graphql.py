@@ -49,7 +49,7 @@ class PlatformClient:
     @classmethod
     def get(cls, ctx: Context) -> Self:
         def construct() -> PlatformClient:
-            return cls(StackletCredentials.get(ctx), SETTINGS.platform_mutations)
+            return cls(StackletCredentials.get(ctx), SETTINGS.platform_allow_mutations)
 
         return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
 
