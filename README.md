@@ -1,19 +1,30 @@
 # Stacklet MCP Server
 
-Has useful toolsets for granting LLMs the powers of:
+Exposes toolsets for granting LLMs the powers of:
 
 * AssetDB SQL queries (ad-hoc and saved)
-* Platform GraphQL queries (and mutations)
+* Platform GraphQL operations (and export of large datasets)
 * Documentation access (in .md, for context)
+
+Each of the toolsets has an "info" tool with useful context, available to any client which supports minimal MCP features. Asking your agent to tell you about a toolset is a fairly reliable way to get it to call the info tool and load up its context with relevant information.
 
 ## Requirements
 
 * install tools (e.g. via `mise install`)
 * install dependencies via `just install`
-* expects you to have run `stacklet-admin login` recently
-* otherwise configure your agent to `just run` in this directory (or copy and adjust the `.mcp.json` file when running the agent from another directory)
+* configure your agent to `just run` in this directory (or copy and adjust the `.mcp.json` file when running the agent from another directory)
 
-# Server configuration
+## Authentication
+
+The easiest way to authenticate to your stacklet environment is to use the [stacklet-admin] tool, which is most easily installed with:
+
+```
+% uv tool install stacklet.client.platform
+```
+
+Once you've configured that, a `stacklet-admin login` will grant the MCP server access on your behalf for twelve hours.
+
+## Server configuration
 
 The MCP server can be configured via environment variables.
 
@@ -25,14 +36,10 @@ The following variables are available:
 - `STACKLET_MCP_ASSETDB_DATASOURCE`: the datasource ID for AssetDB in Redash (default: `1`)
 - `STACKLET_MCP_ASSETDB_SAVE`: whether to enable write operations in assetdb (default: `false`)
 
-## Handy Commands
+## Development
 
-Install `stacklet-admin`:
-```
-uv tool install stacklet.client.platform
-```
+The MCP Protocol Inspector is invaluable for peeking at the details of the protocol in use:
 
-Interact manually with the server in as much detail as you desire:
 ```
 % npx @modelcontextprotocol/inspector uv run mcp
 ```

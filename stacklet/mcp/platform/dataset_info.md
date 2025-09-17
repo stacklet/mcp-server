@@ -11,21 +11,49 @@ The platform dataset export tool allows you to:
 - Use JMESPath expressions to transform JSON data
 - Export from both root query connections and node-specific connections
 
+## ⚠️ Scale Considerations
+
+**While it's technically possible to export all resources, this is generally a terrible idea.** Resource datasets can be enormous and are far better handled with AssetDB SQL queries for analysis.
+
+**Always test your query scope first:**
+```python
+# Test query scope before full export
+mcp__stacklet__platform_graphql_query(
+    query="""query {
+      resources(first: 1, filterElement: {single: {name: "provider", value: "aws"}}) {
+        pageInfo { total }
+        edges { node { key resourceType } }
+      }
+    }"""
+)
+```
+
+If `pageInfo.total` shows thousands or more records, consider:
+1. **Adding more filters** (resource-type, region, account)
+2. **Using AssetDB queries instead** for large-scale analysis
+3. **Exporting incrementally** by region or resource type
+
+**Better alternatives for large datasets:**
+- Use `assetdb_sql_query` for complex analysis across millions of resources
+- Export smaller, focused datasets (specific resource types, single regions)
+- Start with accounts or policies which are typically much smaller
+
 ## Basic Usage
 
 ### Simple Root Query Export
 
-Export all resources with basic columns:
+Export all accounts with basic information:
 
 ```python
 mcp__stacklet__platform_dataset_export(
-    connection_field="resources",
+    connection_field="accounts",
     columns=[
-        {"name": "resource_key", "path": "key"},
-        {"name": "resource_type", "path": "resourceType"},
-        {"name": "account_name", "path": "account.name"},
-        {"name": "region", "path": "region"},
-        {"name": "timestamp", "path": "timestamp"}
+        {"name": "account_key", "path": "key"},
+        {"name": "account_name", "path": "name"},
+        {"name": "provider", "path": "provider"},
+        {"name": "path", "path": "path"},
+        {"name": "email", "path": "email"},
+        {"name": "active", "path": "active"}
     ],
     timeout=30
 )
@@ -130,6 +158,38 @@ params=[
 | `resources` | `provider`, `resource-type`, `account`, `region`, `resource-tag`, `key` |
 | `policies` | `provider`, `resource`, `category`, `severity`, `compliance`, `binding` |
 
+### Scale Considerations for Filtering
+
+⚠️ **Important**: Simple provider filtering (`provider:aws`) can return enormous datasets. Always test scope first:
+
+```python
+# ❌ Test this first - may be too broad
+query = """query {
+  resources(first: 1, filterElement: {single: {name: "provider", value: "aws"}}) {
+    pageInfo { total }
+  }
+}"""
+# If total > 10,000, add more filters
+
+# ✅ Better - scoped to specific resource type and region
+params=[
+    {
+        "name": "filterElement",
+        "type": "FilterElementInput",
+        "value": {
+            "multiple": {
+                "operator": "AND",
+                "operands": [
+                    {"single": {"name": "provider", "value": "aws"}},
+                    {"single": {"name": "resource-type", "value": "aws.vpc"}},
+                    {"single": {"name": "region", "value": "us-east-1"}}
+                ]
+            }
+        }
+    }
+]
+```
+
 ## Node-Based Exports
 
 Export connections from specific GraphQL nodes by providing `node_id`:
@@ -182,10 +242,14 @@ mcp__stacklet__platform_dataset_export(
 ### Asynchronous Export with Monitoring
 
 ```python
-# Start export without waiting
+# Start export without waiting (using filtered data for manageable size)
 dataset_result = mcp__stacklet__platform_dataset_export(
-    connection_field="resources",
-    columns=[...],
+    connection_field="policies",
+    columns=[
+        {"name": "policy_name", "path": "name"},
+        {"name": "resource_type", "path": "resourceType"},
+        {"name": "provider", "path": "provider"}
+    ],
     timeout=0  # Return immediately
 )
 
@@ -209,9 +273,21 @@ final_result = mcp__stacklet__platform_dataset_lookup(
 | `download_url` | URL to download CSV (null if not complete) |
 | `available_until` | ISO timestamp when download expires |
 
+### Downloading the CSV File
+
+The `download_url` will redirect to a signed S3 URL. Use tools that follow redirects:
+
+```bash
+# Download with curl (note the -L flag for redirects)
+curl -L -o accounts.csv "https://console.william.sandbox.stacklet.dev/export/abc123/accounts.csv"
+
+# Or with wget
+wget --trust-server-names "https://console.william.sandbox.stacklet.dev/export/abc123/accounts.csv"
+```
+
 ## Practical Examples
 
-### Export All AWS Resources with Tag Analysis
+### Export AWS VPC Resources with Tag Analysis
 
 ```python
 mcp__stacklet__platform_dataset_export(
@@ -221,7 +297,7 @@ mcp__stacklet__platform_dataset_export(
         {"name": "resource_type", "path": "resourceType"},
         {"name": "account_name", "path": "account.name"},
         {"name": "region", "path": "region"},
-        {"name": "tag_count", "path": "data", "subpath": "length(Tags || `[])"},
+        {"name": "tag_count", "path": "data", "subpath": "length(Tags || `[]`)"},
         {"name": "environment_tag", "path": "data", "subpath": "Tags[?Key=='Environment'].Value | [0]"},
         {"name": "cost_center", "path": "data", "subpath": "Tags[?Key=='CostCenter'].Value | [0]"}
     ],
@@ -229,10 +305,18 @@ mcp__stacklet__platform_dataset_export(
         {
             "name": "filterElement",
             "type": "FilterElementInput",
-            "value": {"single": {"name": "provider", "value": "aws"}}
+            "value": {
+                "multiple": {
+                    "operator": "AND",
+                    "operands": [
+                        {"single": {"name": "resource-type", "operator": "equals", "value": "aws.vpc"}},
+                        {"single": {"name": "region", "operator": "equals", "value": "us-east-1"}}
+                    ]
+                }
+            }
         }
     ],
-    timeout=120
+    timeout=30
 )
 ```
 
@@ -272,6 +356,7 @@ mcp__stacklet__platform_dataset_export(
 
 - **Paging Parameters**: Cannot use `first`, `after`, `last`, `before` in params - the export automatically handles pagination
 - **Download Expiration**: CSV files are available for 24 hours after completion
+- **Download URLs**: The `download_url` will redirect (HTTP 307) to a signed S3 URL - this is expected behavior. Use `curl -L` or similar redirect-following tools to download files.
 - **Timeout Behavior**: Setting `timeout=0` returns immediately; setting a timeout waits for completion or timeout
 - **JMESPath**: Use subpath for complex JSON transformations from the `data` field
 - **Filter Discovery**: Always check `filterSchema` to understand available filters for each connection
