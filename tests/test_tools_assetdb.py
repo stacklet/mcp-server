@@ -17,10 +17,10 @@ from .testing.mcp import MCPTest, json_guard_parametrize
 pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
 
 
-@pytest.mark.parametrize("save", [True, False])
-def test_tools_save(override_setting, save: bool):
-    override_setting("assetdb_save", save)
-    assert (assetdb_query_save in tools()) == save
+@pytest.mark.parametrize("allow_save", [True, False])
+def test_tools_save(override_setting, allow_save: bool):
+    override_setting("assetdb_allow_save", allow_save)
+    assert (assetdb_query_save in tools()) == allow_save
 
 
 class TestSQLInfo(MCPTest):

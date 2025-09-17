@@ -9,30 +9,34 @@ from typing import Any, Self, cast
 import httpx
 
 from fastmcp import Context
-from graphql import GraphQLSchema, build_client_schema, get_introspection_query, print_type
+from graphql import (
+    GraphQLSchema,
+    OperationType,
+    build_client_schema,
+    get_introspection_query,
+    parse,
+    print_type,
+)
 
 from ..lifespan import server_cached
+from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 
 
 class PlatformClient:
     """Client for Stacklet Platform GraphQL API."""
 
-    @classmethod
-    def get(cls, ctx: Context) -> Self:
-        def construct() -> PlatformClient:
-            return cls(StackletCredentials.get(ctx))
-
-        return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
-
-    def __init__(self, credentials: StackletCredentials):
+    def __init__(self, credentials: StackletCredentials, enable_mutations: bool = False):
         """
         Initialize Platform client with Stacklet credentials.
 
         Args:
             credentials: StackletCredentials object containing endpoint and access_token
+            enable_nutations: Whether to allow executing mutations
         """
         self.credentials = credentials
+        self.enable_mutations = enable_mutations
+
         self.session = httpx.AsyncClient(
             headers={
                 "Content-Type": "application/json",
@@ -41,6 +45,13 @@ class PlatformClient:
             timeout=30.0,
         )
         self._schema_cache = None
+
+    @classmethod
+    def get(cls, ctx: Context) -> Self:
+        def construct() -> PlatformClient:
+            return cls(StackletCredentials.get(ctx), SETTINGS.platform_allow_mutations)
+
+        return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
 
     async def query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         """
@@ -53,20 +64,10 @@ class PlatformClient:
         Returns:
             Query result as dictionary
         """
-        request_data: dict[str, Any] = {"query": query}
-        if variables:
-            request_data["variables"] = variables
+        if not self.enable_mutations and has_mutations(query):
+            raise Exception("Mutations not allowed in the client")
 
-        response = await self.session.post(self.credentials.endpoint, json=request_data)
-        # Don't raise on HTTP errors initially - backend erroneously sets HTTP status codes
-        # for GraphQL-level errors. GraphQL transport should be HTTP 200 with errors in payload.
-        # However, if we can't parse JSON, then it's likely a real HTTP error.
-        try:
-            return cast(dict[str, Any], response.json())
-        except Exception:
-            # If JSON parsing fails, fall back to standard HTTP error handling
-            response.raise_for_status()
-            raise  # Re-raise the JSON parsing error
+        return await self._query(query, variables=variables)
 
     async def get_schema(self) -> GraphQLSchema:
         """
@@ -134,3 +135,26 @@ class PlatformClient:
                 found[type_name] = print_type(match)
 
         return found
+
+    async def _query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        request_data: dict[str, Any] = {"query": query}
+        if variables:
+            request_data["variables"] = variables
+
+        response = await self.session.post(self.credentials.endpoint, json=request_data)
+        # Don't raise on HTTP errors initially - backend erroneously sets HTTP status codes
+        # for GraphQL-level errors. GraphQL transport should be HTTP 200 with errors in payload.
+        # However, if we can't parse JSON, then it's likely a real HTTP error.
+        try:
+            return cast(dict[str, Any], response.json())
+        except Exception:
+            # If JSON parsing fails, fall back to standard HTTP error handling
+            response.raise_for_status()
+            raise  # Re-raise the JSON parsing error
+
+
+def has_mutations(query: str) -> bool:
+    """Return whether a GraphQL query string calls mutations."""
+    doc = parse(query)
+    operations = {dd.operation for dd in doc.definitions}
+    return OperationType.MUTATION in operations
