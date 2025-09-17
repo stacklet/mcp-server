@@ -5,27 +5,26 @@ from typing import Any, Callable
 from fastmcp import FastMCP
 from fastmcp.tools import Tool
 
+from . import __version__
 from .assetdb.tools import tools as assetdb_tools
 from .docs.tools import tools as docs_tools
 from .lifespan import lifespan
 from .platform.tools import tools as platform_tools
-from .settings import Settings
 
 
 def make_server() -> FastMCP:
-    settings = Settings()
+    """Create an MCP server.."""
     tool_sets = [
         assetdb_tools,
         docs_tools,
         platform_tools,
     ]
-    tools: list[Tool | Callable[..., Any]] = list(
-        chain(*(tool_set(settings) for tool_set in tool_sets))
-    )
+    tools: list[Tool | Callable[..., Any]] = list(chain(*(tool_set() for tool_set in tool_sets)))
 
     return FastMCP(
-        "Stacklet",
-        dedent(
+        name="Stacklet",
+        version=__version__,
+        instructions=dedent(
             """
             The Stacklet MCP server has 3 main toolsets:
 

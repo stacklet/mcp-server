@@ -2,12 +2,11 @@ from typing import Any, Callable
 
 from fastmcp import Context
 
-from ..settings import Settings
 from ..utils import get_package_file, json_guard
 from .graphql import PlatformClient
 
 
-def tools(settings: Settings) -> list[Callable[..., Any]]:
+def tools() -> list[Callable[..., Any]]:
     """List of available Platform tools."""
     return [
         platform_graphql_info,

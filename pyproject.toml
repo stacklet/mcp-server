@@ -4,7 +4,6 @@ build-backend = "hatchling.build"
 
 [project]
 name = "stacklet-mcp-server"
-version = "0.1.0"
 description = "A simple MCP server using FastMCP 2"
 dependencies = [
     "fastmcp>=2.0.0",
@@ -14,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.10.1",
 ]
 requires-python = ">=3.12"
+dynamic = ["version"]
 
 [dependency-groups]
 dev = [
@@ -26,6 +26,9 @@ dev = [
 
 [project.scripts]
 mcp = "stacklet.mcp.mcp:main"
+
+[tool.hatch.version]
+path = "stacklet/mcp/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["stacklet"]
