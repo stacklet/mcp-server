@@ -208,6 +208,7 @@ class PlatformClient:
         query getExport($id: ID!) {
           node(id: $id) {
             ... on ConnectionExport {
+              id
               started
               completed
               success

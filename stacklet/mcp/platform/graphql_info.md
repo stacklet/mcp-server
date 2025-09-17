@@ -25,7 +25,7 @@ defined in the schema. When querying connections, always remember to:
 - When you need to search or refine results, query the Connection's "filterSchema",
   and use that to compose "FilterElementInput" values.
 - When you need a large result set, make small first queries to confirm the shape and
-  value of the data first; only then, use the "exportConnection" mutation to generate
+  value of the data first; only then, use the `platform_dataset_export` tool to generate
   a CSV which can be downloaded locally for analysis with more suitable tools.
 
 Try to avoid nesting connection queries. With small page sizes, a single nested
@@ -87,9 +87,12 @@ functionality to validate your work.
 ### **Analyzing findings**
 
 Remember to explore these datasets with few small pages, and capture complete datasets
-by exporting the full connection once you've determined the fields you need. This can
-get you large datasets for local analysis with dedicated tools, without overwhelming an
-LLM's context window.
+using the `platform_dataset_export` tool once you've determined the fields you need.
+This can get you large datasets for local analysis with dedicated tools, without
+overwhelming an LLM's context window.
+
+For comprehensive guidance on dataset exports, including filtering, column selection,
+and JSON transformation, use the `platform_dataset_info` tool.
 
 Resources are a direct window into the contents of your cloud estate, and are useful
 for inspecting individual resources (including their change history and coarse-grained

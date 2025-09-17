@@ -25,6 +25,7 @@ def tools() -> list[Callable[..., Any]]:
         platform_graphql_query,
         platform_dataset_export,
         platform_dataset_lookup,
+        platform_dataset_info,
     ]
 
 
@@ -137,3 +138,13 @@ async def platform_dataset_lookup(
     """
     client = PlatformClient.get(ctx)
     return await client.wait_for_export(export_id, timeout)
+
+
+def platform_dataset_info() -> str:
+    """
+    Key information for LLMs using the platform_dataset_ tools; call this first.
+
+    Returns:
+        Comprehensive guide to using platform dataset export functionality.
+    """
+    return get_package_file("platform/dataset_info.md").read_text()
