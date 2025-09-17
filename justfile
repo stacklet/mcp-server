@@ -4,7 +4,7 @@ install:
 
 # Run the MCP server locally
 run:
-    uv run mcp
+    uv run stacklet-mcp
 
 # Format code
 format:
