@@ -1,12 +1,13 @@
-from stacklet.mcp.utils import get_package_file
+import pytest
+
+from stacklet.mcp.utils import get_file_text
 
 
-class TestGetPackageFile:
+class TestGetFileTest:
     def test_exists(self):
-        doc = get_package_file("platform/graphql_info.md")
-        assert doc.exists()
-        assert "Stacklet GraphQL API Overview" in doc.read_text()
+        doc = get_file_text("platform/graphql_info.md")
+        assert "Stacklet GraphQL API Overview" in doc
 
     def test_unknown(self):
-        unknown = get_package_file("not/here")
-        assert not unknown.exists()
+        with pytest.raises(Exception):
+            get_file_text("not/here")

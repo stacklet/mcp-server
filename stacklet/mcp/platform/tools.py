@@ -3,7 +3,7 @@ from typing import Annotated, Any, Callable
 from fastmcp import Context
 from pydantic import Field
 
-from ..utils import get_package_file, info_tool_result, json_guard
+from ..utils import ToolsetInfo, get_file_text, info_tool_result, json_guard
 from .graphql import PlatformClient
 from .models import (
     ConnectionExport,
@@ -29,16 +29,14 @@ def tools() -> list[Callable[..., Any]]:
     ]
 
 
-def platform_graphql_info() -> dict[str, Any]:
+def platform_graphql_info() -> ToolsetInfo:
     """
     Key information for LLMs using the platform_graphql_ tools; call this first.
 
     Returns:
         Text to guide correct and effective use of the toolset.
     """
-    return info_tool_result(
-        get_package_file("platform/graphql_info.md").read_text(),
-    )
+    return info_tool_result(get_file_text("platform/graphql_info.md"))
 
 
 @json_guard
@@ -93,6 +91,16 @@ async def platform_graphql_query(
     return await client.query(query, variables or {})
 
 
+def platform_dataset_info() -> ToolsetInfo:
+    """
+    Key information for LLMs using the platform_dataset_ tools; call this first.
+
+    Returns:
+        Comprehensive guide to using platform dataset export functionality.
+    """
+    return info_tool_result(get_file_text("platform/dataset_info.md"))
+
+
 @json_guard
 async def platform_dataset_export(
     ctx: Context,
@@ -141,15 +149,3 @@ async def platform_dataset_lookup(
     """
     client = PlatformClient.get(ctx)
     return await client.wait_for_export(dataset_id, timeout)
-
-
-def platform_dataset_info() -> dict[str, Any]:
-    """
-    Key information for LLMs using the platform_dataset_ tools; call this first.
-
-    Returns:
-        Comprehensive guide to using platform dataset export functionality.
-    """
-    return info_tool_result(
-        get_package_file("platform/dataset_info.md").read_text(),
-    )
