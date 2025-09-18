@@ -4,7 +4,7 @@ from fastmcp import Context
 from pydantic import Field
 
 from ..settings import SETTINGS
-from ..utils import get_package_file, json_guard
+from ..utils import ToolsetInfo, get_file_text, info_tool_result, json_guard
 from .models import QueryUpsert
 from .redash import AssetDBClient
 
@@ -240,11 +240,11 @@ async def assetdb_query_save(
     return result
 
 
-def assetdb_sql_info() -> str:
+def assetdb_sql_info() -> ToolsetInfo:
     """
     Key information for LLMs using the assetdb_sql_ tools; call this first.
 
     Returns:
         Text to guide correct and effective use of the AssetDB SQL toolset.
     """
-    return get_package_file("assetdb/sql_info.md").read_text()
+    return info_tool_result(get_file_text("assetdb/sql_info.md"))

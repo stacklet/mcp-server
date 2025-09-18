@@ -7,13 +7,32 @@ from pathlib import Path
 from typing import Annotated, Any, Callable, cast
 
 from fastmcp.utilities.types import is_class_member_of_type
-from pydantic import BeforeValidator, ValidationInfo
+from pydantic import BaseModel, BeforeValidator, ValidationInfo
 
 
-def get_package_file(path: str) -> Path:
+def get_file_text(path: str) -> str:
     """Return a file under the stacklet/mcp package."""
     # the Traversable is always a path in practice
-    return cast(Path, resources.files("stacklet") / "mcp" / path)
+    return cast(Path, resources.files("stacklet") / "mcp" / path).read_text()
+
+
+class ToolsetInfo(BaseModel):
+    meta: dict[str, str]
+    content: str
+
+
+def info_tool_result(content: str) -> ToolsetInfo:
+    """
+    Attempt to bump the perceived importance of the steering information we send.
+    """
+    return ToolsetInfo(
+        content=content,
+        meta={
+            "importance": "critical",
+            "memorability": "high",
+            "priority": "top",
+        },
+    )
 
 
 def json_guard(fn: Callable[..., Any]) -> Callable[..., Any]:

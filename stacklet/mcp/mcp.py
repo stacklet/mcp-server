@@ -1,5 +1,4 @@
 from itertools import chain
-from textwrap import dedent
 from typing import Any, Callable
 
 from fastmcp import FastMCP
@@ -10,6 +9,7 @@ from .assetdb.tools import tools as assetdb_tools
 from .docs.tools import tools as docs_tools
 from .lifespan import lifespan
 from .platform.tools import tools as platform_tools
+from .utils import get_file_text
 
 
 def make_server() -> FastMCP:
@@ -24,20 +24,7 @@ def make_server() -> FastMCP:
     return FastMCP(
         name="Stacklet",
         version=__version__,
-        instructions=dedent(
-            """
-            The Stacklet MCP server has 3 main toolsets:
-
-            - "docs_list" and "docs_read" give access to Stacklet documentation
-              * reading documentation will help you understand the concepts
-            - "platform_*" tools give access to the Platform GraphQL API
-              * the "platform_graphql_info" tool is a great place to start
-            - "assetdb_*" tools give access to your cloud asset inventory
-              * "assetdb_sql_info" and "assetdb_sql_query" for direct SQL access
-              * "assetdb_query_list", "assetdb_query_get", "assetdb_query_save"
-                and "assetdb_query_results" for saved query management
-            """
-        ),
+        instructions=get_file_text("mcp_info.md"),
         tools=tools,
         lifespan=lifespan,
     )
