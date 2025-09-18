@@ -18,6 +18,11 @@ Many AssetDB tables are extremely large. Always use LIMIT and indexed column fil
 | `resource_cost_summaries`                | Monthly avg cost per resource       | Large           | More granular, incomplete coverage   |
 | `resource_cost`                          | Granular cost details               | Extremely Large | Individual resource lookups only     |
 
+### **Special Considerations**
+
+- Most table columns are commented. When investigating table structure, these are valuable.
+- Foreign key constraints do not tell the whole story; there are many implicit foreign relations.
+
 ### **Safe Querying Process**
 
 1. **Query table sizes:**
