@@ -5,7 +5,15 @@ from pydantic import Field
 
 from ..settings import SETTINGS
 from ..utils import ToolsetInfo, get_file_text, info_tool_result, json_guard
-from .models import DownloadResult, Query, QueryListResult, QueryResultData, QueryUpsert
+from .models import (
+    DownloadResult,
+    Query,
+    QueryListItem,
+    QueryListPagination,
+    QueryListResult,
+    QueryResultData,
+    QueryUpsert,
+)
 from .redash import AssetDBClient
 
 
@@ -85,8 +93,6 @@ async def assetdb_query_list(
                 "user": q.user,
             }
         )
-
-    from .models import QueryListItem, QueryListPagination
 
     query_items = [QueryListItem(**q) for q in queries]
     pagination = QueryListPagination(
