@@ -40,15 +40,32 @@ def json_guard_parametrize(values):
 
 
 class MCPTest:
+    """Base test class for MCP tools."""
+
     tool_name: str
 
     @pytest.fixture(autouse=True)
-    def setup(self, mcp_client, mock_http_request):
+    def setup_client(self, mcp_client):
         self.client = mcp_client
-        self.http = mock_http_request
 
     async def assert_call(self, params, error=False) -> ToolCallResult:
         call_result = await self.client.call_tool_mcp(self.tool_name, params)
         result = ToolCallResult(call_result)
         assert result.is_error == error
         return result
+
+
+class MCPCookieTest(MCPTest):
+    """MCP test class for tools that use cookie-based authentication."""
+
+    @pytest.fixture(autouse=True)
+    def setup_http(self, mock_http_cookie):
+        self.http = mock_http_cookie
+
+
+class MCPBearerTest(MCPTest):
+    """MCP test class for tools that use bearer token authentication."""
+
+    @pytest.fixture(autouse=True)
+    def setup_http(self, mock_http_bearer):
+        self.http = mock_http_bearer

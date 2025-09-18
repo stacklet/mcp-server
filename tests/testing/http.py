@@ -15,12 +15,16 @@ class MockHTTPXResponse:
         self._data = data
         self.status_code = status_code
 
-    def json(self):
-        return json.loads(self._data)
-
     @property
     def content(self):
         return self._data.encode()
+
+    @property
+    def text(self):
+        return self._data
+
+    def json(self):
+        return json.loads(self._data)
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -92,3 +96,46 @@ def mock_http_request(monkeypatch, mock_stacklet_credentials):
     monkeypatch.setattr("httpx.AsyncClient.request", mock_request)
 
     return controller
+
+
+def _mock_http_request_with_auth_check(monkeypatch, mock_stacklet_credentials, auth_check_func):
+    """Shared implementation for HTTP mocking with different auth checks."""
+
+    controller = ExpectedRequestsController()
+
+    async def mock_request(self, method, url, **kwargs):
+        auth_check_func(self, mock_stacklet_credentials)
+        return controller.next_request().respond(method, url, **kwargs)
+
+    def mock_stream(self, method, url, **kwargs):
+        """Mock streaming requests - returns the response directly as async context manager."""
+        auth_check_func(self, mock_stacklet_credentials)
+        return controller.next_request().respond(method, url, **kwargs)
+
+    monkeypatch.setattr("httpx.AsyncClient.request", mock_request)
+    monkeypatch.setattr("httpx.AsyncClient.stream", mock_stream)
+    return controller
+
+
+@pytest.fixture
+def mock_http_cookie(monkeypatch, mock_stacklet_credentials):
+    """Mock httpx.AsyncClient.request with cookie-based auth expectations."""
+
+    def check_cookie_auth(client, credentials):
+        assert client.cookies["stacklet-auth"] == credentials.identity_token
+
+    return _mock_http_request_with_auth_check(
+        monkeypatch, mock_stacklet_credentials, check_cookie_auth
+    )
+
+
+@pytest.fixture
+def mock_http_bearer(monkeypatch, mock_stacklet_credentials):
+    """Mock httpx.AsyncClient.request with bearer token auth expectations."""
+
+    def check_bearer_auth(client, credentials):
+        assert client.headers["Authorization"] == f"Bearer {credentials.access_token}"
+
+    return _mock_http_request_with_auth_check(
+        monkeypatch, mock_stacklet_credentials, check_bearer_auth
+    )

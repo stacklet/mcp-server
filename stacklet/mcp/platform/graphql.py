@@ -2,7 +2,9 @@
 Stacklet Platform client for GraphQL API operations.
 """
 
+import asyncio
 import re
+import time
 
 from typing import Any, Self, cast
 
@@ -21,6 +23,14 @@ from graphql import (
 from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
+from .models import (
+    ConnectionExport,
+    ExportRequest,
+    GetTypesResult,
+    GraphQLError,
+    GraphQLQueryResult,
+    ListTypesResult,
+)
 
 
 class PlatformClient:
@@ -53,7 +63,7 @@ class PlatformClient:
 
         return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
 
-    async def query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def query(self, query: str, variables: dict[str, Any]) -> GraphQLQueryResult:
         """
         Execute a GraphQL query against the Stacklet Platform API.
 
@@ -62,12 +72,12 @@ class PlatformClient:
             variables: Optional variables for the query
 
         Returns:
-            Query result as dictionary
+            Structured GraphQL query result
         """
         if not self.enable_mutations and has_mutations(query):
             raise Exception("Mutations not allowed in the client")
 
-        return await self._query(query, variables=variables)
+        return await self._query(query, variables)
 
     async def get_schema(self) -> GraphQLSchema:
         """
@@ -98,7 +108,7 @@ class PlatformClient:
         self._schema_cache = build_client_schema({"__schema": schema})
         return self._schema_cache
 
-    async def list_types(self, match: str | None = None) -> list[str]:
+    async def list_types(self, match: str | None = None) -> ListTypesResult:
         """
         List the types available in the GraphQL API.
 
@@ -106,7 +116,7 @@ class PlatformClient:
             match: Optional regular expression filter
 
         Returns:
-            List of type names
+            Structured result with context
         """
         schema = await self.get_schema()
         names = schema.type_map.keys()
@@ -115,9 +125,9 @@ class PlatformClient:
             f = re.compile(match)
             names = filter(f.search, names)
 
-        return sorted(names)
+        return ListTypesResult(searched_for=match, found_types=sorted(names))
 
-    async def get_types(self, type_names: list[str]) -> dict[str, str]:
+    async def get_types(self, type_names: list[str]) -> GetTypesResult:
         """
         Retrieve information about specific types in the GraphQL API.
 
@@ -125,32 +135,107 @@ class PlatformClient:
             type_names: Names of requested types
 
         Returns:
-            Dictionary mapping valid type names to GraphQL SDL definitions
+            Structured result with context
         """
         schema = await self.get_schema()
         found = {}
+        missing = []
 
-        for type_name in type_names:
+        for type_name in sorted(set(type_names)):
             if match := schema.type_map.get(type_name):
                 found[type_name] = print_type(match)
+            else:
+                missing.append(type_name)
 
-        return found
+        return GetTypesResult(asked_for=type_names, found_sdl=found, not_found=missing)
 
-    async def _query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
-        request_data: dict[str, Any] = {"query": query}
-        if variables:
-            request_data["variables"] = variables
+    async def start_export(self, spec: ExportRequest) -> str:
+        """
+        Start a dataset export and poll for completion, then download the result.
 
+        Args:
+            spec: Validated export configuration with connection field, columns, and options
+
+        Returns:
+            Node ID of started export job.
+        """
+        result = await self._query(self.Q_START_EXPORT, {"input": spec.for_graphql()})
+        if result.errors:
+            raise RuntimeError(f"Export mutation failed: {result.errors}")
+
+        # If no errors, data is at least guaranteed truthy.
+        export = cast(dict[str, Any], result.data)["exportConnection"]["export"]
+        return cast(dict[str, str], export)["id"]
+
+    Q_START_EXPORT = """
+        mutation exportConnection($input: ExportConnectionInput!) {
+            exportConnection(input: $input) { export { id } }
+        }
+    """
+
+    async def wait_for_export(self, dataset_id: str, timeout_s: int) -> ConnectionExport:
+        cutoff = time.monotonic() + timeout_s
+        interval_s = 2
+        while True:
+            # Always try at least once.
+            export = await self._get_export(dataset_id)
+            if export.completed:
+                return export
+
+            # Aim for the final attempt to happen at cutoff time.
+            remaining_s = cutoff - time.monotonic()
+            if remaining_s <= 0:
+                return export
+            await asyncio.sleep(min(interval_s, remaining_s))
+            interval_s *= 2
+
+    async def _get_export(self, dataset_id: str) -> ConnectionExport:
+        result = await self.query(self.Q_GET_EXPORT, {"id": dataset_id})
+        if result.errors:
+            raise RuntimeError(f"GraphQL errors: {result.errors}")
+
+        # If no errors, data is at least guaranteed guaranteed truthy.
+        fields = cast(dict[str, Any], result.data)["node"]
+        return ConnectionExport(**fields)
+
+    Q_GET_EXPORT = """
+        query getExport($id: ID!) {
+          node(id: $id) {
+            ... on ConnectionExport {
+              id
+              started
+              completed
+              success
+              processed
+              downloadURL
+              availableUntil
+              message
+            }
+          }
+        }
+    """
+
+    async def _query(self, query: str, variables: dict[str, Any]) -> GraphQLQueryResult:
+        request_data = {"query": query, "variables": variables}
         response = await self.session.post(self.credentials.endpoint, json=request_data)
-        # Don't raise on HTTP errors initially - backend erroneously sets HTTP status codes
-        # for GraphQL-level errors. GraphQL transport should be HTTP 200 with errors in payload.
-        # However, if we can't parse JSON, then it's likely a real HTTP error.
+
+        # Try to parse as a valid GraphQL response, because platform backend
+        # sometimes sets 4xx/5xx error codes on valid graphql responses.
         try:
-            return cast(dict[str, Any], response.json())
+            raw_result = cast(dict[str, Any], response.json())
+            errors = None
+            if raw_errors := raw_result.get("errors"):
+                errors = [GraphQLError(**error) for error in raw_errors]
+
+            return GraphQLQueryResult(
+                query=query,
+                variables=variables,
+                data=raw_result.get("data"),
+                errors=errors,
+            )
         except Exception:
-            # If JSON parsing fails, fall back to standard HTTP error handling
-            response.raise_for_status()
-            raise  # Re-raise the JSON parsing error
+            # Any failure (JSON parsing, validation, etc.) -> unexpected response
+            raise Exception(f"Unexpected response: {response.text}")
 
 
 def has_mutations(query: str) -> bool:

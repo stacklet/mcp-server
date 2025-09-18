@@ -183,8 +183,8 @@ class AssetDBClient:
         Returns:
             Query results when complete
         """
-        end_time = time.time() + timeout
-        while time.time() < end_time:
+        end_time = time.monotonic() + timeout
+        while time.monotonic() < end_time:
             job_result = await self._make_request("GET", f"api/jobs/{job_id}")
             job_status = job_result.get("job", {}).get("status")
 

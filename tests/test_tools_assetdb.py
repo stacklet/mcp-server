@@ -11,7 +11,7 @@ from stacklet.mcp.assetdb.tools import assetdb_query_save, tools
 
 from . import factory
 from .testing.http import ExpectRequest
-from .testing.mcp import MCPTest, json_guard_parametrize
+from .testing.mcp import MCPCookieTest, MCPTest, json_guard_parametrize
 
 
 pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
@@ -43,7 +43,7 @@ class TestSQLInfo(MCPTest):
         assert "EXPLAIN" in result.text
 
 
-class TestQueryList(MCPTest):
+class TestQueryList(MCPCookieTest):
     tool_name = "assetdb_query_list"
 
     def r(self, *, data={}, status_code=200, response: Any = "") -> ExpectRequest:
@@ -178,7 +178,7 @@ class TestQueryList(MCPTest):
         }
 
 
-class TestQueryGet(MCPTest):
+class TestQueryGet(MCPCookieTest):
     tool_name = "assetdb_query_get"
 
     @json_guard_parametrize([123])
@@ -205,7 +205,7 @@ class TestQueryGet(MCPTest):
         assert result.text == "Error calling tool 'assetdb_query_get': mocked http 404"
 
 
-class TestQuerySave(MCPTest):
+class TestQuerySave(MCPCookieTest):
     tool_name = "assetdb_query_save"
 
     def r(self, data, *, update=None, status_code=200, response: Any = ""):

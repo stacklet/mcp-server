@@ -1,17 +1,30 @@
 # Stacklet MCP Server
 
-Currently extremely rudimentary:
+Exposes toolsets for granting LLMs the powers of:
+
+* AssetDB SQL queries (ad-hoc and saved)
+* Platform GraphQL operations (and export of large datasets)
+* Documentation access (in .md, for context)
+
+Each of the toolsets has an "info" tool with useful context, available to any client which supports minimal MCP features. Asking your agent to tell you about a toolset is a fairly reliable way to get it to call the info tool and load up its context with relevant information.
+
+## Requirements
+
 * install tools (e.g. via `mise install`)
 * install dependencies via `just install`
-* expects you to have run `stacklet-admin login` recently
-* otherwise configure your agent to `just run` in this directory (or copy and adjust the `.mcp.json` file when running the agent from another directory)
+* configure your agent to `just run` in this directory (or copy and adjust the `.mcp.json` file when running the agent from another directory)
 
-When primed with e.g. "tell me about the stacklet graphql api", Claude appears to pull in enough context to answer subsequent questions like "tell me about my stacklet deployment" by running exploratory queries, fixing its own mistakes in the process; can be cajoled into exporting datasets and downloading them locally for subsequent analysis with better-suited tools.
+## Authentication
 
-When primed with e.g. "tell me about querying assetdb", and "explore the assetdb schema and tell me about it", Claude appears to generate and run sensible queries around cost and tagging use cases.
+The easiest way to authenticate to your stacklet environment is to use the [stacklet-admin](https://pypi.org/project/stacklet.client.platform/) tool, which is most easily installed with:
 
+```
+% uv tool install stacklet.client.platform
+```
 
-# Server configuration
+Once you've configured that, a `stacklet-admin login` will grant the MCP server access on your behalf for twelve hours.
+
+## Server configuration
 
 The MCP server can be configured via environment variables.
 
@@ -23,3 +36,11 @@ The following variables are available:
 - `STACKLET_MCP_ASSETDB_DATASOURCE`: the datasource ID for AssetDB in Redash (default: `1`)
 - `STACKLET_MCP_ASSETDB_ALLOW_SAVE`: whether to enable write operations in AssetDB (default: `false`)
 - `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS`: whether to enable executing mutations in Platform API (default: `false`)
+
+## Development
+
+The MCP Protocol Inspector is invaluable for peeking at the details of the protocol in use:
+
+```
+% npx @modelcontextprotocol/inspector uv run stacklet-mcp
+```

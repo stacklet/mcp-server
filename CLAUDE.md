@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an MCP (Model Context Protocol) server that provides comprehensive tools for interacting with the Stacklet platform. The server exposes 12 tools: 2 for documentation access, 4 for querying Stacklet's cloud governance GraphQL API, and 6 for AssetDB operations.
+This is an MCP (Model Context Protocol) server that provides comprehensive tools for interacting with the Stacklet platform. The server exposes 14 tools: 2 for documentation access, 6 for querying Stacklet's cloud governance GraphQL API, and up to 6 for AssetDB operations (some conditionally enabled).
 
 ## Architecture
 
@@ -14,6 +14,8 @@ The codebase follows a modular design with clear separation of concerns:
 - `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions
 - `stacklet/mcp/stacklet_auth.py` - Authentication credential loading
 - `stacklet/mcp/utils.py` - Utility functions for tool implementations
+- `stacklet/mcp/settings.py` - Server configuration and feature flags
+- `stacklet/mcp/lifespan.py` - Application lifespan management
 
 **Docs Package:**
 - `stacklet/mcp/docs/client.py` - Documentation client for fetching docs from Stacklet deployment
@@ -22,7 +24,8 @@ The codebase follows a modular design with clear separation of concerns:
 
 **Platform Package:**
 - `stacklet/mcp/platform/graphql.py` - Platform GraphQL client with instance-level schema caching
-- `stacklet/mcp/platform/tools.py` - Platform tool implementations (platform_graphql_info, platform_graphql_query, etc.)
+- `stacklet/mcp/platform/tools.py` - Platform tool implementations (platform_graphql_info, platform_graphql_query, platform_dataset_export, etc.)
+- `stacklet/mcp/platform/models.py` - Pydantic models for platform operations (ExportColumn, ExportParam, ConnectionExport, etc.)
 - `stacklet/mcp/platform/graphql_info.md` - Detailed guidance for using the Platform GraphQL API
 
 **AssetDB Package:**
@@ -77,14 +80,16 @@ just test      # Run pytest with optional args
 4. **`platform_graphql_list_types`** - List the types available in the GraphQL API
 5. **`platform_graphql_get_types`** - Retrieve information about specific GraphQL types
 6. **`platform_graphql_query`** - Execute GraphQL queries against Stacklet platform
+7. **`platform_dataset_export`** - Export full datasets from GraphQL connections to CSV format
+8. **`platform_dataset_lookup`** - Check the status of dataset exports
 
 **AssetDB Tools:**
-7. **`assetdb_sql_info`** - Key information for LLMs using AssetDB SQL tools (call this first)
-8. **`assetdb_sql_query`** - Execute ad-hoc SQL queries against AssetDB
-9. **`assetdb_query_list`** - List and search saved queries with pagination
-10. **`assetdb_query_get`** - Get detailed information about specific saved queries
-11. **`assetdb_query_results`** - Get results for saved queries with caching control
-12. **`assetdb_query_save`** - Create new queries or update existing ones
+9. **`assetdb_sql_info`** - Key information for LLMs using AssetDB SQL tools (call this first)
+10. **`assetdb_sql_query`** - Execute ad-hoc SQL queries against AssetDB
+11. **`assetdb_query_list`** - List and search saved queries with pagination
+12. **`assetdb_query_get`** - Get detailed information about specific saved queries
+13. **`assetdb_query_results`** - Get results for saved queries with caching control
+14. **`assetdb_query_save`** - Create new queries or update existing ones (conditionally enabled via `STACKLET_MCP_ASSETDB_SAVE=true`)
 
 ## Key Implementation Details
 
@@ -98,7 +103,8 @@ just test      # Run pytest with optional args
 
 **Platform Integration:** Uses GraphQL API for Stacklet platform operations. The Platform package is organized into:
 - `graphql.py` - Core GraphQL client with schema caching and introspection
-- `tools.py` - FastMCP tool implementations that expose platform functionality (info, list types, get types, query)
+- `tools.py` - FastMCP tool implementations that expose platform functionality (info, list types, get types, query, dataset exports)
+- `models.py` - Pydantic models for exports and GraphQL operations
 Uses `graphql-core` for schema manipulation and SDL generation, enabling proper type introspection and schema documentation.
 
 **AssetDB Integration:** Uses Redash API for SQL query execution and saved query management. The AssetDB package is organized into:
@@ -109,9 +115,15 @@ Supports query timeouts (max 300s), pagination, search, and tag filtering.
 
 ## Configuration
 
+**Stacklet Credentials:**
 The server requires Stacklet credentials configured through one of:
 - Environment variables: `STACKLET_ENDPOINT`, `STACKLET_ACCESS_TOKEN`, and `STACKLET_IDENTITY_TOKEN`
 - CLI config: `~/.stacklet/config.json` (endpoint), `~/.stacklet/credentials` (access token), and `~/.stacklet/id` (identity token)
+
+**Server Settings:**
+Additional configuration via environment variables with `STACKLET_MCP_` prefix:
+- `STACKLET_MCP_ASSETDB_DATASOURCE` (default: 1) - AssetDB data source ID
+- `STACKLET_MCP_ASSETDB_SAVE` (default: false) - Enable query save/update functionality
 
 **External Dependencies:**
 - Documentation files are fetched from the live Stacklet docs service at runtime
@@ -132,8 +144,7 @@ internally.
 **Authentication Complexity:** Requires three different credential fields (endpoint, access_token, identity_token) which must all be configured correctly for full functionality.
 
 **Test Coverage:** Most tests are end-to-end tool tests with mocked downstream HTTP
-interactions. The abstraction level is good, but coverage is severely lacking in
-platform (and, to a lesser extent, in assetdb).
+interactions, which is an appropriate level of abstraction for most cases in this codebase. AssetDB in particular is lacking test coverage in some areas, but most tools are well tested, and the patterns seen in the existing tests should be repeated where possible.
 
 **Dict Returns:** Many tools and client methods should return better-structured data.
 

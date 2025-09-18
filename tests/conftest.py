@@ -2,6 +2,8 @@
 Common test fixtures and configuration.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from fastmcp import Client
@@ -9,12 +11,12 @@ from fastmcp import Client
 from stacklet.mcp.mcp import make_server
 from stacklet.mcp.stacklet_auth import StackletCredentials
 
-from .testing.http import mock_http_request
+from .testing.http import mock_http_bearer, mock_http_cookie
 from .testing.settings import default_settings, override_setting
 
 
 # add imported fixtures to __all__ so they're considered in use in the module
-__all__ = ["mock_http_request", "default_settings", "override_setting"]
+__all__ = ["mock_http_cookie", "mock_http_bearer", "default_settings", "override_setting"]
 
 
 @pytest.fixture
@@ -40,3 +42,17 @@ async def mcp_client(override_setting, mock_stacklet_credentials):
 
     async with Client(make_server()) as client:
         yield client
+
+
+@pytest.fixture
+def async_sleeps(monkeypatch):
+    sleeps = []
+    mock_time = MagicMock(return_value=12345)
+
+    async def mock_sleep(duration):
+        sleeps.append(duration)
+        mock_time.return_value += duration
+
+    monkeypatch.setattr("asyncio.sleep", mock_sleep)
+    monkeypatch.setattr("time.monotonic", mock_time)
+    return sleeps
