@@ -124,10 +124,7 @@ async def assetdb_query_get(
     execute the query and get data.
     """
     client = AssetDBClient.get(ctx)
-    result = await client.get_query(query_id)
-    result.pop("visualizations", None)  # sometimes large, not currently relevant
-    result.pop("api_key", None)  # avoid sharing the secret
-    return Query(**result)
+    return await client.get_query(query_id)
 
 
 @json_guard
@@ -175,7 +172,7 @@ async def assetdb_query_results(
     )
 
     query_details = await client.get_query(query_id)
-    result_urls = client.get_query_result_urls(query_id, result_id, query_details["api_key"])
+    result_urls = client.get_query_result_urls(query_id, result_id, query_details.api_key)
     downloads = [QueryDownloadDetails(format=fmt, url=url) for fmt, url in result_urls.items()]
     return QueryResults(
         result_id=result_id,
@@ -195,7 +192,7 @@ async def assetdb_sql_query(
         Field(ge=5, le=300, default=60, description="Query execution timeout in seconds (max 300)"),
     ],
     download_format: Annotated[
-        str | None,
+        ExportFormat | None,
         Field(
             None,
             description='Format to download results in ("csv", "json", "tsv", "xlsx"). '
@@ -303,16 +300,13 @@ async def assetdb_query_save(
 
     client = AssetDBClient.get(ctx)
     if query_id and query_id > 0:
-        result = await client.update_query(query_id, upsert)
-    else:
-        if not upsert.name:  # Accepted by redash, but unreasonable.
-            upsert.name = "Untitled LLM Query"
-        if upsert.query is None:  # This would actually 500.
-            upsert.query = ""  # Maybe also unreasonable, but will get feedback.
-        result = await client.create_query(upsert)
+        return await client.update_query(query_id, upsert)
 
-    result.pop("visualizations", None)  # sometimes large, not currently relevant
-    return Query(**result)
+    if not upsert.name:  # Accepted by redash, but unreasonable.
+        upsert.name = "Untitled LLM Query"
+    if upsert.query is None:  # This would actually 500.
+        upsert.query = ""  # Maybe also unreasonable, but will get feedback.
+    return await client.create_query(upsert)
 
 
 def assetdb_sql_info() -> ToolsetInfo:

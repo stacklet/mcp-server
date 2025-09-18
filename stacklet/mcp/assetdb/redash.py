@@ -17,7 +17,7 @@ from fastmcp import Context
 from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
-from .models import ExportFormat, JobStatus, QueryListResponse, QueryResult, QueryUpsert
+from .models import ExportFormat, JobStatus, Query, QueryListResponse, QueryResult, QueryUpsert
 
 
 class AssetDBClient:
@@ -92,7 +92,7 @@ class AssetDBClient:
         result = await self._make_request("GET", "api/queries", params=params)
         return QueryListResponse(**result)
 
-    async def get_query(self, query_id: int) -> dict[str, Any]:
+    async def get_query(self, query_id: int) -> Query:
         """
         Get detailed information about a specific saved query.
 
@@ -103,7 +103,7 @@ class AssetDBClient:
             Complete query object with SQL and parameters
         """
         result = await self._make_request("GET", f"api/queries/{query_id}")
-        return cast(dict[str, Any], result)
+        return Query(**result)
 
     async def execute_saved_query(
         self,
@@ -284,7 +284,7 @@ class AssetDBClient:
             for fmt in ExportFormat
         }
 
-    async def create_query(self, upsert: QueryUpsert) -> dict[str, Any]:
+    async def create_query(self, upsert: QueryUpsert) -> Query:
         """
         Create a new saved query.
 
@@ -296,9 +296,9 @@ class AssetDBClient:
         """
         payload = upsert.payload(data_source_id=self.data_source_id)
         result = await self._make_request("POST", "api/queries", json=payload)
-        return cast(dict[str, Any], result)
+        return Query(**result)
 
-    async def update_query(self, query_id: int, upsert: QueryUpsert) -> dict[str, Any]:
+    async def update_query(self, query_id: int, upsert: QueryUpsert) -> Query:
         """
         Update an existing saved query.
 
@@ -311,4 +311,4 @@ class AssetDBClient:
         """
         payload = upsert.payload()
         result = await self._make_request("POST", f"api/queries/{query_id}", json=payload)
-        return cast(dict[str, Any], result)
+        return Query(**result)

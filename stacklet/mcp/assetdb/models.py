@@ -171,9 +171,6 @@ class DownloadResult(BaseModel):
     file_path: str = Field(..., description="Path where the file was saved")
     format: str = Field(..., description="Format of the downloaded file")
     result_id: int = Field(..., description="ID of the query result that was downloaded")
-    query_id: int | None = Field(
-        None, description="ID of the query that generated this result (for saved query results)"
-    )
 
 
 class QueryResultColumn(BaseModel):
