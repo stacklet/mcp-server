@@ -54,5 +54,5 @@ def async_sleeps(monkeypatch):
         mock_time.return_value += duration
 
     monkeypatch.setattr("asyncio.sleep", mock_sleep)
-    monkeypatch.setattr("time.time", mock_time)
+    monkeypatch.setattr("time.monotonic", mock_time)
     return sleeps

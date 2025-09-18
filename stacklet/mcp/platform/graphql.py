@@ -174,7 +174,7 @@ class PlatformClient:
     """
 
     async def wait_for_export(self, dataset_id: str, timeout_s: int) -> ConnectionExport:
-        cutoff = time.time() + timeout_s
+        cutoff = time.monotonic() + timeout_s
         interval_s = 2
         while True:
             # Always try at least once.
@@ -183,7 +183,7 @@ class PlatformClient:
                 return export
 
             # Aim for the final attempt to happen at cutoff time.
-            remaining_s = cutoff - time.time()
+            remaining_s = cutoff - time.monotonic()
             if remaining_s <= 0:
                 return export
             await asyncio.sleep(min(interval_s, remaining_s))
