@@ -26,16 +26,45 @@ def make_server() -> FastMCP:
         version=__version__,
         instructions=dedent(
             """
-            The Stacklet MCP server has 3 main toolsets:
+            The Stacklet MCP server provides sophisticated cloud governance tooling through 3
+            specialized toolsets:
 
-            - "docs_list" and "docs_read" give access to Stacklet documentation
-              * reading documentation will help you understand the concepts
-            - "platform_*" tools give access to the Platform GraphQL API
-              * the "platform_graphql_info" tool is a great place to start
-            - "assetdb_*" tools give access to your cloud asset inventory
-              * "assetdb_sql_info" and "assetdb_sql_query" for direct SQL access
-              * "assetdb_query_list", "assetdb_query_get", "assetdb_query_save"
-                and "assetdb_query_results" for saved query management
+            ## Critical: Always Start with Info Tools
+            Each toolset has an "*_info" tool containing essential guidance - call these first:
+            - "assetdb_sql_info"
+            - "platform_graphql_info"
+            - "platform_dataset_info"
+
+            ## Documentation Tools
+            - "docs_list" - Browse available Stacklet documentation files
+            - "docs_read" - Access live documentation content (start with 'index_llms.md')
+
+            ## AssetDB Tools - Cloud Asset Analytics
+            PostgreSQL warehouse with resource data, costs, and relationships:
+            - "assetdb_sql_query" - Direct SQL access (ALWAYS use LIMIT with large tables)
+            - "assetdb_query_*" - Saved query management (list, get, results, save)
+
+            Scale awareness critical: Use provider-specific tables (aws_ec2, aws_s3, etc) over raw
+            JSON (resources._raw)
+
+            ## Platform GraphQL Tools - Governance Operations
+            Full platform API access with intelligent export capabilities:
+            - "platform_graphql_query" - Direct GraphQL access (always include 'problems' field)
+            - "platform_graphql_list_types", "platform_graphql_get_types" - Schema exploration
+            - "platform_dataset_export", "platform_dataset_lookup" - Large dataset CSV exports
+
+            Workflow:
+            1. Small queries for exploration
+            2. dataset exports for analysis
+            3. AssetDB for massive scale
+
+            ## Performance Guidelines
+            - AssetDB: Check table sizes first, use filters, prefer typed tables
+            - Platform: Small pages (5-10 items) for connections, export for large datasets
+            - Never export all resources - use AssetDB SQL for operations > 10K records
+
+            The info tools contain the most valuable patterns and will load your context with
+            platform-specific best practices.
             """
         ),
         tools=tools,

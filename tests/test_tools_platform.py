@@ -50,8 +50,8 @@ class TestDatasetInfo(MCPTest):
 
         # Verify the content contains expected Platform dataset export documentation
         assert "Stacklet Platform Dataset Export Guide" in content
-        assert "dataset export" in content
-        assert "Scale Considerations" in content
+        assert "Filtering" in content
+        assert "Export Management" in content
 
 
 class PlatformSchemaTest(MCPBearerTest):
