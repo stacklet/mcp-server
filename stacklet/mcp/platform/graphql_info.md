@@ -5,9 +5,8 @@ The Platform GraphQL API enables interaction with the Stacklet Platform, equival
 ### **Critical Requirements**
 
 - **Always look up schema types before querying**
-- If you're not certain what a field means, use the docs toolset for context
 - **Always query for "problems" alongside results** - problems contain critical information
-- Use Stacklet documentation (especially glossary) for concept details
+- Use Stacklet documentation (especially glossary) for concept details, also examples of GraphQL usage
 
 ### **Connection Query Best Practices**
 
