@@ -26,45 +26,46 @@ def make_server() -> FastMCP:
         version=__version__,
         instructions=dedent(
             """
-            The Stacklet MCP server provides sophisticated cloud governance tooling through 3
-            specialized toolsets:
+            Stacklet provides comprehensive cloud governance and analytics capabilities through
+            integrated toolsets. These enable you to understand, analyze, and govern your entire
+            cloud estate at scale.
 
-            ## Critical: Always Start with Info Tools
-            Each toolset has an "*_info" tool containing essential guidance - call these first:
-            - "assetdb_sql_info"
-            - "platform_graphql_info"
-            - "platform_dataset_info"
+            ## Start Here: Critical Info Tools
+            Always call these info tools first - they contain essential guidance and best practices:
+            - "assetdb_sql_info" - For cloud asset analytics
+            - "platform_graphql_info" - For governance operations
+            - "platform_dataset_info" - For large-scale data exports
+            - "docs_list" then "docs_read" - Live platform documentation
 
-            ## Documentation Tools
-            - "docs_list" - Browse available Stacklet documentation files
-            - "docs_read" - Access live documentation content (start with 'index_llms.md')
+            ## Core Capabilities
 
-            ## AssetDB Tools - Cloud Asset Analytics
-            PostgreSQL warehouse with resource data, costs, and relationships:
-            - "assetdb_sql_query" - Direct SQL access (ALWAYS use LIMIT with large tables)
-            - "assetdb_query_*" - Saved query management (list, get, results, save)
+            ### 🔍 Cloud Asset Discovery & Analytics
+            Analyze your entire multi-cloud estate with a continuously-updated PostgreSQL warehouse:
+            - Query resource inventories, costs, and relationships across AWS, GCP, Azure, Tencent
+            - Perform complex analytics on resource usage patterns and cost optimization
+            - Track resource changes and lifecycle management
+            - Build custom reports with SQL
 
-            Scale awareness critical: Use provider-specific tables (aws_ec2, aws_s3, etc) over raw
-            JSON (resources._raw)
+            ### 🛡️ Cloud Governance Operations
+            Execute governance policies and manage compliance at scale:
+            - Deploy and manage Cloud Custodian policies across accounts and regions
+            - Monitor policy execution results and resource compliance
+            - Configure account grouping and binding relationships
+            - Export large governance datasets for analysis and reporting
 
-            ## Platform GraphQL Tools - Governance Operations
-            Full platform API access with intelligent export capabilities:
-            - "platform_graphql_query" - Direct GraphQL access (always include 'problems' field)
-            - "platform_graphql_list_types", "platform_graphql_get_types" - Schema exploration
-            - "platform_dataset_export", "platform_dataset_lookup" - Large dataset CSV exports
+            ### 📚 Platform Knowledge Access
+            Access live Stacklet platform documentation and guidance:
+            - Browse comprehensive how-to guides, reference docs, and runbooks
+            - Get LLM-optimized documentation specifically designed for AI assistance
+            - Access up-to-date platform configuration and troubleshooting information
 
-            Workflow:
-            1. Small queries for exploration
-            2. dataset exports for analysis
-            3. AssetDB for massive scale
+            ## Workflow Patterns
+            - **Exploration**: Start small with targeted queries, then scale to larger datasets
+            - **Analysis**: Use SQL for complex analytics, GraphQL for governance operations
+            - **Scale**: Export large datasets when working with 10K+ records
+            - **Integration**: Combine asset data with governance results for comprehensive insights
 
-            ## Performance Guidelines
-            - AssetDB: Check table sizes first, use filters, prefer typed tables
-            - Platform: Small pages (5-10 items) for connections, export for large datasets
-            - Never export all resources - use AssetDB SQL for operations > 10K records
-
-            The info tools contain the most valuable patterns and will load your context with
-            platform-specific best practices.
+            The info tools will guide you through each toolset's specific best practices.
             """
         ),
         tools=tools,
