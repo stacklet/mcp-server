@@ -209,16 +209,18 @@ class QueryResult(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class QueryDownloadDetails(BaseModel):
+class QueryResultDownloadDetails(BaseModel):
     """Query download details for a data format."""
 
-    format: ExportFormat
-    url: str
+    format: ExportFormat = Field(..., description="Export format for the query result download")
+    url: str = Field(..., description="URL to download the query result in the specified format")
 
 
-class QueryResults(BaseModel):
-    """Details about query results."""
+class QueryDownloadResults(BaseModel):
+    """Details about how to access query results."""
 
-    result_id: int
-    query_id: int
-    downloads: list[QueryDownloadDetails]
+    result_id: int = Field(..., description="ID of the specific query result execution")
+    query_id: int = Field(..., description="ID of the saved query that was executed")
+    downloads: list[QueryResultDownloadDetails] = Field(
+        ..., description="Available download links for the query results in different formats"
+    )

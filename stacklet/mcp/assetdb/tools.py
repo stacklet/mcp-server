@@ -9,12 +9,12 @@ from .models import (
     DownloadResult,
     ExportFormat,
     Query,
-    QueryDownloadDetails,
+    QueryDownloadResults,
     QueryListItem,
     QueryListPagination,
     QueryListResult,
     QueryResult,
-    QueryResults,
+    QueryResultDownloadDetails,
     QueryUpsert,
 )
 from .redash import AssetDBClient
@@ -154,7 +154,7 @@ async def assetdb_query_results(
     parameters: Annotated[
         dict[str, Any] | None, Field(None, description="Parameter values for parameterized queries")
     ] = None,
-) -> QueryResults:
+) -> QueryDownloadResults:
     """
     Execute a saved query and get its results with smart caching.
 
@@ -173,8 +173,10 @@ async def assetdb_query_results(
 
     query_details = await client.get_query(query_id)
     result_urls = client.get_query_result_urls(query_id, result_id, query_details.api_key)
-    downloads = [QueryDownloadDetails(format=fmt, url=url) for fmt, url in result_urls.items()]
-    return QueryResults(
+    downloads = [
+        QueryResultDownloadDetails(format=fmt, url=url) for fmt, url in result_urls.items()
+    ]
+    return QueryDownloadResults(
         result_id=result_id,
         query_id=query_id,
         downloads=downloads,
