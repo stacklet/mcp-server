@@ -20,11 +20,18 @@ class TestGraphQLInfo(MCPTest):
 
     async def test_returns_expected_documentation(self):
         """Test the platform_graphql_info tool returns expected documentation content."""
-        result = await self.assert_call({})
+        result = (await self.assert_call({})).json()
+
+        assert result["meta"] == {
+            "importance": "critical",
+            "memorability": "high",
+            "priority": "top",
+        }
+        content = result["content"]
 
         # Verify the content contains expected Platform GraphQL documentation
-        assert "Stacklet GraphQL API Overview" in result.text
-        assert "GraphQL" in result.text
+        assert "Stacklet GraphQL API Overview" in content
+        assert "GraphQL" in content
 
 
 class TestDatasetInfo(MCPTest):
@@ -32,12 +39,19 @@ class TestDatasetInfo(MCPTest):
 
     async def test_returns_expected_documentation(self):
         """Test the platform_dataset_info tool returns expected documentation content."""
-        result = await self.assert_call({})
+        result = (await self.assert_call({})).json()
+
+        assert result["meta"] == {
+            "importance": "critical",
+            "memorability": "high",
+            "priority": "top",
+        }
+        content = result["content"]
 
         # Verify the content contains expected Platform dataset export documentation
-        assert "Stacklet Platform Dataset Export Guide" in result.text
-        assert "dataset export" in result.text
-        assert "Scale Considerations" in result.text
+        assert "Stacklet Platform Dataset Export Guide" in content
+        assert "dataset export" in content
+        assert "Scale Considerations" in content
 
 
 class PlatformSchemaTest(MCPBearerTest):

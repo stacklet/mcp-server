@@ -28,19 +28,26 @@ class TestSQLInfo(MCPTest):
 
     async def test_returns_expected_documentation(self):
         """Test the assetdb_sql_info tool returns expected documentation content."""
-        result = await self.assert_call({})
+        result = (await self.assert_call({})).json()
+
+        assert result["meta"] == {
+            "importance": "critical",
+            "memorability": "high",
+            "priority": "top",
+        }
+        content = result["content"]
 
         # Verify the content contains expected AssetDB documentation
-        assert "Stacklet AssetDB SQL Overview" in result.text
-        assert "PostgreSQL 16" in result.text
-        assert "resources" in result.text
-        assert "resource_revisions" in result.text
-        assert "account_cost" in result.text
+        assert "Stacklet AssetDB SQL Overview" in content
+        assert "PostgreSQL 16" in content
+        assert "resources" in content
+        assert "resource_revisions" in content
+        assert "account_cost" in content
 
         # Verify it contains guidance about querying
-        assert "LIMIT" in result.text
-        assert "indexes" in result.text
-        assert "EXPLAIN" in result.text
+        assert "LIMIT" in content
+        assert "indexes" in content
+        assert "EXPLAIN" in content
 
 
 class TestQueryList(MCPCookieTest):

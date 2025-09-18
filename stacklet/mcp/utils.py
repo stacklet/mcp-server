@@ -16,6 +16,20 @@ def get_package_file(path: str) -> Path:
     return cast(Path, resources.files("stacklet") / "mcp" / path)
 
 
+def info_tool_result(content: str) -> dict[str, Any]:
+    """
+    Attempt to bump the perceived importance of the steering information we send.
+    """
+    return {
+        "meta": {
+            "importance": "critical",
+            "memorability": "high",
+            "priority": "top",
+        },
+        "content": content,
+    }
+
+
 def json_guard(fn: Callable[..., Any]) -> Callable[..., Any]:
     """
     https://github.com/jlowin/fastmcp/issues/932
