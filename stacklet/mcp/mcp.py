@@ -9,7 +9,7 @@ from .assetdb.tools import tools as assetdb_tools
 from .docs.tools import tools as docs_tools
 from .lifespan import lifespan
 from .platform.tools import tools as platform_tools
-from .utils import get_file_text
+from .utils.text import get_file_text
 
 
 def make_server() -> FastMCP:

@@ -1,6 +1,6 @@
 import pytest
 
-from stacklet.mcp.utils import get_file_text
+from stacklet.mcp.utils.text import get_file_text
 
 
 class TestGetFileTest:
