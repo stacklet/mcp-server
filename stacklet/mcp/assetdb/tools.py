@@ -5,7 +5,7 @@ from pydantic import Field
 
 from ..settings import SETTINGS
 from ..utils import ToolsetInfo, get_file_text, info_tool_result, json_guard
-from .models import QueryUpsert
+from .models import ExportFormat, QueryDownloadDetails, QueryResults, QueryUpsert
 from .redash import AssetDBClient
 
 
@@ -94,6 +94,7 @@ async def assetdb_query_get(ctx: Context, query_id: int) -> dict[str, Any]:
     client = AssetDBClient.get(ctx)
     result = await client.get_query(query_id)
     result.pop("visualizations", None)  # sometimes large, not currently relevant
+    result.pop("api_key", None)  # avoid sharing the secret
     return result
 
 
@@ -104,11 +105,11 @@ async def assetdb_query_results(
     max_age: Annotated[int, Field(ge=-1, default=-1)],
     timeout: Annotated[int, Field(ge=5, le=300, default=60)],
     parameters: dict[str, Any] | None = None,
-    download_format: str | None = None,
-    download_path: str | None = None,
-) -> dict[str, Any]:
-    """
-    Get results for a query with caching control.
+) -> QueryResults:
+    """Get results for a query with caching control.
+
+    Results are provided in the form of URLs for each supported data format,
+    which can be used to fetch the result data in the desired format.
 
     Args:
         query_id: ID of the query to get results for
@@ -117,33 +118,24 @@ async def assetdb_query_results(
                  result, 0 = always fresh)
         timeout: Timeout in seconds for query execution if not cached (default 60,
                  max 300)
-        download_format: Optional format to download results ("csv", "json", "tsv",
-                         "xlsx"). If specified, results are downloaded to file instead
-                         of returned directly.
-        download_path: Optional path to save downloaded file. Ignored if download
-                       format not set.
-
     Returns:
-        Query results with data, columns, and metadata
-        OR download information if download_format was specified
+        Details about query results, including URLs to get the result data in differnet formats.
+
     """
     client = AssetDBClient.get(ctx)
+
     result_id = await client.execute_saved_query(
         query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout
     )
-    if not download_format:
-        return await client.get_query_result_data(result_id)
 
-    file_path = await client.download_query_result(
-        result_id=result_id, format=download_format, download_path=download_path
+    query_details = await client.get_query(query_id)
+    result_urls = client.get_query_result_urls(query_id, result_id, query_details["api_key"])
+    downloads = [QueryDownloadDetails(format=fmt, url=url) for fmt, url in result_urls.items()]
+    return QueryResults(
+        result_id=result_id,
+        query_id=query_id,
+        downloads=downloads,
     )
-    return {
-        "downloaded": True,
-        "file_path": file_path,
-        "format": download_format,
-        "result_id": result_id,
-        "query_id": query_id,
-    }
 
 
 @json_guard
@@ -151,7 +143,7 @@ async def assetdb_sql_query(
     ctx: Context,
     query: str,
     timeout: Annotated[int, Field(ge=5, le=300, default=60)],
-    download_format: str | None = None,
+    download_format: ExportFormat | None = None,
     download_path: str | None = None,
 ) -> dict[str, Any]:
     """

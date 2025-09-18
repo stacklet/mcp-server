@@ -44,8 +44,8 @@ class ExpectRequest:
         self.response = response if isinstance(response, str) else json.dumps(response)
 
     def respond(self, method, url, **kwargs):
-        assert url == self.expect_url
-        assert method == self.expect_method
+        assert url == self.expect_url, url
+        assert method == self.expect_method, method
         data = kwargs.get("params" if method == "GET" else "json")
         assert data == self.expect_data, data
         return MockHTTPXResponse(self.response, self.status_code)
