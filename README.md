@@ -10,11 +10,11 @@ Each of the toolsets has an "info" tool with useful context, available to any cl
 
 ## WARNING
 
-Most Stacklet installations contain confidential data; this server largely exists to feed that data to your agent's LLM, which is generally running in a datacenter _Somewhere_. Be very confident in your understanding of all relevant data security policies before using this tool.
+Most Stacklet installations contain confidential data; this server largely exists to feed that data to your agent's LLM, which is generally running in a datacenter _Somewhere_. Be very confident in your understanding of all relevant data security policies before running this server.
 
 ## FURTHER WARNING
 
-When running with default settings, the worst an LLM can do with this tool is make ill-advised queries, which is often regrettable but generally no worse than a well-intentioned human user might do.
+When running with default settings, the worst an LLM can do with this server is make ill-advised queries, which is often regrettable but generally no worse than a well-intentioned human user might do.
 
 By enabling the `_ALLOW_` options documented below, you are granting an LLM free rein to do _anything_ you could do with Stacklet; doing so naturally bears risks proportional to your own level of access. Strongly consider authenticating as a custom Stacklet user with permissions tightly scoped to your task as an additional safeguard.
 
@@ -32,13 +32,13 @@ The `mcp.unrestricted.json` file shows how to configure the server without these
 
 ## Authentication
 
-The easiest way to authenticate to your stacklet environment is to use the [stacklet-admin](https://pypi.org/project/stacklet.client.platform/) tool, which is most easily installed with:
+The easiest way to authenticate to your stacklet environment is to use the [stacklet-admin](https://pypi.org/project/stacklet.client.platform/) command, which is most easily installed with:
 
 ```
 % uv tool install stacklet.client.platform
 ```
 
-Once you've configured that, a `stacklet-admin login` will grant the MCP server access on your behalf for twelve hours.
+Once you've configured that, a `stacklet-admin login` will grant the MCP server access as the authenticated user for twelve hours. Leaving aside the default blocks on saving queries and mutating platform, the server will have the same powers and restrictions as that user.
 
 ## Server configuration
 
