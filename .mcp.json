@@ -2,7 +2,11 @@
   "mcpServers": {
 	"stacklet": {
 	  "command": "uv",
-	  "args": ["run", "stacklet-mcp"]
+	  "args": ["run", "stacklet-mcp"],
+	  "env": {
+		"STACKLET_MCP_ASSETDB_ALLOW_SAVE": "false",
+		"STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS": "false"
+	  }
 	}
   }
 }

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an MCP (Model Context Protocol) server that provides comprehensive tools for interacting with the Stacklet platform. The server exposes 14 tools: 2 for documentation access, 6 for querying Stacklet's cloud governance GraphQL API, and up to 6 for AssetDB operations (some conditionally enabled).
+This is an MCP (Model Context Protocol) server that provides comprehensive tools for interacting with the Stacklet platform. The server exposes tools for documentation access, Stacklet's cloud governance GraphQL API, and AssetDB operations (with some tools conditionally enabled based on configuration).
 
 ## Architecture
 
@@ -82,14 +82,17 @@ just test      # Run pytest with optional args
 6. **`platform_graphql_query`** - Execute GraphQL queries against Stacklet platform
 7. **`platform_dataset_export`** - Export full datasets from GraphQL connections to CSV format
 8. **`platform_dataset_lookup`** - Check the status of dataset exports
+9. **`platform_dataset_info`** - Guide for exporting large datasets
 
 **AssetDB Tools:**
-9. **`assetdb_sql_info`** - Key information for LLMs using AssetDB SQL tools (call this first)
-10. **`assetdb_sql_query`** - Execute ad-hoc SQL queries against AssetDB
-11. **`assetdb_query_list`** - List and search saved queries with pagination
-12. **`assetdb_query_get`** - Get detailed information about specific saved queries
-13. **`assetdb_query_results`** - Get results for saved queries with caching control
-14. **`assetdb_query_save`** - Create new queries or update existing ones (conditionally enabled via `STACKLET_MCP_ASSETDB_SAVE=true`)
+10. **`assetdb_sql_info`** - Key information for LLMs using AssetDB SQL tools (call this first)
+11. **`assetdb_sql_query`** - Execute ad-hoc SQL queries against AssetDB
+12. **`assetdb_query_list`** - List and search saved queries with pagination
+13. **`assetdb_query_get`** - Get detailed information about specific saved queries
+14. **`assetdb_query_results`** - Get results for saved queries with caching control
+15. **`assetdb_query_save`** - Create new queries or update existing ones (conditionally enabled via `STACKLET_MCP_ASSETDB_SAVE=true`)
+
+The actual tools available are determined by each package's `tools()` function implementation, with some tools conditionally enabled based on server configuration settings.
 
 ## Key Implementation Details
 
