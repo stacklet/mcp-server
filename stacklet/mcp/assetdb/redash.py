@@ -17,7 +17,7 @@ from fastmcp import Context
 from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
-from .models import JobStatus, QueryListResponse, QueryResult, QueryUpsert
+from .models import ExportFormat, JobStatus, QueryListResponse, QueryResult, QueryUpsert
 
 
 class AssetDBClient:
@@ -227,7 +227,10 @@ class AssetDBClient:
         return QueryResult(**(cast(dict[str, Any], response)["query_result"]))
 
     async def download_query_result(
-        self, result_id: int, format: str = "csv", download_path: str | None = None
+        self,
+        result_id: int,
+        format: ExportFormat = ExportFormat.CSV,
+        download_path: str | None = None,
     ) -> str:
         """
         Download query result to file and return file path.
@@ -240,9 +243,6 @@ class AssetDBClient:
         Returns:
             Path to the downloaded file
         """
-        if format not in ("csv", "json", "tsv", "xlsx"):
-            raise ValueError(f"Unsupported format: {format}. Must be csv, json, tsv, or xlsx")
-
         # Use path-based filetype as Redash expects: /api/query_results/{id}.{format}
         url = urljoin(self.redash_url, f"api/query_results/{result_id}.{format}")
 
@@ -261,6 +261,28 @@ class AssetDBClient:
                     f.write(chunk)
 
         return download_path
+
+    def get_query_result_urls(
+        self, query_id: int, result_id: int, api_key: str
+    ) -> dict[ExportFormat, str]:
+        """
+        Return download URLs for a query result.
+
+        Args:
+            query_id: ID of the query the result refers to
+            result_id: ID of the query result to get downloads urls for
+            api_key: the API key for the query.
+
+        Returns:
+            Dictionary mapping download formats to their URLs
+        """
+        return {
+            fmt: urljoin(
+                self.redash_url,
+                f"api/queries/{query_id}/results/{result_id}.{fmt}?api_key={api_key}",
+            )
+            for fmt in ExportFormat
+        }
 
     async def create_query(self, upsert: QueryUpsert) -> dict[str, Any]:
         """

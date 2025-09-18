@@ -202,6 +202,7 @@ class TestQueryGet(MCPCookieTest):
 
         raw_data = q123()
         raw_data.pop("visualizations")
+        expect.pop("api_key")
         expect = Query(**raw_data).model_dump(mode="json")
         assert result.json() == expect
 
@@ -369,6 +370,50 @@ class TestQuerySave(MCPCookieTest):
             await self.assert_call({"query_id": 123, "is_draft": mangle(value)})
 
 
+class TestQueryResults(MCPCookieTest):
+    tool_name = "assetdb_query_results"
+
+    async def test_get_results(self):
+        query_id = 123
+        result_id = 456
+
+        with self.http.expect(
+            ExpectRequest(
+                f"https://redash.example.com/api/queries/{query_id}/results",
+                method="POST",
+                data={"max_age": -1},
+                response=query_result_response(result_id),
+            ),
+            ExpectRequest(
+                f"https://redash.example.com/api/queries/{query_id}",
+                response=q123(),
+            ),
+        ):
+            result = await self.assert_call({"query_id": query_id})
+        assert result.json() == {
+            "downloads": [
+                {
+                    "format": "csv",
+                    "url": f"https://redash.example.com/api/queries/{query_id}/results/{result_id}.csv?api_key=test-api-key",
+                },
+                {
+                    "format": "json",
+                    "url": f"https://redash.example.com/api/queries/{query_id}/results/{result_id}.json?api_key=test-api-key",
+                },
+                {
+                    "format": "tsv",
+                    "url": f"https://redash.example.com/api/queries/{query_id}/results/{result_id}.tsv?api_key=test-api-key",
+                },
+                {
+                    "format": "xlsx",
+                    "url": f"https://redash.example.com/api/queries/{query_id}/results/{result_id}.xlsx?api_key=test-api-key",
+                },
+            ],
+            "query_id": query_id,
+            "result_id": result_id,
+        }
+
+
 def q123():
     return factory.redash_query(
         id=123,
@@ -386,3 +431,9 @@ def q456():
         name="Test Query 2",
         is_draft=True,
     )
+
+
+def query_result_response(result_id: int):
+    return {
+        "query_result": {"id": result_id},
+    }

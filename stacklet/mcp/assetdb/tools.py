@@ -7,11 +7,14 @@ from ..settings import SETTINGS
 from ..utils import ToolsetInfo, get_file_text, info_tool_result, json_guard
 from .models import (
     DownloadResult,
+    ExportFormat,
     Query,
+    QueryDownloadDetails,
     QueryListItem,
     QueryListPagination,
     QueryListResult,
     QueryResult,
+    QueryResults,
     QueryUpsert,
 )
 from .redash import AssetDBClient
@@ -123,6 +126,7 @@ async def assetdb_query_get(
     client = AssetDBClient.get(ctx)
     result = await client.get_query(query_id)
     result.pop("visualizations", None)  # sometimes large, not currently relevant
+    result.pop("api_key", None)  # avoid sharing the secret
     return Query(**result)
 
 
@@ -153,49 +157,30 @@ async def assetdb_query_results(
     parameters: Annotated[
         dict[str, Any] | None, Field(None, description="Parameter values for parameterized queries")
     ] = None,
-    download_format: Annotated[
-        str | None,
-        Field(
-            None,
-            description='Format to download results in ("csv", "json", "tsv", "xlsx"). '
-            "If specified, saves to file instead of returning data",
-        ),
-    ] = None,
-    download_path: Annotated[
-        str | None,
-        Field(
-            None,
-            description="Path where to save downloaded file (ignored if download_format not set)",
-        ),
-    ] = None,
-) -> QueryResult | DownloadResult:
+) -> QueryResults:
     """
     Execute a saved query and get its results with smart caching.
 
-    This runs a previously saved query and returns the data. Redash automatically
-    caches results to improve performance - use max_age to control cache behavior.
-
-    For larger datasets, use download_format to save results to a file instead of
-    trying to read too many results into context.
+    This runs a previously saved query and returns links to the results in various
+    formats, which can be used to access the data in a preferred format. Redash caches
+    results to improve performance - use max_age to control cache behavior.
 
     Parameters are required for parameterized queries - check the query definition
     first using assetdb_query_get() to see what parameters are expected.
     """
     client = AssetDBClient.get(ctx)
+
     result_id = await client.execute_saved_query(
         query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout
     )
-    if not download_format:
-        return await client.get_query_result_data(result_id)
 
-    file_path = await client.download_query_result(
-        result_id=result_id, format=download_format, download_path=download_path
-    )
-    return DownloadResult(
-        file_path=file_path,
-        format=download_format,
+    query_details = await client.get_query(query_id)
+    result_urls = client.get_query_result_urls(query_id, result_id, query_details["api_key"])
+    downloads = [QueryDownloadDetails(format=fmt, url=url) for fmt, url in result_urls.items()]
+    return QueryResults(
         result_id=result_id,
         query_id=query_id,
+        downloads=downloads,
     )
 
 
@@ -234,11 +219,6 @@ async def assetdb_sql_query(
 
     This tool is for ad-hoc analysis and exploration. For frequently-used queries,
     consider saving them with assetdb_query_save() for better performance and reuse.
-
-    Examples:
-    - Explore schema: "SELECT * FROM resources LIMIT 10"
-    - Analyze costs: "SELECT account_id, SUM(cost) FROM account_cost GROUP BY account_id"
-    - Find resources: "SELECT * FROM aws_ec2 WHERE instance_type LIKE '%large%' LIMIT 50"
     """
     client = AssetDBClient.get(ctx)
     result_id = await client.execute_adhoc_query(query, timeout=timeout)

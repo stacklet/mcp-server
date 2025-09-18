@@ -54,7 +54,7 @@ asyncio_mode = "auto"
 addopts = "--no-cov-on-fail"
 
 [tool.coverage.report]
-fail_under = 86.0
+fail_under = 94.0
 show_missing = true
 skip_covered = true
 

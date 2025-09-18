@@ -1,10 +1,19 @@
 import copy
 
 from datetime import datetime
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class ExportFormat(StrEnum):
+    """Format for query result export."""
+
+    CSV = "csv"
+    JSON = "json"
+    TSV = "tsv"
+    XLSX = "xlsx"
 
 
 class JobStatus(IntEnum):
@@ -201,3 +210,18 @@ class QueryResult(BaseModel):
     retrieved_at: datetime = Field(..., description="When the query result was retrieved")
 
     model_config = ConfigDict(extra="ignore")
+
+
+class QueryDownloadDetails(BaseModel):
+    """Query download details for a data format."""
+
+    format: ExportFormat
+    url: str
+
+
+class QueryResults(BaseModel):
+    """Details about query results."""
+
+    result_id: int
+    query_id: int
+    downloads: list[QueryDownloadDetails]
