@@ -22,7 +22,7 @@ By enabling the `_ALLOW_` options documented below, you are granting an LLM free
 
 * install tools (e.g. via `mise install`)
 * install dependencies via `just install`
-* configure your agent to `just run` in this directory (or copy and adjust one of the `mcp.*.json` files when running the agent from another directory)
+* configure your agent to `just run` in this directory
 
 Running `just install` will copy `mcp.default.json` to `.mcp.json` (so long as there's nothing there already), which enables convenient experimentation by running [Claude Code](https://claude.com/product/claude-code)) in the project root without risk of altering saved AssetDB queries or running Platform mutations.
 
