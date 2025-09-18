@@ -8,15 +8,15 @@ Many AssetDB tables are extremely large. Always use LIMIT and indexed column fil
 
 ### **Key Tables**
 
-| Table | Purpose | Scale | Usage Notes |
-|-------|---------|--------|-------------|
-| `resources` | Current resource JSON | Very Large | LIMIT + indexed filters required |
-| `resource_revisions` | Resource history JSON | Extremely Large | Primary key access only |
-| `aws_ec2`, `gcp_gke_cluster`, etc. | Provider-specific columns | Large | Preferred over raw JSON for analysis |
-| `resource_tags`, `resource_tags_mapping` | Tag analysis | Large | Start here for tag queries |
-| `account_cost` | Cost by date/service/account/region | Medium | Best starting point for costs |
-| `resource_cost_summaries` | Monthly avg cost per resource | Large | More granular, incomplete coverage |
-| `resource_cost` | Granular cost details | Extremely Large | Individual resource lookups only |
+| Table                                    | Purpose                             | Scale           | Usage Notes                          |
+|------------------------------------------|-------------------------------------|-----------------|--------------------------------------|
+| `resources`                              | Current resource JSON               | Very Large      | LIMIT + indexed filters required     |
+| `resource_revisions`                     | Resource history JSON               | Extremely Large | Primary key access only              |
+| `aws_ec2`, `gcp_gke_cluster`, etc.       | Provider-specific columns           | Large           | Preferred over raw JSON for analysis |
+| `resource_tags`, `resource_tags_mapping` | Tag analysis                        | Large           | Start here for tag queries           |
+| `account_cost`                           | Cost by date/service/account/region | Medium          | Best starting point for costs        |
+| `resource_cost_summaries`                | Monthly avg cost per resource       | Large           | More granular, incomplete coverage   |
+| `resource_cost`                          | Granular cost details               | Extremely Large | Individual resource lookups only     |
 
 ### **Safe Querying Process**
 
