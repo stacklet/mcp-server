@@ -54,7 +54,7 @@ uv sync
 
 **Run the MCP server:**
 ```bash
-uv run mcp
+uv run stacklet-mcp
 # or: just run
 ```
 

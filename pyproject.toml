@@ -21,7 +21,7 @@ dependencies = [
   "pydantic>=2.11.7",
   "pydantic-settings>=2.10.1",
 ]
-scripts.mcp = "stacklet.mcp.mcp:main"
+scripts.stacklet-mcp = "stacklet.mcp.mcp:main"
 
 [dependency-groups]
 dev = [
