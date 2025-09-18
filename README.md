@@ -24,11 +24,11 @@ By enabling the `_ALLOW_` options documented below, you are granting an LLM free
 * install dependencies via `just install`
 * configure your agent to `just run` in this directory (or copy and adjust one of the `mcp.*.json` files when running the agent from another directory)
 
-By default, `just install` will copy `mcp.default.json` to `.mcp.json`, which enables convenient experimentation by running [Claude Code](https://claude.com/product/claude-code)) in the project root without risk of altering saved AssetDB queries or running Platform mutations.
+Running `just install` will copy `mcp.default.json` to `.mcp.json` (so long as there's nothing there already), which enables convenient experimentation by running [Claude Code](https://claude.com/product/claude-code)) in the project root without risk of altering saved AssetDB queries or running Platform mutations.
+
+For alternative integrations, the `mcp.default.json` file should serve as a starting point, but the details may vary by context; the best documentation for the format itself seems to be [here](https://gofastmcp.com/integrations/mcp-json-configuration#mcp-json-configuration-standard).
 
 The `mcp.unrestricted.json` file shows how to configure the server without these guardrails; heed the warnings above.
-
-For integration with other agents, the `mcp.*.json` files should serve as a starting point, but the [details may vary](https://gofastmcp.com/integrations/mcp-json-configuration#mcp-json-configuration-standard) by context.
 
 ## Authentication
 

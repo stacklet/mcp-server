@@ -30,9 +30,7 @@ def make_server() -> FastMCP:
     )
 
 
-mcp = make_server()
-
-
 def main() -> None:
     """Main entry point for the MCP server."""
+    mcp = make_server()
     mcp.run(show_banner=False)
