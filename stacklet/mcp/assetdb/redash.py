@@ -277,7 +277,7 @@ class AssetDBClient:
         return {
             fmt: urljoin(
                 self.redash_url,
-                f"api/queries/{query_id}/results//{result_id}.{fmt}?api_key={api_key}",
+                f"api/queries/{query_id}/results/{result_id}.{fmt}?api_key={api_key}",
             )
             for fmt in ExportFormat
         }
