@@ -7,28 +7,54 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class ListTypesResult(BaseModel):
-    searched_for: str | None
-    found_types: list[str]
+    """Result of listing GraphQL types in the Stacklet Platform API."""
+
+    searched_for: str | None = Field(
+        None, description="Regular expression filter used for type search (if any)"
+    )
+    found_types: list[str] = Field(
+        ..., description="List of GraphQL type names matching the search criteria"
+    )
 
 
 class GetTypesResult(BaseModel):
-    asked_for: list[str]
-    found_sdl: dict[str, str]
-    not_found: list[str]
+    """Result of retrieving specific GraphQL type definitions."""
+
+    asked_for: list[str] = Field(..., description="List of type names that were requested")
+    found_sdl: dict[str, str] = Field(
+        ..., description="Dictionary mapping found type names to their GraphQL SDL definitions"
+    )
+    not_found: list[str] = Field(
+        ..., description="List of requested type names that were not found in the schema"
+    )
 
 
 class GraphQLError(BaseModel):
-    message: str
-    locations: list[dict[str, int]] | None = None
-    path: list[str | int] | None = None
-    extensions: dict[str, Any] | None = None
+    """GraphQL error information from query execution."""
+
+    message: str = Field(..., description="Error message describing what went wrong")
+    locations: list[dict[str, int]] | None = Field(
+        None, description="Source locations where the error occurred (line/column)"
+    )
+    path: list[str | int] | None = Field(
+        None, description="Path to the field in the query that caused the error"
+    )
+    extensions: dict[str, Any] | None = Field(
+        None, description="Additional error metadata and debugging information"
+    )
 
 
 class GraphQLQueryResult(BaseModel):
-    query: str
-    variables: dict[str, Any]
-    data: dict[str, Any] | None = None
-    errors: list[GraphQLError] | None = None
+    """Result of executing a GraphQL query against the Stacklet Platform."""
+
+    query: str = Field(..., description="The GraphQL query that was executed")
+    variables: dict[str, Any] = Field(..., description="Variables that were passed to the query")
+    data: dict[str, Any] | None = Field(
+        None, description="Query result data (null if query failed)"
+    )
+    errors: list[GraphQLError] | None = Field(
+        None, description="List of errors that occurred during query execution"
+    )
 
     @model_validator(mode="after")
     def validate_graphql_structure(self) -> Self:
@@ -104,11 +130,15 @@ class ConnectionExport(BaseModel):
     dataset_id: str = Field(..., validation_alias="id", description="Dataset export node ID")
     started: datetime | None = Field(None, description="When processing started")
     processed_rows: int | None = Field(
-        None, validation_alias="processed", description="Number of rows exported so far"
+        None,
+        validation_alias="processed",
+        description="Number of rows processed and exported so far",
     )
     completed: datetime | None = Field(None, description="When processing finished")
-    success: bool | None = Field(None, description="Set when completed")
-    message: str | None = Field(None, description="Set when completed")
+    success: bool | None = Field(
+        None, description="Whether the export completed successfully (set when completed)"
+    )
+    message: str | None = Field(None, description="Status message or error details.")
     download_url: str | None = Field(
         None, validation_alias="downloadURL", description="Export download URL"
     )

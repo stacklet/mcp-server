@@ -31,39 +31,65 @@ def tools() -> list[Callable[..., Any]]:
 
 def platform_graphql_info() -> ToolsetInfo:
     """
-    Key information for LLMs using the platform_graphql_ tools; call this first.
+    Essential guide for Stacklet Platform GraphQL API - read this first before using other tools.
 
-    Returns:
-        Text to guide correct and effective use of the toolset.
+    The Platform API provides access to all Stacklet governance features: policies, account groups,
+    bindings, resources, executions, and more. This guide explains the GraphQL schema patterns,
+    connection-based pagination, filtering, and best practices for effective queries.
+
+    ⚠️  Always check this guide first - it contains critical information about schema introspection,
+    filtering syntax, and performance considerations for large-scale governance data.
     """
     return info_tool_result(get_file_text("platform/graphql_info.md"))
 
 
 @json_guard
-async def platform_graphql_list_types(ctx: Context, match: str | None = None) -> ListTypesResult:
+async def platform_graphql_list_types(
+    ctx: Context,
+    match: Annotated[
+        str | None,
+        Field(None, description="Optional regular expression to filter GraphQL types by name"),
+    ] = None,
+) -> ListTypesResult:
     """
-    List the types available in the Stacklet Platform GraphQL API.
+    Discover available GraphQL types in the Stacklet Platform API.
 
-    Args:
-        match: Optional regular expression filter
+    Use this to explore the schema and find the right types for your queries.
+    Essential for understanding what data is available and how types relate to each other.
 
-    Returns:
-        Structured response with context
+    Without a filter, returns all available types. With a regex filter, narrows down
+    to matching type names (e.g., "Account.*" finds AccountGroup, AccountList, etc.).
+
+    Next step: Use platform_graphql_get_types() to see detailed definitions for interesting types.
     """
     client = PlatformClient.get(ctx)
     return await client.list_types(match)
 
 
 @json_guard
-async def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> GetTypesResult:
+async def platform_graphql_get_types(
+    ctx: Context,
+    type_names: Annotated[
+        list[str],
+        Field(
+            min_length=1, description="List of GraphQL type names to retrieve SDL definitions for"
+        ),
+    ],
+) -> GetTypesResult:
     """
-    Retrieve information about types in the Stacklet Platform GraphQL API.
+    Get detailed GraphQL type definitions to understand schema structure.
 
-    Args:
-        type_names: Names of requested types.
+    Returns the full GraphQL Schema Definition Language (SDL) for specified types,
+    showing all fields, arguments, relationships, and documentation. Essential for
+    building correct queries.
 
-    Returns:
-        JSON string mapping valid type names to GraphQL SDL definitions.
+    Use this after platform_graphql_list_types() to understand:
+    - What fields are available on each type
+    - Required vs optional arguments
+    - Relationships between types
+    - Input types for mutations
+
+    The SDL output shows exactly how to structure your GraphQL queries.
     """
     client = PlatformClient.get(ctx)
     return await client.get_types(type_names)
@@ -71,21 +97,34 @@ async def platform_graphql_get_types(ctx: Context, type_names: list[str]) -> Get
 
 @json_guard
 async def platform_graphql_query(
-    ctx: Context, query: str, variables: dict[str, Any] | None = None
+    ctx: Context,
+    query: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="GraphQL query string to execute against the Stacklet Platform API",
+        ),
+    ],
+    variables: Annotated[
+        dict[str, Any] | None, Field(None, description="Variables to pass to the GraphQL query")
+    ] = None,
 ) -> GraphQLQueryResult:
     """
-    Execute a GraphQL query against the Stacklet API.
+    Execute GraphQL queries against the Stacklet Platform for governance operations.
 
-    Only call this tool when you understand the principles outlined in the
-    platform_graphql_info tool. Always remember to check input and output
-    types before you use them.
+    This is your main tool for querying policies, account groups, bindings, resources,
+    executions, and all other governance data. Supports both queries and mutations.
 
-    Args:
-        query: The GraphQL query string
-        variables: Variables dict for the query
+    ⚠️  Important guidelines:
+    - Always query for "problems" field alongside your data
+    - Use small page sizes (5-10) for exploration, larger for known datasets
+    - Check types with platform_graphql_get_types() first
+    - For large exports, use platform_dataset_export() instead
 
-    Returns:
-        Structured GraphQL query result with context
+    Common patterns:
+    - List resources: query { resources(first: 10) { edges { node { ... } } } }
+    - Filter data: query { policies(filter: { name: { contains: "security" } }) ... }
+    - Get specific item: query { policy(id: "123") { ... } }
     """
     client = PlatformClient.get(ctx)
     return await client.query(query, variables or {})
@@ -93,10 +132,14 @@ async def platform_graphql_query(
 
 def platform_dataset_info() -> ToolsetInfo:
     """
-    Key information for LLMs using the platform_dataset_ tools; call this first.
+    Guide for exporting large datasets from Stacklet Platform - use for big data analysis.
 
-    Returns:
-        Comprehensive guide to using platform dataset export functionality.
+    When you need to export thousands of governance records (policies, resources, executions,
+    etc.), the dataset export tools provide server-side CSV generation that's much more
+    efficient than paging through GraphQL connections.
+
+    This guide explains how to structure export requests, handle large datasets, and
+    work with the async export process. Essential for data analysis workflows.
     """
     return info_tool_result(get_file_text("platform/dataset_info.md"))
 
@@ -104,23 +147,52 @@ def platform_dataset_info() -> ToolsetInfo:
 @json_guard
 async def platform_dataset_export(
     ctx: Context,
-    connection_field: Annotated[str, Field(min_length=1)],
-    columns: Annotated[list[ExportColumn], Field(min_length=1)],
-    node_id: Annotated[str, Field(min_length=1)] | None = None,
-    params: list[ExportParam] | None = None,
-    timeout: Annotated[int, Field(ge=0, le=600, default=0)] = 0,
+    connection_field: Annotated[
+        str,
+        Field(min_length=1, description="Name of the GraphQL connection field to export data from"),
+    ],
+    columns: Annotated[
+        list[ExportColumn],
+        Field(min_length=1, description="List of columns to include in the exported CSV file"),
+    ],
+    node_id: Annotated[
+        str, Field(min_length=1, description="Starting node ID to begin the export from (optional)")
+    ]
+    | None = None,
+    params: Annotated[
+        list[ExportParam] | None,
+        Field(
+            None,
+            description="Parameters to pass to the connection field for filtering or customization",
+        ),
+    ] = None,
+    timeout: Annotated[
+        int,
+        Field(
+            ge=0,
+            le=600,
+            default=0,
+            description="Maximum time to wait for export completion in seconds "
+            "(0 = return immediately with dataset_id)",
+        ),
+    ] = 0,
 ) -> ConnectionExport:
     """
-    Export a full dataset from a Stacklet Platform GraphQL Connection field into CSV
-    format.
+    Export large governance datasets to CSV for analysis and reporting.
 
-    This tool initiates a server-side export that pages through all data accessible
-    via a Connection node, generates a CSV file, and makes it available for download.
+    Perfect for exporting thousands of resources, policies, executions, or other governance
+    data when GraphQL pagination would be too slow. The server handles all paging and
+    generates a downloadable CSV file.
 
-    By default, this tool returns immediately, with a `dataset_id` that can be used
-    with the `platform_dataset_lookup` tool to check progress and eventually get a
-    download URL. When `timeout` is greater than 0, the tool will periodically check
-    status and return only when the export completes or the timeout expires.
+    Process:
+    1. Define columns mapping GraphQL fields to CSV columns
+    2. Optionally add filters via params
+    3. Export runs asynchronously - use timeout=0 to return immediately
+    4. Use platform_dataset_lookup() to check progress and get download URL
+
+    Examples:
+    - Export all resources: connection_field="resources", columns=[{name: "id", path: "id"}]
+    - Export with filter: params=[{name: "filter", type: "ResourceFilter", value: {...}}]
     """
     dataset_input = ExportRequest(
         connection_field=connection_field,
@@ -137,15 +209,34 @@ async def platform_dataset_export(
 @json_guard
 async def platform_dataset_lookup(
     ctx: Context,
-    dataset_id: str,
-    timeout: Annotated[int, Field(ge=0, le=600, default=0)] = 0,
+    dataset_id: Annotated[
+        str,
+        Field(min_length=1, description="Dataset export ID returned from platform_dataset_export"),
+    ],
+    timeout: Annotated[
+        int,
+        Field(
+            ge=0,
+            le=600,
+            default=0,
+            description="Maximum time to wait for export completion in seconds "
+            "(0 = return current status immediately)",
+        ),
+    ] = 0,
 ) -> ConnectionExport:
     """
-    Check the status of a `platform_dataset_export`.
+    Monitor dataset export progress and retrieve download links.
 
-    By default, this tool returns immediately. When `timeout` is greater than 0, the
-    tool will periodically check status and return only when the export completes or
-    the timeout expires.
+    Use this to check on exports started with platform_dataset_export(). Returns current
+    status, progress info, and download URL when complete.
+
+    Export states:
+    - Processing: Export is running (shows progress if available)
+    - Complete: Ready for download (includes download_url and expiry time)
+    - Failed: Export encountered an error
+
+    Set timeout > 0 to wait for completion, or timeout=0 for immediate status check.
+    Download URLs are temporary and expire after a few hours.
     """
     client = PlatformClient.get(ctx)
     return await client.wait_for_export(dataset_id, timeout)

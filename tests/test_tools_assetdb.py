@@ -197,8 +197,12 @@ class TestQueryGet(MCPCookieTest):
             result = await self.assert_call({"query_id": mangle(value)})
 
         # NOTE that this is a fair amount more fields than seen in query_list.
-        expect = q123()
-        expect.pop("visualizations")
+        # The Query model filters and transforms the raw response
+        from stacklet.mcp.assetdb.models import Query
+
+        raw_data = q123()
+        raw_data.pop("visualizations")
+        expect = Query(**raw_data).model_dump(mode="json")
         assert result.json() == expect
 
     async def test_not_found(self):
@@ -232,8 +236,8 @@ class TestQuerySave(MCPCookieTest):
             description=None,
             is_draft=True,
         )
-        expect = deepcopy(response)
-        expect.pop("visualizations")
+        raw_data = deepcopy(response)
+        raw_data.pop("visualizations")
 
         with self.http.expect(
             self.r(
@@ -247,6 +251,10 @@ class TestQuerySave(MCPCookieTest):
         ):
             result = await self.assert_call({})
 
+        # Transform raw response to match Query model output
+        from stacklet.mcp.assetdb.models import Query
+
+        expect = Query(**raw_data).model_dump(mode="json")
         assert result.json() == expect
 
     async def test_other_data_source_id(self, override_setting):
@@ -259,8 +267,8 @@ class TestQuerySave(MCPCookieTest):
             description=None,
             is_draft=True,
         )
-        expect = deepcopy(response)
-        expect.pop("visualizations")
+        raw_data = deepcopy(response)
+        raw_data.pop("visualizations")
 
         with self.http.expect(
             self.r(
@@ -274,6 +282,10 @@ class TestQuerySave(MCPCookieTest):
         ):
             result = await self.assert_call({})
 
+        # Transform raw response to match Query model output
+        from stacklet.mcp.assetdb.models import Query
+
+        expect = Query(**raw_data).model_dump(mode="json")
         assert result.json() == expect
 
     @pytest.mark.parametrize("null_value", [None, "null", ""])
@@ -313,8 +325,8 @@ class TestQuerySave(MCPCookieTest):
             id=value,
             description="Updated description",
         )
-        expect = deepcopy(response)
-        expect.pop("visualizations")
+        raw_data = deepcopy(response)
+        raw_data.pop("visualizations")
 
         with self.http.expect(
             self.r({"description": "Updated description"}, update=value, response=response),
@@ -323,6 +335,10 @@ class TestQuerySave(MCPCookieTest):
                 {"query_id": mangle(value), "description": "Updated description"}
             )
 
+        # Transform raw response to match Query model output
+        from stacklet.mcp.assetdb.models import Query
+
+        expect = Query(**raw_data).model_dump(mode="json")
         assert result.json() == expect
 
     @json_guard_parametrize([[], ["ping", "pong"]])

@@ -124,7 +124,7 @@ class TestGraphqQLGetTypes(PlatformSchemaTest):
         assert "Acc" not in type_defs
         assert "count" not in type_defs
 
-    @json_guard_parametrize([[], ["Query"], ["Account", "AccountList"]])
+    @json_guard_parametrize([["Query"], ["Account", "AccountList"]])
     async def test_json_guard(self, mangle, value):
         """Test that type_names parameter works with JSON guard."""
         result = await self.assert_call({"type_names": mangle(value)})
@@ -133,6 +133,12 @@ class TestGraphqQLGetTypes(PlatformSchemaTest):
             "found_sdl": {k: ANY for k in value},
             "not_found": [],
         }
+
+    @json_guard_parametrize([[]])
+    async def test_json_guard_empty_list_error(self, mangle, value):
+        """Test that empty type_names parameter is rejected."""
+        await self.assert_call({"type_names": mangle(value)}, error=True)
+        # Should get a validation error for empty list
 
 
 class TestGraphQLListTypes(PlatformSchemaTest):
