@@ -5,6 +5,7 @@ The Platform GraphQL API enables interaction with the Stacklet Platform, equival
 ### **Critical Requirements**
 
 - **Always look up schema types before querying**
+- If you're not certain what a field means, use the docs toolset for context
 - **Always query for "problems" alongside results** - problems contain critical information
 - Use Stacklet documentation (especially glossary) for concept details
 
@@ -40,7 +41,7 @@ The Platform GraphQL API enables interaction with the Stacklet Platform, equival
 
 **Key Datasets**:
 - Resources: Individual resource details, history, costs
-- Resource matches: (resource, policy) pairs - always filter, slice by policy or account
-- Executions: Binding runs and policy execution results for troubleshooting
+- Resource matches: (resource, policy) pairs - always filter, can slice via Policy or Account
+- Executions: Binding runs and policy execution results for analysis and troubleshooting
 
 **Related Tools**: `platform_dataset_info` for export guidance, AssetDB tools for warehouse queries
