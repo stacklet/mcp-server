@@ -23,3 +23,7 @@ test *args:
 # Run tests with coverage
 test-coverage *args:
     just test --cov {{args}}
+
+# Run mcp-inspector
+inspect:
+    npx @modelcontextprotocol/inspector uv run stacklet-mcp

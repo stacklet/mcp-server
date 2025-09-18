@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import IntEnum, StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ExportFormat(StrEnum):
@@ -17,6 +17,8 @@ class ExportFormat(StrEnum):
 
 
 class JobStatus(IntEnum):
+    """Status values for AssetDB query execution jobs."""
+
     QUEUED = 1
     STARTED = 2
     FINISHED = 3
@@ -31,9 +33,9 @@ class User(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    id: int
-    name: str | None = None
-    email: str | None = None
+    id: int = Field(..., description="Unique user ID in the Redash system")
+    name: str | None = Field(None, description="User's display name")
+    email: str | None = Field(None, description="User's email address")
 
 
 class Query(BaseModel):
@@ -41,25 +43,31 @@ class Query(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    id: int
-    latest_query_data_id: int | None
-    name: str
-    description: str | None
-    query: str
-    api_key: str
-    is_archived: bool
-    is_draft: bool
-    updated_at: datetime
-    created_at: datetime
-    data_source_id: int
-    options: dict[str, Any]
-    tags: list[str]
-    is_safe: bool
-    user: User
-    last_modified_by: User | None = None
-    retrieved_at: datetime | None = None
-    runtime: float | None = None
-    is_favorite: bool
+    id: int = Field(..., description="Unique query ID in the Redash system")
+    latest_query_data_id: int | None = Field(
+        None, description="ID of the most recent query result data"
+    )
+    name: str = Field(..., description="Query display name")
+    description: str | None = Field(None, description="Query description or documentation")
+    query: str = Field(..., description="SQL query text")
+    api_key: str = Field(..., description="API key for accessing this query")
+    is_archived: bool = Field(..., description="Whether the query has been archived")
+    is_draft: bool = Field(..., description="Whether the query is in draft status")
+    updated_at: datetime = Field(..., description="Timestamp of last modification")
+    created_at: datetime = Field(..., description="Timestamp when query was created")
+    data_source_id: int = Field(..., description="ID of the data source this query runs against")
+    options: dict[str, Any] = Field(
+        ..., description="Query configuration options including parameters"
+    )
+    tags: list[str] = Field(..., description="List of tags for categorizing the query")
+    is_safe: bool = Field(..., description="Whether the query is considered safe to run")
+    user: User = Field(..., description="User who created the query")
+    last_modified_by: User | None = Field(None, description="User who last modified the query")
+    retrieved_at: datetime | None = Field(
+        None, description="Timestamp when query data was last retrieved"
+    )
+    runtime: float | None = Field(None, description="Last execution runtime in seconds")
+    is_favorite: bool = Field(..., description="Whether the query is marked as favorite")
 
     @model_validator(mode="before")
     @classmethod
@@ -85,25 +93,27 @@ class Query(BaseModel):
 
 
 class QueryListResponse(BaseModel):
-    """Response model for query list endpoint."""
+    """Raw response model for query list endpoint (internal use)."""
 
     model_config = ConfigDict(extra="ignore")
 
-    count: int
-    page: int
-    page_size: int
-    results: list[Query]
+    count: int = Field(..., description="Total number of queries matching the search criteria")
+    page: int = Field(..., description="Current page number (1-based)")
+    page_size: int = Field(..., description="Number of queries per page")
+    results: list[Query] = Field(..., description="List of queries on the current page")
 
 
 class QueryUpsert(BaseModel):
     """Query data for create/update operations."""
 
-    name: str | None = None
-    query: str | None = None
-    description: str | None = None
-    tags: list[str] | None = None
-    options: dict[str, Any] | None = None
-    is_draft: bool | None = None
+    name: str | None = Field(None, description="Query display name (required for new queries)")
+    query: str | None = Field(None, description="SQL query text (required for new queries)")
+    description: str | None = Field(None, description="Query description or documentation")
+    tags: list[str] | None = Field(None, description="List of tags for categorizing the query")
+    options: dict[str, Any] | None = Field(
+        None, description="Query configuration options including parameters"
+    )
+    is_draft: bool | None = Field(None, description="Whether the query should be in draft status")
 
     def payload(self, data_source_id: int | None = None) -> dict[str, Any]:
         """
@@ -122,16 +132,95 @@ class QueryUpsert(BaseModel):
         return payload
 
 
-class QueryDownloadDetails(BaseModel):
+class QueryListPagination(BaseModel):
+    """Pagination metadata for query list responses."""
+
+    page: int = Field(..., description="Current page number (1-based)")
+    page_size: int = Field(..., description="Number of queries per page")
+    has_next_page: bool = Field(..., description="Whether there are more pages available")
+    total_count: int = Field(
+        ..., description="Total number of queries matching the search criteria"
+    )
+
+
+class QueryListItem(BaseModel):
+    """Simplified query information for list responses."""
+
+    id: int = Field(..., description="Unique query ID")
+    name: str = Field(..., description="Query display name")
+    description: str | None = Field(..., description="Query description or documentation")
+    has_parameters: bool = Field(..., description="Whether the query accepts parameters")
+    data_source_id: int = Field(..., description="ID of the data source this query runs against")
+    is_archived: bool = Field(..., description="Whether the query has been archived")
+    is_draft: bool = Field(..., description="Whether the query is in draft status")
+    is_favorite: bool = Field(..., description="Whether the query is marked as favorite")
+    tags: list[str] = Field(..., description="List of tags for categorizing the query")
+    user: User = Field(..., description="User who created the query")
+
+
+class QueryListResult(BaseModel):
+    """Complete response for query list operations."""
+
+    queries: list[QueryListItem] = Field(..., description="List of queries on the current page")
+    pagination: QueryListPagination = Field(..., description="Pagination information")
+
+
+class DownloadResult(BaseModel):
+    """Result of downloading query results to a file."""
+
+    file_path: str = Field(..., description="Path where the file was saved")
+    format: str = Field(..., description="Format of the downloaded file")
+    result_id: int = Field(..., description="ID of the query result that was downloaded")
+
+
+class QueryResultColumn(BaseModel):
+    """Column definition in a query result."""
+
+    name: str = Field(..., description="Column name")
+    type: str | None = Field(None, description="Column data type")
+    friendly_name: str | None = Field(None, description="Human-friendly column name")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class QueryResultContent(BaseModel):
+    """The data structure within a query result containing columns and rows."""
+
+    columns: list[QueryResultColumn] = Field(
+        ..., description="Column definitions for the query result"
+    )
+    rows: list[dict[str, Any]] = Field(
+        ..., description="Query result rows as key-value dictionaries"
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class QueryResult(BaseModel):
+    """Query result object as returned by Redash QueryResult.to_dict()."""
+
+    id: int = Field(..., description="Query result ID")
+    query: str = Field(..., description="The SQL query text that was executed")
+    data: QueryResultContent = Field(..., description="Query result data with columns and rows")
+    data_source_id: int = Field(..., description="ID of the data source used")
+    runtime: float | None = Field(None, description="Query execution time in seconds")
+    retrieved_at: datetime = Field(..., description="When the query result was retrieved")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class QueryResultDownloadDetails(BaseModel):
     """Query download details for a data format."""
 
-    format: ExportFormat
-    url: str
+    format: ExportFormat = Field(..., description="Export format for the query result download")
+    url: str = Field(..., description="URL to download the query result in the specified format")
 
 
-class QueryResults(BaseModel):
-    """Details about query results."""
+class QueryDownloadResults(BaseModel):
+    """Details about how to access query results."""
 
-    result_id: int
-    query_id: int
-    downloads: list[QueryDownloadDetails]
+    result_id: int = Field(..., description="ID of the specific query result execution")
+    query_id: int = Field(..., description="ID of the saved query that was executed")
+    downloads: list[QueryResultDownloadDetails] = Field(
+        ..., description="Available download links for the query results in different formats"
+    )

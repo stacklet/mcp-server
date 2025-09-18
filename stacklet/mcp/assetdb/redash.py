@@ -17,7 +17,7 @@ from fastmcp import Context
 from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
-from .models import ExportFormat, JobStatus, QueryListResponse, QueryUpsert
+from .models import ExportFormat, JobStatus, Query, QueryListResponse, QueryResult, QueryUpsert
 
 
 class AssetDBClient:
@@ -92,7 +92,7 @@ class AssetDBClient:
         result = await self._make_request("GET", "api/queries", params=params)
         return QueryListResponse(**result)
 
-    async def get_query(self, query_id: int) -> dict[str, Any]:
+    async def get_query(self, query_id: int) -> Query:
         """
         Get detailed information about a specific saved query.
 
@@ -103,7 +103,7 @@ class AssetDBClient:
             Complete query object with SQL and parameters
         """
         result = await self._make_request("GET", f"api/queries/{query_id}")
-        return cast(dict[str, Any], result)
+        return Query(**result)
 
     async def execute_saved_query(
         self,
@@ -166,12 +166,14 @@ class AssetDBClient:
         """
         # If query is async, poll for results
         if "job" in result:
-            result = await self._poll_job_results(result["job"]["id"], timeout)
-        return int(result["query_result"]["id"])
+            query_result = await self._poll_job_results(result["job"]["id"], timeout)
+        else:
+            query_result = QueryResult(**result["query_result"])
+        return query_result.id
 
     async def _poll_job_results(
         self, job_id: str, timeout: int = 60, interval: float = 1.0
-    ) -> dict[str, Any]:
+    ) -> QueryResult:
         """
         Poll for async query results.
 
@@ -200,7 +202,7 @@ class AssetDBClient:
                         return await self.get_query_result_data(job_data["query_result_id"])
                     else:
                         # Return result directly
-                        return cast(dict[str, Any], job_data.get("result", {}))
+                        return QueryResult(**job_data.get("result", {}))
 
                 case JobStatus.FAILED:
                     error = job_result.get("job", {}).get("error", "Unknown error")
@@ -211,7 +213,7 @@ class AssetDBClient:
             raise RuntimeError(f"Unhandled query execution status: {job_status}")
         raise RuntimeError(f"Query execution timed out after {timeout} seconds")
 
-    async def get_query_result_data(self, result_id: int) -> dict[str, Any]:
+    async def get_query_result_data(self, result_id: int) -> QueryResult:
         """
         Get query result data by result ID.
 
@@ -221,8 +223,8 @@ class AssetDBClient:
         Returns:
             Query result data with columns and rows
         """
-        result = await self._make_request("GET", f"api/query_results/{result_id}")
-        return cast(dict[str, Any], result)
+        response = await self._make_request("GET", f"api/query_results/{result_id}")
+        return QueryResult(**(cast(dict[str, Any], response)["query_result"]))
 
     async def download_query_result(
         self,
@@ -282,7 +284,7 @@ class AssetDBClient:
             for fmt in ExportFormat
         }
 
-    async def create_query(self, upsert: QueryUpsert) -> dict[str, Any]:
+    async def create_query(self, upsert: QueryUpsert) -> Query:
         """
         Create a new saved query.
 
@@ -294,9 +296,9 @@ class AssetDBClient:
         """
         payload = upsert.payload(data_source_id=self.data_source_id)
         result = await self._make_request("POST", "api/queries", json=payload)
-        return cast(dict[str, Any], result)
+        return Query(**result)
 
-    async def update_query(self, query_id: int, upsert: QueryUpsert) -> dict[str, Any]:
+    async def update_query(self, query_id: int, upsert: QueryUpsert) -> Query:
         """
         Update an existing saved query.
 
@@ -309,4 +311,4 @@ class AssetDBClient:
         """
         payload = upsert.payload()
         result = await self._make_request("POST", f"api/queries/{query_id}", json=payload)
-        return cast(dict[str, Any], result)
+        return Query(**result)
