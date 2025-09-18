@@ -159,10 +159,9 @@ class QueryListResult(BaseModel):
 class DownloadResult(BaseModel):
     """Result of downloading query results to a file."""
 
-    downloaded: bool = Field(True, description="Indicates this is a download result (always True)")
     file_path: str = Field(..., description="Path where the file was saved")
     format: str = Field(..., description="Format of the downloaded file")
-    result_id: str = Field(..., description="ID of the query result that was downloaded")
+    result_id: int = Field(..., description="ID of the query result that was downloaded")
     query_id: int | None = Field(
         None, description="ID of the query that generated this result (for saved query results)"
     )
@@ -172,19 +171,33 @@ class QueryResultColumn(BaseModel):
     """Column definition in a query result."""
 
     name: str = Field(..., description="Column name")
-    type: str = Field(..., description="Column data type")
+    type: str | None = Field(None, description="Column data type")
     friendly_name: str | None = Field(None, description="Human-friendly column name")
 
+    model_config = ConfigDict(extra="ignore")
 
-class QueryResultData(BaseModel):
-    """Query result data with columns and rows."""
+
+class QueryResultContent(BaseModel):
+    """The data structure within a query result containing columns and rows."""
 
     columns: list[QueryResultColumn] = Field(
         ..., description="Column definitions for the query result"
     )
-    rows: list[list[Any]] = Field(..., description="Query result rows as arrays of values")
-    query_result: dict[str, Any] = Field(
-        ..., description="Additional query result metadata from Redash"
+    rows: list[dict[str, Any]] = Field(
+        ..., description="Query result rows as key-value dictionaries"
     )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class QueryResult(BaseModel):
+    """Query result object as returned by Redash QueryResult.to_dict()."""
+
+    id: int = Field(..., description="Query result ID")
+    query: str = Field(..., description="The SQL query text that was executed")
+    data: QueryResultContent = Field(..., description="Query result data with columns and rows")
+    data_source_id: int = Field(..., description="ID of the data source used")
+    runtime: float | None = Field(None, description="Query execution time in seconds")
+    retrieved_at: datetime = Field(..., description="When the query result was retrieved")
 
     model_config = ConfigDict(extra="ignore")

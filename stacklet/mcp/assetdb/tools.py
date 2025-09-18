@@ -11,7 +11,7 @@ from .models import (
     QueryListItem,
     QueryListPagination,
     QueryListResult,
-    QueryResultData,
+    QueryResult,
     QueryUpsert,
 )
 from .redash import AssetDBClient
@@ -168,7 +168,7 @@ async def assetdb_query_results(
             description="Path where to save downloaded file (ignored if download_format not set)",
         ),
     ] = None,
-) -> QueryResultData | DownloadResult:
+) -> QueryResult | DownloadResult:
     """
     Execute a saved query and get its results with smart caching.
 
@@ -186,8 +186,7 @@ async def assetdb_query_results(
         query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout
     )
     if not download_format:
-        result_data = await client.get_query_result_data(result_id)
-        return QueryResultData(**result_data)
+        return await client.get_query_result_data(result_id)
 
     file_path = await client.download_query_result(
         result_id=result_id, format=download_format, download_path=download_path
@@ -225,7 +224,7 @@ async def assetdb_sql_query(
             description="Path where to save downloaded file (ignored if download_format not set)",
         ),
     ] = None,
-) -> QueryResultData | DownloadResult:
+) -> QueryResult | DownloadResult:
     """
     Execute custom SQL queries directly against the AssetDB data warehouse.
 
@@ -244,8 +243,7 @@ async def assetdb_sql_query(
     client = AssetDBClient.get(ctx)
     result_id = await client.execute_adhoc_query(query, timeout=timeout)
     if not download_format:
-        result_data = await client.get_query_result_data(result_id)
-        return QueryResultData(**result_data)
+        return await client.get_query_result_data(result_id)
 
     file_path = await client.download_query_result(
         result_id=result_id, format=download_format, download_path=download_path
