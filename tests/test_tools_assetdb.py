@@ -234,7 +234,6 @@ class TestQuerySave(MCPCookieTest):
             is_draft=True,
         )
         raw_data = deepcopy(response)
-        raw_data.pop("visualizations")
 
         with self.http.expect(
             self.r(
@@ -249,8 +248,6 @@ class TestQuerySave(MCPCookieTest):
             result = await self.assert_call({})
 
         # Transform raw response to match Query model output
-        from stacklet.mcp.assetdb.models import Query
-
         expect = Query(**raw_data).model_dump(mode="json")
         assert result.json() == expect
 
@@ -265,7 +262,6 @@ class TestQuerySave(MCPCookieTest):
             is_draft=True,
         )
         raw_data = deepcopy(response)
-        raw_data.pop("visualizations")
 
         with self.http.expect(
             self.r(
@@ -321,7 +317,6 @@ class TestQuerySave(MCPCookieTest):
             description="Updated description",
         )
         raw_data = deepcopy(response)
-        raw_data.pop("visualizations")
 
         with self.http.expect(
             self.r({"description": "Updated description"}, update=value, response=response),
