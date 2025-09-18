@@ -14,7 +14,7 @@ format:
 
 # Lint code
 lint:
-	uv run pre-commit run --all-files
+    uv run pre-commit run --all-files
 
 # Run tests
 test *args:
