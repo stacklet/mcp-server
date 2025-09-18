@@ -16,7 +16,7 @@ Each of the toolsets has an "info" tool with useful context, available to any cl
 
 ## Authentication
 
-The easiest way to authenticate to your stacklet environment is to use the [stacklet-admin] tool, which is most easily installed with:
+The easiest way to authenticate to your stacklet environment is to use the [stacklet-admin](https://pypi.org/project/stacklet.client.platform/) tool, which is most easily installed with:
 
 ```
 % uv tool install stacklet.client.platform
