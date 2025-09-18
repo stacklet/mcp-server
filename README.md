@@ -42,5 +42,5 @@ The following variables are available:
 The MCP Protocol Inspector is invaluable for peeking at the details of the protocol in use:
 
 ```
-% npx @modelcontextprotocol/inspector uv run mcp
+% npx @modelcontextprotocol/inspector uv run stacklet-mcp
 ```
