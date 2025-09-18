@@ -68,11 +68,11 @@ Columns are defined with:
 
 ### Column Path Examples
 
-| Path | Description |
-|------|-------------|
-| `key` | Direct field on the node |
-| `account.name` | Nested field access |
-| `data` | Raw JSON field |
+| Path           | Description              |
+|----------------|--------------------------|
+| `key`          | Direct field on the node |
+| `account.name` | Nested field access      |
+| `data`         | Raw JSON field           |
 
 ### Subpath JSON Transformation Examples
 
@@ -152,11 +152,11 @@ params=[
 
 ### Common Filter Names by Connection
 
-| Connection | Common Filters |
-|------------|----------------|
-| `accounts` | `provider`, `active`, `name`, `path`, `email`, `tag` |
+| Connection  | Common Filters                                                          |
+|-------------|-------------------------------------------------------------------------|
+| `accounts`  | `provider`, `active`, `name`, `path`, `email`, `tag`                    |
 | `resources` | `provider`, `resource-type`, `account`, `region`, `resource-tag`, `key` |
-| `policies` | `provider`, `resource`, `category`, `severity`, `compliance`, `binding` |
+| `policies`  | `provider`, `resource`, `category`, `severity`, `compliance`, `binding` |
 
 ### Scale Considerations for Filtering
 
@@ -230,12 +230,12 @@ mcp__stacklet__platform_dataset_export(
 
 ### Available Node Connections
 
-| Node Type | Available Connections |
-|-----------|----------------------|
-| `Account` | `groupMappings` |
-| `Policy` | `resources`, `executions`, `collectionMappings`, `bindings` |
-| `Binding` | `executions`, `runs` |
-| `AccountGroup` | `accountMappings` |
+| Node Type      | Available Connections                                       |
+|----------------|-------------------------------------------------------------|
+| `Account`      | `groupMappings`                                             |
+| `Policy`       | `resources`, `executions`, `collectionMappings`, `bindings` |
+| `Binding`      | `executions`, `runs`                                        |
+| `AccountGroup` | `accountMappings`                                           |
 
 ## Export Management
 
@@ -262,16 +262,16 @@ final_result = mcp__stacklet__platform_dataset_lookup(
 
 ### Export Status Fields
 
-| Field | Description |
-|-------|-------------|
-| `dataset_id` | Unique identifier for the export |
-| `started` | ISO timestamp when export began |
-| `processed_rows` | Number of rows processed so far |
-| `completed` | ISO timestamp when export finished (null if still running) |
-| `success` | Boolean indicating success (null if still running) |
-| `message` | Status message ("Exporting…", "Succeeded", etc.) |
-| `download_url` | URL to download CSV (null if not complete) |
-| `available_until` | ISO timestamp when download expires |
+| Field             | Description                                                |
+|-------------------|------------------------------------------------------------|
+| `dataset_id`      | Unique identifier for the export                           |
+| `started`         | ISO timestamp when export began                            |
+| `processed_rows`  | Number of rows processed so far                            |
+| `completed`       | ISO timestamp when export finished (null if still running) |
+| `success`         | Boolean indicating success (null if still running)         |
+| `message`         | Status message ("Exporting…", "Succeeded", etc.)           |
+| `download_url`    | URL to download CSV (null if not complete)                 |
+| `available_until` | ISO timestamp when download expires                        |
 
 ### Downloading the CSV File
 
