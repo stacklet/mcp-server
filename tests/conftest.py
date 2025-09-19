@@ -38,6 +38,7 @@ async def mcp_client(override_setting, mock_stacklet_credentials):
 
     # enable all tools
     override_setting("assetdb_allow_save", True)
+    override_setting("assetdb_allow_archive", True)
     override_setting("platform_allow_mutations", True)
 
     async with Client(make_server()) as client:

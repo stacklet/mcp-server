@@ -91,7 +91,7 @@ just test      # Run pytest with optional args
 13. **`assetdb_query_get`** - Get detailed information about specific saved queries
 14. **`assetdb_query_results`** - Get results for saved queries with caching control
 15. **`assetdb_query_save`** - Create new queries or update existing ones (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_SAVE=true`)
-16. **`assetdb_query_archive`** - Archive saved queries (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_SAVE=true`)
+16. **`assetdb_query_archive`** - Archive saved queries (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE=true`)
 
 Total: 14-16 tools (depending on configuration)
 
@@ -130,6 +130,7 @@ The server requires Stacklet credentials configured through one of:
 Additional configuration via environment variables with `STACKLET_MCP_` prefix:
 - `STACKLET_MCP_ASSETDB_DATASOURCE` (default: 1) - AssetDB data source ID
 - `STACKLET_MCP_ASSETDB_ALLOW_SAVE` (default: false) - Enable query save/update functionality
+- `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE` (default: false) - Enable query archiving functionality
 - `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS` (default: false) - Enable calling mutations in the Platform GraphQL API
 
 **External Dependencies:**

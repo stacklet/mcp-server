@@ -51,6 +51,7 @@ The following variables are available:
 
 - `STACKLET_MCP_ASSETDB_DATASOURCE`: the datasource ID for AssetDB in Redash (default: `1`)
 - `STACKLET_MCP_ASSETDB_ALLOW_SAVE`: whether to enable write operations in AssetDB (default: `false`)
+- `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE`: whether to enable query archiving functionality in AssetDB (default: `false`)
 - `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS`: whether to enable executing mutations in Platform API (default: `false`)
 
 ## Development

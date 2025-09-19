@@ -24,10 +24,10 @@ def test_tools_save(override_setting, allow_save: bool):
     assert (assetdb_query_save in tools()) == allow_save
 
 
-@pytest.mark.parametrize("allow_save", [True, False])
-def test_tools_archive(override_setting, allow_save: bool):
-    override_setting("assetdb_allow_save", allow_save)
-    assert (assetdb_query_archive in tools()) == allow_save
+@pytest.mark.parametrize("allow_archive", [True, False])
+def test_tools_archive(override_setting, allow_archive: bool):
+    override_setting("assetdb_allow_archive", allow_archive)
+    assert (assetdb_query_archive in tools()) == allow_archive
 
 
 class TestSQLInfo(MCPTest):

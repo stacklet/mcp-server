@@ -34,6 +34,7 @@ def tools() -> list[Callable[..., Any]]:
     ]
     if SETTINGS.assetdb_allow_save:
         tools.append(assetdb_query_save)
+    if SETTINGS.assetdb_allow_archive:
         tools.append(assetdb_query_archive)
     return tools
 
