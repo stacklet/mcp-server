@@ -18,6 +18,10 @@ class Settings(BaseSettings):
         default=False,
         description="Enable tools that make modifications to AssetDB",
     )
+    assetdb_allow_archive: bool = Field(
+        default=False,
+        description="Enable query archiving functionality in AssetDB",
+    )
     platform_allow_mutations: bool = Field(
         default=False,
         description="Enable calling mutations in the Platform GraphQL API",

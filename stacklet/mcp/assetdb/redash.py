@@ -312,3 +312,15 @@ class AssetDBClient:
         payload = upsert.payload()
         result = await self._make_request("POST", f"api/queries/{query_id}", json=payload)
         return Query(**result)
+
+    async def delete_query(self, query_id: int) -> None:
+        """
+        Archive a saved query.
+
+        This sets the query's is_archived flag to True and removes associated
+        visualizations and alerts, but preserves the query in the database.
+
+        Args:
+            query_id: ID of the query to archive
+        """
+        await self._make_request("DELETE", f"api/queries/{query_id}")

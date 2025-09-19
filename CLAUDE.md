@@ -13,7 +13,7 @@ The codebase follows a modular design with clear separation of concerns:
 **Core Components:**
 - `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions
 - `stacklet/mcp/stacklet_auth.py` - Authentication credential loading
-- `stacklet/mcp/utils.py` - Utility functions for tool implementations
+- `stacklet/mcp/utils/` - Utility functions package for tool implementations
 - `stacklet/mcp/settings.py` - Server configuration and feature flags
 - `stacklet/mcp/lifespan.py` - Application lifespan management
 
@@ -90,7 +90,10 @@ just test      # Run pytest with optional args
 12. **`assetdb_query_list`** - List and search saved queries with pagination
 13. **`assetdb_query_get`** - Get detailed information about specific saved queries
 14. **`assetdb_query_results`** - Get results for saved queries with caching control
-15. **`assetdb_query_save`** - Create new queries or update existing ones (conditionally enabled via `STACKLET_MCP_ASSETDB_SAVE=true`)
+15. **`assetdb_query_save`** - Create new queries or update existing ones (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_SAVE=true`)
+16. **`assetdb_query_archive`** - Archive saved queries (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE=true`)
+
+Total: 14-16 tools (depending on configuration)
 
 The actual tools available are determined by each package's `tools()` function implementation, with some tools conditionally enabled based on server configuration settings.
 
@@ -126,7 +129,9 @@ The server requires Stacklet credentials configured through one of:
 **Server Settings:**
 Additional configuration via environment variables with `STACKLET_MCP_` prefix:
 - `STACKLET_MCP_ASSETDB_DATASOURCE` (default: 1) - AssetDB data source ID
-- `STACKLET_MCP_ASSETDB_SAVE` (default: false) - Enable query save/update functionality
+- `STACKLET_MCP_ASSETDB_ALLOW_SAVE` (default: false) - Enable query save/update functionality
+- `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE` (default: false) - Enable query archiving functionality
+- `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS` (default: false) - Enable calling mutations in the Platform GraphQL API
 
 **External Dependencies:**
 - Documentation files are fetched from the live Stacklet docs service at runtime
