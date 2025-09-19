@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+	"Stacklet": {
+	  "command": "uv",
+	  "args": ["run", "stacklet-mcp"]
+	}
+  }
+}

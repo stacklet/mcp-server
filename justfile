@@ -1,6 +1,7 @@
 # Install dependencies
 install:
     uv sync
+    [ -e .mcp.json ] || { cp mcp.default.json .mcp.json && echo "Wrote .mcp.json"; }
 
 # Run the MCP server locally
 run:

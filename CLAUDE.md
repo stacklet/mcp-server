@@ -80,9 +80,9 @@ just test      # Run pytest with optional args
 4. **`platform_graphql_list_types`** - List the types available in the GraphQL API
 5. **`platform_graphql_get_types`** - Retrieve information about specific GraphQL types
 6. **`platform_graphql_query`** - Execute GraphQL queries against Stacklet platform
-7. **`platform_dataset_export`** - Export full datasets from GraphQL connections to CSV format
-8. **`platform_dataset_lookup`** - Check the status of dataset exports
-9. **`platform_dataset_info`** - Guide for exporting large datasets
+7. **`platform_dataset_info`** - Guide for exporting large datasets
+8. **`platform_dataset_export`** - Export full datasets from GraphQL connections to CSV format
+9. **`platform_dataset_lookup`** - Check the status of dataset exports
 
 **AssetDB Tools:**
 10. **`assetdb_sql_info`** - Key information for LLMs using AssetDB SQL tools (call this first)
