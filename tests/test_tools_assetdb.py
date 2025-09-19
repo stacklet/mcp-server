@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from stacklet.mcp.assetdb.models import Query
-from stacklet.mcp.assetdb.tools import assetdb_query_save, tools
+from stacklet.mcp.assetdb.tools import assetdb_query_archive, assetdb_query_save, tools
 
 from . import factory
 from .testing.http import ExpectRequest
@@ -22,6 +22,12 @@ pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
 def test_tools_save(override_setting, allow_save: bool):
     override_setting("assetdb_allow_save", allow_save)
     assert (assetdb_query_save in tools()) == allow_save
+
+
+@pytest.mark.parametrize("allow_save", [True, False])
+def test_tools_archive(override_setting, allow_save: bool):
+    override_setting("assetdb_allow_save", allow_save)
+    assert (assetdb_query_archive in tools()) == allow_save
 
 
 class TestSQLInfo(MCPTest):
@@ -398,6 +404,28 @@ class TestQueryResults(MCPCookieTest):
             ],
             "query_id": query_id,
             "result_id": result_id,
+        }
+
+
+class TestQueryArchive(MCPCookieTest):
+    tool_name = "assetdb_query_archive"
+
+    @json_guard_parametrize([123])
+    async def test_archive_success(self, mangle, value):
+        with self.http.expect(
+            ExpectRequest(
+                f"https://redash.example.com/api/queries/{value}",
+                method="DELETE",
+                status_code=200,
+                response={},  # Redash returns empty response on successful archive
+            ),
+        ):
+            result = await self.assert_call({"query_id": mangle(value)})
+
+        assert result.json() == {
+            "success": True,
+            "message": f"Query {value} has been successfully archived",
+            "query_id": value,
         }
 
 

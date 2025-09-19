@@ -11,6 +11,7 @@ from .models import (
     DownloadResult,
     ExportFormat,
     Query,
+    QueryArchiveResult,
     QueryDownloadResults,
     QueryListItem,
     QueryListPagination,
@@ -33,6 +34,7 @@ def tools() -> list[Callable[..., Any]]:
     ]
     if SETTINGS.assetdb_allow_save:
         tools.append(assetdb_query_save)
+        tools.append(assetdb_query_archive)
     return tools
 
 
@@ -311,6 +313,30 @@ async def assetdb_query_save(
     if upsert.query is None:  # This would actually 500.
         upsert.query = ""  # Maybe also unreasonable, but will get feedback.
     return await client.create_query(upsert)
+
+
+@json_guard
+async def assetdb_query_archive(
+    ctx: Context,
+    query_id: Annotated[int, Field(ge=1, description="ID of the query to archive")],
+) -> QueryArchiveResult:
+    """
+    Archive a saved query in AssetDB.
+
+    Archives the query by setting its archived status to true. Archived queries are
+    hidden from normal query listings but remain in the database. The query's associated
+    visualizations and alerts are also removed during archiving.
+
+    This operation cannot be undone through the API, but the query data is preserved
+    in the database and could potentially be restored by database administrators.
+    """
+    client = AssetDBClient.get(ctx)
+    await client.delete_query(query_id)
+    return QueryArchiveResult(
+        success=True,
+        message=f"Query {query_id} has been successfully archived",
+        query_id=query_id,
+    )
 
 
 def assetdb_sql_info() -> ToolsetInfo:

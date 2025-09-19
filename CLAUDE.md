@@ -91,8 +91,9 @@ just test      # Run pytest with optional args
 13. **`assetdb_query_get`** - Get detailed information about specific saved queries
 14. **`assetdb_query_results`** - Get results for saved queries with caching control
 15. **`assetdb_query_save`** - Create new queries or update existing ones (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_SAVE=true`)
+16. **`assetdb_query_archive`** - Archive saved queries (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_SAVE=true`)
 
-Total: 14-15 tools (depending on configuration)
+Total: 14-16 tools (depending on configuration)
 
 The actual tools available are determined by each package's `tools()` function implementation, with some tools conditionally enabled based on server configuration settings.
 

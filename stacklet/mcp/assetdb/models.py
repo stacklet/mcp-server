@@ -28,6 +28,14 @@ class JobStatus(IntEnum):
     SCHEDULED = 7
 
 
+class QueryArchiveResult(BaseModel):
+    """Result of archiving/deleting a query."""
+
+    success: bool
+    message: str
+    query_id: int
+
+
 class User(BaseModel):
     """Redash user object model."""
 
