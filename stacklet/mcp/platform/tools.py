@@ -23,9 +23,9 @@ def tools() -> list[Callable[..., Any]]:
         platform_graphql_list_types,
         platform_graphql_get_types,
         platform_graphql_query,
+        platform_dataset_info,
         platform_dataset_export,
         platform_dataset_lookup,
-        platform_dataset_info,
     ]
 
 
@@ -120,11 +120,6 @@ async def platform_graphql_query(
     - Use small page sizes (5-10) for exploration, larger for known datasets
     - Check types with platform_graphql_get_types() first
     - For large exports, use platform_dataset_export() instead
-
-    Common patterns:
-    - List resources: query { resources(first: 10) { edges { node { ... } } } }
-    - Filter data: query { policies(filter: { name: { contains: "security" } }) ... }
-    - Get specific item: query { policy(id: "123") { ... } }
     """
     client = PlatformClient.get(ctx)
     return await client.query(query, variables or {})
@@ -189,10 +184,6 @@ async def platform_dataset_export(
     2. Optionally add filters via params
     3. Export runs asynchronously - use timeout=0 to return immediately
     4. Use platform_dataset_lookup() to check progress and get download URL
-
-    Examples:
-    - Export all resources: connection_field="resources", columns=[{name: "id", path: "id"}]
-    - Export with filter: params=[{name: "filter", type: "ResourceFilter", value: {...}}]
     """
     dataset_input = ExportRequest(
         connection_field=connection_field,
