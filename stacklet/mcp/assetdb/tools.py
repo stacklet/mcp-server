@@ -4,7 +4,9 @@ from fastmcp import Context
 from pydantic import Field
 
 from ..settings import SETTINGS
-from ..utils import ToolsetInfo, get_file_text, info_tool_result, json_guard
+from ..utils.json import json_guard
+from ..utils.text import get_file_text
+from ..utils.tool import ToolsetInfo, info_tool_result
 from .models import (
     DownloadResult,
     ExportFormat,
