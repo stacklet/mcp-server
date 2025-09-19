@@ -8,7 +8,7 @@ import pytest
 
 from fastmcp import Client
 
-from stacklet.mcp.mcp import make_server
+from stacklet.mcp.server import make_server
 from stacklet.mcp.stacklet_auth import StackletCredentials
 
 from .testing.http import mock_http_bearer, mock_http_cookie

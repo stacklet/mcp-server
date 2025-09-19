@@ -1,19 +1,25 @@
-# Install dependencies
+# Setup development environment
 install:
+    #!/usr/bin/env bash
+    set -e
+
     uv sync
-    [ -e .mcp.json ] || { cp mcp.default.json .mcp.json && echo "Wrote .mcp.json"; }
+    if [ ! -e .mcp.json ]; then
+      just agent-config
+      echo "Wrote .mcp.json"
+    fi
 
 # Run the MCP server locally
-run:
-    uv run stacklet-mcp
+run *args:
+    uv run stacklet-mcp {{args}}
 
-# Format code
+# Run code formatters
 format:
     uv run ruff check --fix
     uv run ruff format
     - uv run pyproject-fmt -n pyproject.toml
 
-# Lint code
+# Run code linters
 lint:
     uv run pre-commit run --all-files
 
@@ -27,4 +33,8 @@ test-coverage *args:
 
 # Run mcp-inspector
 inspect:
-    npx @modelcontextprotocol/inspector uv run stacklet-mcp
+    npx @modelcontextprotocol/inspector just run
+
+# Generate agent configuration (.mcp.json)
+agent-config profile="default":
+    just run agent-config generate {{profile}} > .mcp.json
