@@ -233,7 +233,7 @@ async def assetdb_sql_query(
         result_id=result_id, format=download_format, download_path=download_path
     )
     return DownloadResult(
-        file_path=file_path,
+        downloaded_to=file_path,
         format=download_format,
         result_id=result_id,
     )

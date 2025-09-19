@@ -48,3 +48,78 @@ Many AssetDB tables are extremely large. Always use LIMIT and indexed column fil
 3. **Use EXPLAIN to verify index usage**
 4. **LIMIT results to manageable sizes**
 5. **Use provider-specific tables over raw JSON when possible**
+
+### **Parameterized Queries**
+
+AssetDB supports parameterized queries using `{{parameter_name}}` syntax for dynamic values.
+
+**Basic Example:**
+```sql
+SELECT {{value}} as result, _type, _account_id
+FROM resources
+LIMIT {{limit}}
+```
+
+**Parameter Definition:**
+```json
+{
+  "parameters": [
+    {
+      "name": "value",
+      "title": "Value",
+      "type": "text",
+      "value": "'Hello World'"
+    },
+    {
+      "name": "limit",
+      "title": "Limit",
+      "type": "number",
+      "value": 10
+    }
+  ]
+}
+```
+
+**Parameter Types:** `text`, `number`, `date`, `datetime-local`, `query` (dropdown)
+
+**Security Note:** Queries with `text` parameters are marked as "unsafe" because parameters use template substitution (not prepared statements), making them potentially vulnerable to SQL injection. Prefer validated parameter types (`number`, `date`, `query`) when possible.
+
+**Usage:** Call `assetdb_query_results(query_id, parameters={"value": "'Test'", "limit": 5})`
+
+### **Dropdown Parameters**
+
+Dropdown parameters use `"type": "query"` and reference another query for options:
+
+```json
+{
+  "name": "account_filter",
+  "title": "Account",
+  "type": "query",
+  "queryId": 42
+}
+```
+
+Query 42 must return `name` and `value` columns:
+```sql
+-- Query 42: Account options
+SELECT account_name as name, account_id as value FROM accounts
+-- Returns: [{"name": "Production", "value": "123456"}, {"name": "Staging", "value": "789012"}]
+```
+
+**Usage:** The parameter gets the `value` from the selected option:
+```python
+assetdb_query_results(query_id, parameters={"account_filter": "123456"})
+# User saw "Production" but parameter receives "123456"
+```
+
+### **Query Execution Behavior**
+
+**Result Format Availability:**
+- All result formats (CSV, JSON, TSV, XLSX) are available for any successfully executed query
+- Empty result sets (0 rows) still provide all download formats - the format availability depends on query success, not data presence
+- Only invalid parameters or malformed queries cause 400 errors and prevent format generation
+
+**Parameterized Query Validation:**
+- Invalid parameter values that don't match dropdown options cause 400 BAD REQUEST errors
+- Valid parameters that return empty results execute successfully and provide all formats
+- Template substitution means parameter validation happens at execution time, not submission time

@@ -176,7 +176,7 @@ class QueryListResult(BaseModel):
 class DownloadResult(BaseModel):
     """Result of downloading query results to a file."""
 
-    file_path: str = Field(..., description="Path where the file was saved")
+    downloaded_to: str = Field(..., description="Path where the file was saved")
     format: str = Field(..., description="Format of the downloaded file")
     result_id: int = Field(..., description="ID of the query result that was downloaded")
 
