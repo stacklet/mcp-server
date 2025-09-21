@@ -29,10 +29,13 @@ class JobStatus(IntEnum):
 
     @property
     def is_terminal(self) -> bool:
+        """Whether this job status represents a completed state (finished, failed, or canceled)."""
         return self in (JobStatus.FINISHED, JobStatus.FAILED, JobStatus.CANCELED)
 
 
 class Job(BaseModel):
+    """Redash job object for async query execution."""
+
     id: str
     status: JobStatus
     error: str | None
@@ -264,14 +267,15 @@ class ToolQueryResult(BaseModel):
     # These fields are derived from the QueryResult rows.
     row_count: int = Field(..., description="Total rows in the full query result")
     some_rows: list[dict[str, Any]] = Field(
-        ..., description="Truncated row data, sparse dicts keyed on column name"
+        ..., description="Sample of up to 20 rows from the query result for preview"
     )
 
-    # This one is a happy coincidence because you _can't_ get the above information
-    # without downloading the result set, so we may as well save it regardless.
-    downloaded_to: str = Field(..., description="Local path to complete result data")
+    # Complete result data is always saved locally for further analysis.
+    downloaded_to: str = Field(
+        ..., description="Local path where complete result data was saved as JSON"
+    )
 
-    # These vary by context and request parameters.
+    # Available only for saved queries (not ad-hoc queries) that have API keys.
     shareable_links: list[QueryResultDownloadDetails] | None = Field(
-        ..., description="Available download links for the query results in different formats"
+        ..., description="Download URLs for different formats, None for ad-hoc queries"
     )

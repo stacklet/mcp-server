@@ -122,7 +122,7 @@ class AssetDBClient:
             timeout: Timeout in seconds for query execution (if not cached)
 
         Returns:
-            Query result ID
+            Complete query result with data, columns, and metadata
         """
         payload = {"max_age": max_age, "parameters": parameters or {}}
         return await self._execute_results(f"api/queries/{query_id}/results", payload, timeout)
@@ -136,7 +136,7 @@ class AssetDBClient:
             timeout: Timeout in seconds for query execution
 
         Returns:
-            Query result ID
+            Complete query result with data, columns, and metadata
         """
         payload = {
             "query": query,
@@ -150,6 +150,17 @@ class AssetDBClient:
     async def _execute_results(
         self, endpoint: str, payload: dict[str, Any], timeout: int
     ) -> QueryResult:
+        """
+        Execute query request and handle both sync and async results.
+
+        Args:
+            endpoint: API endpoint to POST the query to
+            payload: Query parameters and options
+            timeout: Maximum time to wait for async job completion
+
+        Returns:
+            Complete query result with data, columns, and metadata
+        """
         # This will contain either a "job" or a full "query_result". Since we're
         # sometimes stuck grabbing a whole result set any way, we may as well do
         # it every time; this also lets us always return a preview of the result
@@ -163,16 +174,25 @@ class AssetDBClient:
         return await self.get_query_result_data(result_id)
 
     async def _poll_job(self, job: Job, timeout: int) -> int:
+        """
+        Poll an async job until completion using exponential backoff.
+
+        Args:
+            job: Initial job object from query execution
+            timeout: Maximum time to wait before timing out
+
+        Returns:
+            Query result ID when job completes successfully
+        """
         cutoff = time.monotonic() + timeout
         interval_s = 2
         while True:
             job_result = await self._make_request("GET", f"api/jobs/{job.id}")
-            print(job_result)
             job = Job(**job_result["job"])
             if job.query_result_id:
                 return job.query_result_id
             elif job.status.is_terminal:
-                raise RuntimeError(f"Query execution failed: {job.error or 'Unknown error'}")
+                raise RuntimeError(f"Query execution failed: {job.error or 'Unknown error.'}")
 
             remaining_s = cutoff - time.monotonic()
             if remaining_s <= 0:

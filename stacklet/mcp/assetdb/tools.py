@@ -323,6 +323,23 @@ def assetdb_sql_info() -> ToolsetInfo:
 def _tool_query_result(
     client: AssetDBClient, query_result: QueryResult, query: Query | None
 ) -> ToolQueryResult:
+    """
+    Convert a raw QueryResult into an LLM-friendly ToolQueryResult.
+
+    This helper function processes query results by:
+    - Saving the complete result data to a local JSON file for analysis
+    - Truncating row data to first 20 rows for context efficiency
+    - Generating shareable download links when a saved query is provided
+    - Creating a structured response suitable for LLM consumption
+
+    Args:
+        client: AssetDB client for generating download URLs
+        query_result: Raw query result from Redash API
+        query: Optional saved query object (None for ad-hoc queries)
+
+    Returns:
+        ToolQueryResult with truncated data and download options
+    """
     # We've always got the whole dataset, but we generally don't want to dump it
     # all into context. Preserve the whole thing for analysis with other tools.
     with SETTINGS.download_file("w", f"assetdb_{query_result.id}", ".json") as f:
