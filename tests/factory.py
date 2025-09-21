@@ -94,3 +94,32 @@ def redash_query_list(
         "count": total,
         "results": queries,
     }
+
+
+def redash_job_response(
+    job_id: str,
+    status: int,
+    error: str = "",
+    query_result_id: int | None = None,
+    updated_at: int = 0,
+) -> dict[str, Any]:
+    """
+    Generate Redash job response matching serialize_job output.
+
+    Args:
+        job_id: Job ID string
+        status: Job status (1=QUEUED, 2=STARTED, 3=FINISHED, 4=FAILED/CANCELED)
+        error: Error message for failed jobs
+        query_result_id: Query result ID for successful jobs
+        updated_at: Job started timestamp
+    """
+    return {
+        "job": {
+            "id": job_id,
+            "updated_at": updated_at,
+            "status": status,
+            "error": error,
+            "result": query_result_id,
+            "query_result_id": query_result_id,
+        }
+    }

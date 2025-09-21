@@ -27,6 +27,17 @@ class JobStatus(IntEnum):
     DEFERRED = 6
     SCHEDULED = 7
 
+    @property
+    def is_terminal(self) -> bool:
+        return self in (JobStatus.FINISHED, JobStatus.FAILED, JobStatus.CANCELED)
+
+
+class Job(BaseModel):
+    id: str
+    status: JobStatus
+    error: str | None
+    query_result_id: int | None
+
 
 class QueryArchiveResult(BaseModel):
     """Result of archiving/deleting a query."""
@@ -221,7 +232,7 @@ class QueryResultDownloadDetails(BaseModel):
     """Query download details for a data format."""
 
     format: ExportFormat = Field(..., description="Export format for the query result download")
-    url: str = Field(..., description="URL to download the query result in the specified format")
+    available_at: str = Field(..., description="URL to download the data in the specified format")
 
 
 class QueryDownloadResults(BaseModel):
@@ -230,5 +241,37 @@ class QueryDownloadResults(BaseModel):
     result_id: int = Field(..., description="ID of the specific query result execution")
     query_id: int = Field(..., description="ID of the saved query that was executed")
     downloads: list[QueryResultDownloadDetails] = Field(
+        ..., description="Available download links for the query results in different formats"
+    )
+
+
+class ToolQueryResult(BaseModel):
+    """
+    Truncated query results suitable for LLMs, along with ways to get the full
+    result set for analysis with tools suited to that task.
+    """
+
+    result_id: int = Field(..., description="Query result id")
+    query_id: int | None = Field(None, description="Query id, if applicable")
+
+    # These fields come directly from the redash QueryResult.
+    query_text: str = Field(..., description="The SQL query text that was executed")
+    query_runtime: float | None = Field(None, description="Query execution time in seconds")
+    columns: list[QueryResultColumn] = Field(
+        ..., description="Column definitions, name is key into each row"
+    )
+
+    # These fields are derived from the QueryResult rows.
+    row_count: int = Field(..., description="Total rows in the full query result")
+    some_rows: list[dict[str, Any]] = Field(
+        ..., description="Truncated row data, sparse dicts keyed on column name"
+    )
+
+    # This one is a happy coincidence because you _can't_ get the above information
+    # without downloading the result set, so we may as well save it regardless.
+    downloaded_to: str = Field(..., description="Local path to complete result data")
+
+    # These vary by context and request parameters.
+    shareable_links: list[QueryResultDownloadDetails] | None = Field(
         ..., description="Available download links for the query results in different formats"
     )

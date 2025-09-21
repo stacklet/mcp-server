@@ -2,12 +2,15 @@
 Tests for AssetDB MCP tools using FastMCP's in-memory testing pattern.
 """
 
+import json
+
 from copy import deepcopy
 from typing import Any
+from unittest.mock import ANY
 
 import pytest
 
-from stacklet.mcp.assetdb.models import Query
+from stacklet.mcp.assetdb.models import JobStatus, Query
 from stacklet.mcp.assetdb.tools import assetdb_query_archive, assetdb_query_save, tools
 
 from . import factory
@@ -363,50 +366,6 @@ class TestQuerySave(MCPCookieTest):
             await self.assert_call({"query_id": 123, "is_draft": mangle(value)})
 
 
-class TestQueryResults(MCPCookieTest):
-    tool_name = "assetdb_query_results"
-
-    async def test_get_results(self):
-        query_id = 123
-        result_id = 456
-
-        with self.http.expect(
-            ExpectRequest(
-                f"https://redash.example.com/api/queries/{query_id}/results",
-                method="POST",
-                data={"max_age": -1},
-                response=query_result_response(result_id),
-            ),
-            ExpectRequest(
-                f"https://redash.example.com/api/queries/{query_id}",
-                response=q123(),
-            ),
-        ):
-            result = await self.assert_call({"query_id": query_id})
-        assert result.json() == {
-            "downloads": [
-                {
-                    "format": "csv",
-                    "url": f"https://redash.example.com/api/queries/{query_id}/results/{result_id}.csv?api_key=test-api-key",
-                },
-                {
-                    "format": "json",
-                    "url": f"https://redash.example.com/api/queries/{query_id}/results/{result_id}.json?api_key=test-api-key",
-                },
-                {
-                    "format": "tsv",
-                    "url": f"https://redash.example.com/api/queries/{query_id}/results/{result_id}.tsv?api_key=test-api-key",
-                },
-                {
-                    "format": "xlsx",
-                    "url": f"https://redash.example.com/api/queries/{query_id}/results/{result_id}.xlsx?api_key=test-api-key",
-                },
-            ],
-            "query_id": query_id,
-            "result_id": result_id,
-        }
-
-
 class TestQueryArchive(MCPCookieTest):
     tool_name = "assetdb_query_archive"
 
@@ -429,6 +388,198 @@ class TestQueryArchive(MCPCookieTest):
         }
 
 
+class QueryResultsTest(MCPCookieTest):
+    QUERY_ID = None
+    JOB_ID = "job-456"
+    RESULT_ID = 789
+
+    def expect_post(self, data, response):
+        url = (
+            f"https://redash.example.com/api/queries/{self.QUERY_ID}/results"
+            if self.QUERY_ID
+            else "https://redash.example.com/api/query_results"
+        )
+        return ExpectRequest(url, method="POST", data=data, response=response)
+
+    def expect_get_job(self, response):
+        return ExpectRequest(
+            f"https://redash.example.com/api/jobs/{self.JOB_ID}",
+            response=response,
+        )
+
+    def expect_get_results(self, response):
+        return ExpectRequest(
+            f"https://redash.example.com/api/query_results/{self.RESULT_ID}",
+            response=response,
+        )
+
+    def expect_get_query(self, response):
+        assert self.QUERY_ID
+        return ExpectRequest(
+            f"https://redash.example.com/api/queries/{self.QUERY_ID}",
+            response=response,
+        )
+
+    def result_response(self):
+        return query_result_response(self.RESULT_ID)
+
+    def job_response(self, status):
+        error = "Oh no borken" if status == JobStatus.FAILED else ""
+        result_id = self.RESULT_ID if status == JobStatus.FINISHED else None
+        return factory.redash_job_response(
+            self.JOB_ID, status, error=error, query_result_id=result_id
+        )
+
+    def assert_tool_query_result(self, result):
+        """Assert standard QueryResult structure."""
+        json_result = result.json()
+        assert json_result["result_id"] == self.RESULT_ID
+        assert json_result["query_id"] == self.QUERY_ID
+        assert "columns" in json_result
+        assert "some_rows" in json_result
+        return json_result
+
+
+class TestQueryResults(QueryResultsTest):
+    tool_name = "assetdb_query_results"
+    QUERY_ID = 123
+
+    async def test_instant_result(self):
+        with self.http.expect(
+            self.expect_post({"max_age": -1, "parameters": {}}, self.result_response()),
+            self.expect_get_query(q123()),
+        ):
+            result = await self.assert_call({"query_id": self.QUERY_ID})
+
+        actual = result.json()
+        assert actual == {
+            "result_id": self.RESULT_ID,
+            "query_id": self.QUERY_ID,
+            "query_text": "SELECT 1 AS col",
+            "query_runtime": 0.1,
+            "columns": [{"friendly_name": "Col", "name": "col", "type": "int"}],
+            "row_count": 1,
+            "some_rows": [{"col": 1}],
+            "downloaded_to": ANY,
+            "shareable_links": [
+                {
+                    "format": "csv",
+                    "available_at": f"https://redash.example.com/api/queries/{self.QUERY_ID}/results/{self.RESULT_ID}.csv?api_key=test-api-key",
+                },
+                {
+                    "format": "json",
+                    "available_at": f"https://redash.example.com/api/queries/{self.QUERY_ID}/results/{self.RESULT_ID}.json?api_key=test-api-key",
+                },
+                {
+                    "format": "tsv",
+                    "available_at": f"https://redash.example.com/api/queries/{self.QUERY_ID}/results/{self.RESULT_ID}.tsv?api_key=test-api-key",
+                },
+                {
+                    "format": "xlsx",
+                    "available_at": f"https://redash.example.com/api/queries/{self.QUERY_ID}/results/{self.RESULT_ID}.xlsx?api_key=test-api-key",
+                },
+            ],
+        }
+        with open(actual["downloaded_to"]) as f:
+            assert json.load(f) == query_result_response(self.RESULT_ID)["query_result"]
+
+
+class TestSQLQuery(QueryResultsTest):
+    tool_name = "assetdb_sql_query"
+
+    def post_data(self, **override):
+        return {
+            "query": "SELECT 1",
+            "data_source_id": 1,
+            "max_age": 0,
+            "parameters": {},
+            "apply_auto_limit": True,
+        } | override
+
+    @json_guard_parametrize([30, 120])
+    async def test_instant_result(self, mangle, value):
+        with self.http.expect(
+            self.expect_post(self.post_data(), self.result_response()),
+        ):
+            result = await self.assert_call(
+                {"query": "SELECT 1", "timeout": mangle(value)},
+            )
+
+        self.assert_tool_query_result(result)
+
+    async def test_job_immediate_success(self, async_sleeps):
+        """Test async job that completes immediately (QUEUED → FINISHED)."""
+        with self.http.expect(
+            self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
+            self.expect_get_job(self.job_response(JobStatus.FINISHED)),
+            self.expect_get_results(self.result_response()),
+        ):
+            result = await self.assert_call({"query": "SELECT 1"})
+
+        assert async_sleeps == []
+        self.assert_tool_query_result(result)
+
+    async def test_job_multi_status_transition(self, async_sleeps):
+        """Test async job progressing through QUEUED → STARTED → FINISHED."""
+        with self.http.expect(
+            self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
+            self.expect_get_job(self.job_response(JobStatus.QUEUED)),
+            self.expect_get_job(self.job_response(JobStatus.STARTED)),
+            self.expect_get_job(self.job_response(JobStatus.FINISHED)),
+            self.expect_get_results(self.result_response()),
+        ):
+            result = await self.assert_call({"query": "SELECT 1"})
+
+        assert async_sleeps == [2, 4]
+        self.assert_tool_query_result(result)
+
+    @json_guard_parametrize([60])
+    async def test_job_timeout(self, mangle, value, async_sleeps):
+        with self.http.expect(
+            self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
+            self.expect_get_job(self.job_response(JobStatus.QUEUED)),
+            self.expect_get_job(self.job_response(JobStatus.QUEUED)),
+            self.expect_get_job(self.job_response(JobStatus.STARTED)),
+            self.expect_get_job(self.job_response(JobStatus.STARTED)),
+            self.expect_get_job(self.job_response(JobStatus.STARTED)),
+            self.expect_get_job(self.job_response(JobStatus.STARTED)),
+        ):
+            result = await self.assert_call(
+                {"query": "SELECT 1", "timeout": mangle(value)}, error=True
+            )
+
+        assert async_sleeps == [2, 4, 8, 16, 30]
+        self.assert_tool_query_result(result)
+
+    async def test_job_failure(self):
+        """Test async job that fails (QUEUED → FAILED)."""
+        with self.http.expect(
+            self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
+            self.expect_get_job(self.job_response(JobStatus.FAILED)),
+        ):
+            result = await self.assert_call({"query": "SELECT 1"}, error=True)
+
+        assert (
+            result.text == "Error calling tool 'assetdb_sql_query': "
+            "Query execution failed: Oh no borken"
+        )
+
+    async def test_job_cancellation(self):
+        """Test async job that gets canceled (QUEUED → CANCELED)."""
+        # This _should_ in fact never happen but it serves to test the terminal-
+        # state-with-no-error-message behaviour.
+        with self.http.expect(
+            self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
+            self.expect_get_job(self.job_response(JobStatus.CANCELED)),
+        ):
+            result = await self.assert_call({"query": "SELECT 1"})
+
+        assert (
+            result.text == "Error calling tool 'assetdb_sql_query': "
+            "Query execution failed: Unknown error."
+        )
+
+
 def q123():
     return factory.redash_query(
         id=123,
@@ -446,6 +597,22 @@ def q456():
         name="Test Query 2",
         is_draft=True,
     )
+
+
+def sql_query_response():
+    return {
+        "query_result": {
+            "id": 789,
+            "query": "SELECT 'test' AS message",
+            "data": {
+                "columns": [{"name": "message", "type": "text", "friendly_name": "message"}],
+                "rows": [{"message": "test"}],
+            },
+            "data_source_id": 1,
+            "runtime": 0.05,
+            "retrieved_at": "2024-01-01T00:00:00Z",
+        }
+    }
 
 
 def query_result_response(result_id: int):

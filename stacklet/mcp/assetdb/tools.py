@@ -1,3 +1,5 @@
+import json
+
 from typing import Annotated, Any, Callable
 
 from fastmcp import Context
@@ -8,17 +10,15 @@ from ..utils.json import json_guard
 from ..utils.text import get_file_text
 from ..utils.tool import ToolsetInfo, info_tool_result
 from .models import (
-    DownloadResult,
-    ExportFormat,
     Query,
     QueryArchiveResult,
-    QueryDownloadResults,
     QueryListItem,
     QueryListPagination,
     QueryListResult,
     QueryResult,
     QueryResultDownloadDetails,
     QueryUpsert,
+    ToolQueryResult,
 )
 from .redash import AssetDBClient
 
@@ -159,7 +159,7 @@ async def assetdb_query_results(
     parameters: Annotated[
         dict[str, Any] | None, Field(None, description="Parameter values for parameterized queries")
     ] = None,
-) -> QueryDownloadResults:
+) -> ToolQueryResult:
     """
     Execute a saved query and get its results with smart caching.
 
@@ -172,20 +172,11 @@ async def assetdb_query_results(
     """
     client = AssetDBClient.get(ctx)
 
-    result_id = await client.execute_saved_query(
+    query_result = await client.execute_saved_query(
         query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout
     )
-
-    query_details = await client.get_query(query_id)
-    result_urls = client.get_query_result_urls(query_id, result_id, query_details.api_key)
-    downloads = [
-        QueryResultDownloadDetails(format=fmt, url=url) for fmt, url in result_urls.items()
-    ]
-    return QueryDownloadResults(
-        result_id=result_id,
-        query_id=query_id,
-        downloads=downloads,
-    )
+    query = await client.get_query(query_id)
+    return _tool_query_result(client, query_result, query)
 
 
 @json_guard
@@ -198,22 +189,7 @@ async def assetdb_sql_query(
         int,
         Field(ge=5, le=300, default=60, description="Query execution timeout in seconds (max 300)"),
     ],
-    download_format: Annotated[
-        ExportFormat | None,
-        Field(
-            None,
-            description='Format to download results in ("csv", "json", "tsv", "xlsx"). '
-            "If specified, saves to file instead of returning data",
-        ),
-    ] = None,
-    download_path: Annotated[
-        str | None,
-        Field(
-            None,
-            description="Path where to save downloaded file (ignored if download_format not set)",
-        ),
-    ] = None,
-) -> QueryResult | DownloadResult:
+) -> ToolQueryResult:
     """
     Execute custom SQL queries directly against the AssetDB data warehouse.
 
@@ -225,18 +201,8 @@ async def assetdb_sql_query(
     consider saving them with assetdb_query_save() for better performance and reuse.
     """
     client = AssetDBClient.get(ctx)
-    result_id = await client.execute_adhoc_query(query, timeout=timeout)
-    if not download_format:
-        return await client.get_query_result_data(result_id)
-
-    file_path = await client.download_query_result(
-        result_id=result_id, format=download_format, download_path=download_path
-    )
-    return DownloadResult(
-        downloaded_to=file_path,
-        format=download_format,
-        result_id=result_id,
-    )
+    query_result = await client.execute_adhoc_query(query, timeout=timeout)
+    return _tool_query_result(client, query_result, None)
 
 
 @json_guard
@@ -352,3 +318,36 @@ def assetdb_sql_info() -> ToolsetInfo:
     filtering to avoid timeouts. This guide shows you how to query safely and efficiently.
     """
     return info_tool_result(get_file_text("assetdb/sql_info.md"))
+
+
+def _tool_query_result(
+    client: AssetDBClient, query_result: QueryResult, query: Query | None
+) -> ToolQueryResult:
+    # We've always got the whole dataset, but we generally don't want to dump it
+    # all into context. Preserve the whole thing for analysis with other tools.
+    with SETTINGS.download_file("w", f"assetdb_{query_result.id}", ".json") as f:
+        json.dump(query_result.model_dump(mode="json"), f, ensure_ascii=False)
+        downloaded_to = f.name
+
+    shareable_links = None
+    if query:
+        # If we've got an actual Query, we can use its API key to give back
+        # handles to the data in all available formats.
+        result_urls = client.get_query_result_urls(query, query_result)
+        shareable_links = [
+            QueryResultDownloadDetails(format=fmt, available_at=url)
+            for fmt, url in result_urls.items()
+        ]
+
+    # LLM-suited result with truncated data.
+    return ToolQueryResult(
+        result_id=query_result.id,
+        query_id=query.id if query else None,
+        query_text=query_result.query,
+        query_runtime=query_result.runtime,
+        columns=query_result.data.columns,
+        row_count=len(query_result.data.rows),
+        some_rows=query_result.data.rows[:20],
+        downloaded_to=downloaded_to,
+        shareable_links=shareable_links,
+    )
