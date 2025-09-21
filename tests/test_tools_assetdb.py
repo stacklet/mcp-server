@@ -581,6 +581,12 @@ class TestSQLQuery(QueryResultTest):
             "apply_auto_limit": True,
         } | override
 
+    async def test_query(self):
+        await self.assert_tool_call(
+            {"query": "SELECT 'whatever'"},
+            self.expect_post(self.post_data(query="SELECT 'whatever'"), self.result_response()),
+        )
+
     @json_guard_parametrize([-1, 0, 3600, 3600 * 24 * 365])
     async def test_max_age(self, mangle, value):
         await self.assert_tool_call(
