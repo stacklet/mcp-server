@@ -549,7 +549,10 @@ class TestSQLQuery(QueryResultsTest):
             )
 
         assert async_sleeps == [2, 4, 8, 16, 30]
-        self.assert_tool_query_result(result)
+        assert (
+            result.text == "Error calling tool 'assetdb_sql_query': "
+            "Query execution timed out after 60 seconds"
+        )
 
     async def test_job_failure(self):
         """Test async job that fails (QUEUED → FAILED)."""
@@ -572,11 +575,11 @@ class TestSQLQuery(QueryResultsTest):
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.CANCELED)),
         ):
-            result = await self.assert_call({"query": "SELECT 1"})
+            result = await self.assert_call({"query": "SELECT 1"}, error=True)
 
         assert (
             result.text == "Error calling tool 'assetdb_sql_query': "
-            "Query execution failed: Unknown error."
+            "Query execution failed: Unknown error"
         )
 
 
