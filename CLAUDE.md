@@ -89,7 +89,7 @@ just test      # Run pytest with optional args
 11. **`assetdb_sql_query`** - Execute ad-hoc SQL queries against AssetDB
 12. **`assetdb_query_list`** - List and search saved queries with pagination
 13. **`assetdb_query_get`** - Get detailed information about specific saved queries
-14. **`assetdb_query_results`** - Get results for saved queries with caching control
+14. **`assetdb_query_result`** - Get results for saved queries with caching control
 15. **`assetdb_query_save`** - Create new queries or update existing ones (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_SAVE=true`)
 16. **`assetdb_query_archive`** - Archive saved queries (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE=true`)
 

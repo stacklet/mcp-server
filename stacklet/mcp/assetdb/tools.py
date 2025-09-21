@@ -12,13 +12,13 @@ from ..utils.tool import ToolsetInfo, info_tool_result
 from .models import (
     Query,
     QueryArchiveResult,
-    QueryListItem,
-    QueryListPagination,
-    QueryListResult,
     QueryResult,
-    QueryResultDownloadDetails,
     QueryUpsert,
+    ToolQueryList,
+    ToolQueryListItem,
+    ToolQueryListPagination,
     ToolQueryResult,
+    ToolQueryResultArtifact,
 )
 from .redash import AssetDBClient
 
@@ -30,13 +30,27 @@ def tools() -> list[Callable[..., Any]]:
         assetdb_sql_query,
         assetdb_query_list,
         assetdb_query_get,
-        assetdb_query_results,
+        assetdb_query_result,
     ]
     if SETTINGS.assetdb_allow_save:
         tools.append(assetdb_query_save)
     if SETTINGS.assetdb_allow_archive:
         tools.append(assetdb_query_archive)
     return tools
+
+
+def assetdb_sql_info() -> ToolsetInfo:
+    """
+    Essential guide for working with AssetDB - read this before writing SQL queries.
+
+    AssetDB is Stacklet's massive cloud asset warehouse containing billions of records
+    across resources, costs, tags, and relationships. This guide explains the schema,
+    performance best practices, and common query patterns.
+
+    ⚠️  Critical: Many tables are extremely large and require careful indexing and
+    filtering to avoid timeouts. This guide shows you how to query safely and efficiently.
+    """
+    return info_tool_result(get_file_text("assetdb/sql_info.md"))
 
 
 @json_guard
@@ -62,7 +76,7 @@ async def assetdb_query_list(
         list[str] | None,
         Field(None, description="List of tags to filter queries by (all must match)"),
     ] = None,
-) -> QueryListResult:
+) -> ToolQueryList:
     """
     Browse and search through saved SQL queries in AssetDB.
 
@@ -74,7 +88,8 @@ async def assetdb_query_list(
     - Browse queries by category: tags=["production", "monitoring"]
     - List recently created queries: page=1, page_size=10
 
-    Next steps: Use assetdb_query_get() to get full details or assetdb_query_results() to execute.
+    Next steps: Use assetdb_query_get() to get full details or assetdb_query_result()
+    to execute.
     """
     client = AssetDBClient.get(ctx)
     response = await client.list_queries(
@@ -94,7 +109,6 @@ async def assetdb_query_list(
                 "description": q.description,
                 "has_parameters": bool(q.options.get("parameters")),
                 "data_source_id": q.data_source_id,
-                "is_archived": q.is_archived,
                 "is_draft": q.is_draft,
                 "is_favorite": q.is_favorite,
                 "tags": q.tags,
@@ -102,15 +116,15 @@ async def assetdb_query_list(
             }
         )
 
-    query_items = [QueryListItem(**q) for q in queries]
-    pagination = QueryListPagination(
+    query_items = [ToolQueryListItem(**q) for q in queries]
+    pagination = ToolQueryListPagination(
         page=response.page,
         page_size=response.page_size,
         has_next_page=page * page_size < response.count,
         total_count=response.count,
     )
 
-    return QueryListResult(queries=query_items, pagination=pagination)
+    return ToolQueryList(queries=query_items, pagination=pagination)
 
 
 @json_guard
@@ -125,84 +139,11 @@ async def assetdb_query_get(
     or check its settings before executing or modifying it.
 
     Returns the full query object with SQL text, parameter definitions, tags,
-    creation info, and other metadata. Use assetdb_query_results() to actually
+    creation info, and other metadata. Use assetdb_query_result() to actually
     execute the query and get data.
     """
     client = AssetDBClient.get(ctx)
     return await client.get_query(query_id)
-
-
-@json_guard
-async def assetdb_query_results(
-    ctx: Context,
-    query_id: Annotated[
-        int, Field(ge=1, description="ID of the query to execute and get results for")
-    ],
-    max_age: Annotated[
-        int,
-        Field(
-            ge=-1,
-            default=-1,
-            description="Maximum age of cached results in seconds "
-            "(-1 = any cached result, 0 = always fresh)",
-        ),
-    ],
-    timeout: Annotated[
-        int,
-        Field(
-            ge=5,
-            le=300,
-            default=60,
-            description="Query execution timeout in seconds if not cached (max 300)",
-        ),
-    ],
-    parameters: Annotated[
-        dict[str, Any] | None, Field(None, description="Parameter values for parameterized queries")
-    ] = None,
-) -> ToolQueryResult:
-    """
-    Execute a saved query and get its results with smart caching.
-
-    This runs a previously saved query and returns links to the results in various
-    formats, which can be used to access the data in a preferred format. Redash caches
-    results to improve performance - use max_age to control cache behavior.
-
-    Parameters are required for parameterized queries - check the query definition
-    first using assetdb_query_get() to see what parameters are expected.
-    """
-    client = AssetDBClient.get(ctx)
-
-    query_result = await client.execute_saved_query(
-        query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout
-    )
-    query = await client.get_query(query_id)
-    return _tool_query_result(client, query_result, query)
-
-
-@json_guard
-async def assetdb_sql_query(
-    ctx: Context,
-    query: Annotated[
-        str, Field(min_length=1, description="SQL query string to execute against AssetDB")
-    ],
-    timeout: Annotated[
-        int,
-        Field(ge=5, le=300, default=60, description="Query execution timeout in seconds (max 300)"),
-    ],
-) -> ToolQueryResult:
-    """
-    Execute custom SQL queries directly against the AssetDB data warehouse.
-
-    ⚠️  IMPORTANT: AssetDB contains massive datasets. Always use LIMIT clauses and
-    indexed filters to avoid timeouts. Call assetdb_sql_info() first to understand
-    the schema and best practices.
-
-    This tool is for ad-hoc analysis and exploration. For frequently-used queries,
-    consider saving them with assetdb_query_save() for better performance and reuse.
-    """
-    client = AssetDBClient.get(ctx)
-    query_result = await client.execute_adhoc_query(query, timeout=timeout)
-    return _tool_query_result(client, query_result, None)
 
 
 @json_guard
@@ -306,18 +247,86 @@ async def assetdb_query_archive(
     )
 
 
-def assetdb_sql_info() -> ToolsetInfo:
+@json_guard
+async def assetdb_query_result(
+    ctx: Context,
+    query_id: Annotated[
+        int, Field(ge=1, description="ID of the query to execute and get results for")
+    ],
+    max_age: Annotated[
+        int,
+        Field(
+            ge=-1,
+            default=-1,
+            description="Maximum age of cached results in seconds "
+            "(-1 = any cached result, 0 = always fresh)",
+        ),
+    ],
+    timeout: Annotated[
+        int,
+        Field(
+            ge=5,
+            le=300,
+            default=60,
+            description="Query execution timeout in seconds if not cached (max 300)",
+        ),
+    ],
+    parameters: Annotated[
+        dict[str, Any] | None, Field(None, description="Parameter values for parameterized queries")
+    ] = None,
+) -> ToolQueryResult:
     """
-    Essential guide for working with AssetDB - read this before writing SQL queries.
+    Execute a saved query and get its results with smart caching.
 
-    AssetDB is Stacklet's massive cloud asset warehouse containing billions of records
-    across resources, costs, tags, and relationships. This guide explains the schema,
-    performance best practices, and common query patterns.
+    This runs a previously saved query and returns links to the results in various
+    formats, which can be used to access the data in a preferred format. Redash caches
+    results to improve performance - use max_age to control cache behavior.
 
-    ⚠️  Critical: Many tables are extremely large and require careful indexing and
-    filtering to avoid timeouts. This guide shows you how to query safely and efficiently.
+    Parameters are required for parameterized queries - check the query definition
+    first using assetdb_query_get() to see what parameters are expected.
     """
-    return info_tool_result(get_file_text("assetdb/sql_info.md"))
+    client = AssetDBClient.get(ctx)
+
+    query_result = await client.execute_saved_query(
+        query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout
+    )
+    query = await client.get_query(query_id)
+    return _tool_query_result(client, query_result, query)
+
+
+@json_guard
+async def assetdb_sql_query(
+    ctx: Context,
+    query: Annotated[
+        str, Field(min_length=1, description="SQL query string to execute against AssetDB")
+    ],
+    max_age: Annotated[
+        int,
+        Field(
+            ge=-1,
+            default=3600,
+            description="Maximum age of cached results in seconds "
+            "(-1 = any cached result, 0 = always fresh)",
+        ),
+    ],
+    timeout: Annotated[
+        int,
+        Field(ge=5, le=300, default=60, description="Query execution timeout in seconds (max 300)"),
+    ],
+) -> ToolQueryResult:
+    """
+    Execute custom SQL queries directly against the AssetDB data warehouse.
+
+    ⚠️  IMPORTANT: AssetDB contains massive datasets. Always use LIMIT clauses and
+    indexed filters to avoid timeouts. Call assetdb_sql_info() first to understand
+    the schema and best practices.
+
+    This tool is for ad-hoc analysis and exploration. For frequently-used queries,
+    consider saving them with assetdb_query_save() for better performance and reuse.
+    """
+    client = AssetDBClient.get(ctx)
+    query_result = await client.execute_adhoc_query(query, max_age=max_age, timeout=timeout)
+    return _tool_query_result(client, query_result, None)
 
 
 def _tool_query_result(
@@ -342,17 +351,18 @@ def _tool_query_result(
     """
     # We've always got the whole dataset, but we generally don't want to dump it
     # all into context. Preserve the whole thing for analysis with other tools.
-    with SETTINGS.download_file("w", f"assetdb_{query_result.id}", ".json") as f:
+    identity = f"{query.id}_{query_result.id}" if query else f"{query_result.id}"
+    with SETTINGS.download_file("w", f"assetdb_{identity}", ".json") as f:
         json.dump(query_result.model_dump(mode="json"), f, ensure_ascii=False)
-        downloaded_to = f.name
+        full_results_saved_to = f.name
 
-    shareable_links = None
+    alternate_formats = None
     if query:
         # If we've got an actual Query, we can use its API key to give back
         # handles to the data in all available formats.
         result_urls = client.get_query_result_urls(query, query_result)
-        shareable_links = [
-            QueryResultDownloadDetails(format=fmt, available_at=url)
+        alternate_formats = [
+            ToolQueryResultArtifact(format=fmt, download_from=url)
             for fmt, url in result_urls.items()
         ]
 
@@ -362,9 +372,10 @@ def _tool_query_result(
         query_id=query.id if query else None,
         query_text=query_result.query,
         query_runtime=query_result.runtime,
+        query_timestamp=query_result.retrieved_at,
         columns=query_result.data.columns,
         row_count=len(query_result.data.rows),
         some_rows=query_result.data.rows[:20],
-        downloaded_to=downloaded_to,
-        shareable_links=shareable_links,
+        full_results_saved_to=full_results_saved_to,
+        alternate_formats=alternate_formats,
     )

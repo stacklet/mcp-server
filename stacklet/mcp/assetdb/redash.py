@@ -127,7 +127,7 @@ class AssetDBClient:
         payload = {"max_age": max_age, "parameters": parameters or {}}
         return await self._execute_results(f"api/queries/{query_id}/results", payload, timeout)
 
-    async def execute_adhoc_query(self, query: str, timeout: int) -> QueryResult:
+    async def execute_adhoc_query(self, query: str, max_age: int, timeout: int) -> QueryResult:
         """
         Execute an ad-hoc SQL query without saving it.
 
@@ -141,7 +141,7 @@ class AssetDBClient:
         payload = {
             "query": query,
             "data_source_id": self.data_source_id,
-            "max_age": 0,  # Force fresh results
+            "max_age": max_age,
             "parameters": {},
             "apply_auto_limit": True,
         }

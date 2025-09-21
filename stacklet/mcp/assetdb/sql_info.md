@@ -84,7 +84,7 @@ LIMIT {{limit}}
 
 **Security Note:** Queries with `text` parameters are marked as "unsafe" because parameters use template substitution (not prepared statements), making them potentially vulnerable to SQL injection. Prefer validated parameter types (`number`, `date`, `query`) when possible.
 
-**Usage:** Call `assetdb_query_results(query_id, parameters={"value": "'Test'", "limit": 5})`
+**Usage:** Call `assetdb_query_result(query_id, parameters={"value": "'Test'", "limit": 5})`
 
 ### **Dropdown Parameters**
 
@@ -108,7 +108,7 @@ SELECT account_name as name, account_id as value FROM accounts
 
 **Usage:** The parameter gets the `value` from the selected option:
 ```python
-assetdb_query_results(query_id, parameters={"account_filter": "123456"})
+assetdb_query_result(query_id, parameters={"account_filter": "123456"})
 # User saw "Production" but parameter receives "123456"
 ```
 

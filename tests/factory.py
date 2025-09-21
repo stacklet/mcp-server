@@ -119,7 +119,23 @@ def redash_job_response(
             "updated_at": updated_at,
             "status": status,
             "error": error,
-            "result": query_result_id,
+            "result": query_result_id,  # this matches redash, but we ignore it
             "query_result_id": query_result_id,
         }
+    }
+
+
+def redash_query_result_response(result_id: int) -> dict[str, Any]:
+    return {
+        "query_result": {
+            "id": result_id,
+            "query": "SELECT 1 AS col",
+            "data": {
+                "columns": [{"name": "col", "type": "int", "friendly_name": "Col"}],
+                "rows": [{"col": i} for i in range(100)],  # yes, doesn't match query
+            },
+            "data_source_id": 1,
+            "runtime": 0.1,
+            "retrieved_at": "2024-01-01T00:00:00Z",
+        },
     }

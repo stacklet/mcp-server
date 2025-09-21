@@ -73,7 +73,6 @@ class Query(BaseModel):
     description: str | None = Field(None, description="Query description or documentation")
     query: str = Field(..., description="SQL query text")
     api_key: str = Field(..., description="API key for accessing this query")
-    is_archived: bool = Field(..., description="Whether the query has been archived")
     is_draft: bool = Field(..., description="Whether the query is in draft status")
     updated_at: datetime = Field(..., description="Timestamp of last modification")
     created_at: datetime = Field(..., description="Timestamp when query was created")
@@ -154,7 +153,7 @@ class QueryUpsert(BaseModel):
         return payload
 
 
-class QueryListPagination(BaseModel):
+class ToolQueryListPagination(BaseModel):
     """Pagination metadata for query list responses."""
 
     page: int = Field(..., description="Current page number (1-based)")
@@ -165,7 +164,7 @@ class QueryListPagination(BaseModel):
     )
 
 
-class QueryListItem(BaseModel):
+class ToolQueryListItem(BaseModel):
     """Simplified query information for list responses."""
 
     id: int = Field(..., description="Unique query ID")
@@ -173,26 +172,17 @@ class QueryListItem(BaseModel):
     description: str | None = Field(..., description="Query description or documentation")
     has_parameters: bool = Field(..., description="Whether the query accepts parameters")
     data_source_id: int = Field(..., description="ID of the data source this query runs against")
-    is_archived: bool = Field(..., description="Whether the query has been archived")
     is_draft: bool = Field(..., description="Whether the query is in draft status")
     is_favorite: bool = Field(..., description="Whether the query is marked as favorite")
     tags: list[str] = Field(..., description="List of tags for categorizing the query")
     user: User = Field(..., description="User who created the query")
 
 
-class QueryListResult(BaseModel):
+class ToolQueryList(BaseModel):
     """Complete response for query list operations."""
 
-    queries: list[QueryListItem] = Field(..., description="List of queries on the current page")
-    pagination: QueryListPagination = Field(..., description="Pagination information")
-
-
-class DownloadResult(BaseModel):
-    """Result of downloading query results to a file."""
-
-    downloaded_to: str = Field(..., description="Path where the file was saved")
-    format: str = Field(..., description="Format of the downloaded file")
-    result_id: int = Field(..., description="ID of the query result that was downloaded")
+    queries: list[ToolQueryListItem] = Field(..., description="List of queries on the current page")
+    pagination: ToolQueryListPagination = Field(..., description="Pagination information")
 
 
 class QueryResultColumn(BaseModel):
@@ -205,7 +195,7 @@ class QueryResultColumn(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class QueryResultContent(BaseModel):
+class QueryResultData(BaseModel):
     """The data structure within a query result containing columns and rows."""
 
     columns: list[QueryResultColumn] = Field(
@@ -223,29 +213,19 @@ class QueryResult(BaseModel):
 
     id: int = Field(..., description="Query result ID")
     query: str = Field(..., description="The SQL query text that was executed")
-    data: QueryResultContent = Field(..., description="Query result data with columns and rows")
+    data: QueryResultData = Field(..., description="Query result data with columns and rows")
     data_source_id: int = Field(..., description="ID of the data source used")
-    runtime: float | None = Field(None, description="Query execution time in seconds")
+    runtime: float = Field(..., description="Query execution time in seconds")
     retrieved_at: datetime = Field(..., description="When the query result was retrieved")
 
     model_config = ConfigDict(extra="ignore")
 
 
-class QueryResultDownloadDetails(BaseModel):
+class ToolQueryResultArtifact(BaseModel):
     """Query download details for a data format."""
 
     format: ExportFormat = Field(..., description="Export format for the query result download")
-    available_at: str = Field(..., description="URL to download the data in the specified format")
-
-
-class QueryDownloadResults(BaseModel):
-    """Details about how to access query results."""
-
-    result_id: int = Field(..., description="ID of the specific query result execution")
-    query_id: int = Field(..., description="ID of the saved query that was executed")
-    downloads: list[QueryResultDownloadDetails] = Field(
-        ..., description="Available download links for the query results in different formats"
-    )
+    download_from: str = Field(..., description="URL to download the data in the specified format")
 
 
 class ToolQueryResult(BaseModel):
@@ -259,9 +239,10 @@ class ToolQueryResult(BaseModel):
 
     # These fields come directly from the redash QueryResult.
     query_text: str = Field(..., description="The SQL query text that was executed")
-    query_runtime: float | None = Field(None, description="Query execution time in seconds")
+    query_runtime: float = Field(..., description="Query execution duration in seconds")
+    query_timestamp: datetime = Field(..., description="Query execution finish timestamp")
     columns: list[QueryResultColumn] = Field(
-        ..., description="Column definitions, name is key into each row"
+        ..., description="Column definitions; sparse row dicts are keyed on column name"
     )
 
     # These fields are derived from the QueryResult rows.
@@ -270,12 +251,13 @@ class ToolQueryResult(BaseModel):
         ..., description="Sample of up to 20 rows from the query result for preview"
     )
 
-    # Complete result data is always saved locally for further analysis.
-    downloaded_to: str = Field(
+    # Complete result data is always saved locally for further analysis. (We don't *have*
+    # to do this on every path, but we do on *some*, so we choose consistency.)
+    full_results_saved_to: str = Field(
         ..., description="Local path where complete result data was saved as JSON"
     )
 
     # Available only for saved queries (not ad-hoc queries) that have API keys.
-    shareable_links: list[QueryResultDownloadDetails] | None = Field(
-        ..., description="Download URLs for different formats, None for ad-hoc queries"
+    alternate_formats: list[ToolQueryResultArtifact] | None = Field(
+        None, description="Download URLs for different formats, None for ad-hoc queries"
     )

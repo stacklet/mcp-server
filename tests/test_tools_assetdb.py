@@ -90,7 +90,6 @@ class TestQueryList(MCPCookieTest):
                     "description": "The first one",
                     "has_parameters": True,
                     "data_source_id": 1,
-                    "is_archived": False,
                     "is_draft": False,
                     "is_favorite": True,
                     "tags": ["production", "monitoring"],
@@ -106,7 +105,6 @@ class TestQueryList(MCPCookieTest):
                     "description": None,
                     "has_parameters": False,
                     "data_source_id": 1,
-                    "is_archived": False,
                     "is_draft": True,
                     "is_favorite": False,
                     "tags": [],
@@ -387,7 +385,7 @@ class TestQueryArchive(MCPCookieTest):
         }
 
 
-class QueryResultsTest(MCPCookieTest):
+class QueryResultTest(MCPCookieTest):
     QUERY_ID = None
     JOB_ID = "job-456"
     RESULT_ID = 789
@@ -406,7 +404,7 @@ class QueryResultsTest(MCPCookieTest):
             response=response,
         )
 
-    def expect_get_results(self, response):
+    def expect_get_result(self, response):
         return ExpectRequest(
             f"https://redash.example.com/api/query_results/{self.RESULT_ID}",
             response=response,
@@ -427,23 +425,12 @@ class QueryResultsTest(MCPCookieTest):
         )
 
     def result_response(self):
-        return {
-            "query_result": {
-                "id": self.RESULT_ID,
-                "query": "SELECT 1 AS col",
-                "data": {
-                    "columns": [{"name": "col", "type": "int", "friendly_name": "Col"}],
-                    "rows": [{"col": i} for i in range(100)],  # yes, doesn't match query
-                },
-                "data_source_id": 1,
-                "runtime": 0.1,
-                "retrieved_at": "2024-01-01T00:00:00Z",
-            },
-        }
+        return factory.redash_query_result_response(self.RESULT_ID)
 
     async def assert_tool_call(self, params, *expect_http, expect_error=None):
         with self.http.expect(*expect_http):
             result = await self.assert_call(params, error=bool(expect_error))
+
         if expect_error:
             assert result.text == f"Error calling tool '{self.tool_name}': " + expect_error
         else:
@@ -454,7 +441,7 @@ class QueryResultsTest(MCPCookieTest):
         assert actual["result_id"] == self.RESULT_ID
         assert actual["query_id"] == self.QUERY_ID
 
-        with open(actual["downloaded_to"]) as f:
+        with open(actual["full_results_saved_to"]) as f:
             original = json.load(f)
 
         assert actual["query_text"] == original["query"]
@@ -463,27 +450,24 @@ class QueryResultsTest(MCPCookieTest):
         assert actual["some_rows"] == original["data"]["rows"][:20]
         assert actual["row_count"] == len(original["data"]["rows"])
 
-        links = actual["shareable_links"]
+        links = actual["alternate_formats"]
         if not self.QUERY_ID:
             assert links is None
         else:
             prefix = (
                 f"https://redash.example.com/api/queries/{self.QUERY_ID}/results/{self.RESULT_ID}"
             )
-            assert actual["shareable_links"] == [
-                {"format": "csv", "available_at": f"{prefix}.csv?api_key=test-api-key"},
-                {"format": "json", "available_at": f"{prefix}.json?api_key=test-api-key"},
-                {"format": "tsv", "available_at": f"{prefix}.tsv?api_key=test-api-key"},
-                {"format": "xlsx", "available_at": f"{prefix}.xlsx?api_key=test-api-key"},
+            assert actual["alternate_formats"] == [
+                {"format": "csv", "download_from": f"{prefix}.csv?api_key=test-api-key"},
+                {"format": "json", "download_from": f"{prefix}.json?api_key=test-api-key"},
+                {"format": "tsv", "download_from": f"{prefix}.tsv?api_key=test-api-key"},
+                {"format": "xlsx", "download_from": f"{prefix}.xlsx?api_key=test-api-key"},
             ]
 
 
-class TestQueryResults(QueryResultsTest):
-    tool_name = "assetdb_query_results"
+class TestQueryResult(QueryResultTest):
+    tool_name = "assetdb_query_result"
     QUERY_ID = 123
-
-    def call_params(self, **override):
-        return {"query_id": self.QUERY_ID} | override
 
     def post_data(self, **override):
         return {
@@ -491,20 +475,47 @@ class TestQueryResults(QueryResultsTest):
             "parameters": {},
         } | override
 
+    @json_guard_parametrize([QUERY_ID])
+    async def test_query_id(self, mangle, value):
+        await self.assert_tool_call(
+            {"query_id": mangle(value)},
+            self.expect_post(self.post_data(), self.result_response()),
+            self.expect_get_query(q123()),
+        )
+
+    @json_guard_parametrize([-1, 0, 3600, 3600 * 24 * 365])
+    async def test_max_age(self, mangle, value):
+        await self.assert_tool_call(
+            {"query_id": self.QUERY_ID, "max_age": mangle(value)},
+            self.expect_post(self.post_data(max_age=value), self.result_response()),
+            self.expect_get_query(q123()),
+        )
+
+    @json_guard_parametrize([None, {}, {"arbitrary": {"nested": "values"}}])
+    async def test_parameters(self, mangle, value):
+        await self.assert_tool_call(
+            {"query_id": self.QUERY_ID, "parameters": mangle(value)},
+            self.expect_post(self.post_data(parameters=value or {}), self.result_response()),
+            self.expect_get_query(q123()),
+        )
+
+    # The tests from here down are _very similar_ but not quite all
+    # identical to those in TestSQLQuery.
+
     @json_guard_parametrize([30, 120])
     async def test_instant_result(self, mangle, value):
         await self.assert_tool_call(
-            self.call_params(timeout=mangle(value)),
+            {"query_id": self.QUERY_ID, "timeout": mangle(value)},
             self.expect_post(self.post_data(), self.result_response()),
             self.expect_get_query(q123()),
         )
 
     async def test_job_immediate_success(self, async_sleeps):
         await self.assert_tool_call(
-            self.call_params(),
+            {"query_id": self.QUERY_ID},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.FINISHED)),
-            self.expect_get_results(self.result_response()),
+            self.expect_get_result(self.result_response()),
             self.expect_get_query(q123()),
         )
         assert async_sleeps == []
@@ -512,12 +523,12 @@ class TestQueryResults(QueryResultsTest):
     async def test_job_multi_status_transition(self, async_sleeps):
         """Test async job progressing through QUEUED → STARTED → FINISHED."""
         await self.assert_tool_call(
-            self.call_params(),
+            {"query_id": self.QUERY_ID},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.STARTED)),
             self.expect_get_job(self.job_response(JobStatus.FINISHED)),
-            self.expect_get_results(self.result_response()),
+            self.expect_get_result(self.result_response()),
             self.expect_get_query(q123()),
         )
         assert async_sleeps == [2, 4]
@@ -525,7 +536,7 @@ class TestQueryResults(QueryResultsTest):
     @json_guard_parametrize([60])
     async def test_job_timeout(self, mangle, value, async_sleeps):
         await self.assert_tool_call(
-            self.call_params(timeout=mangle(value)),
+            {"query_id": self.QUERY_ID, "timeout": mangle(value)},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.QUEUED)),
@@ -540,7 +551,7 @@ class TestQueryResults(QueryResultsTest):
     async def test_job_failure(self):
         """Test async job that fails (QUEUED → FAILED)."""
         await self.assert_tool_call(
-            self.call_params(),
+            {"query_id": self.QUERY_ID},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.FAILED)),
             expect_error="Query execution failed: Oh no borken",
@@ -551,60 +562,67 @@ class TestQueryResults(QueryResultsTest):
         # This _should_ in fact never happen but it serves to test the terminal-
         # state-with-no-error-message behaviour.
         await self.assert_tool_call(
-            self.call_params(),
+            {"query_id": self.QUERY_ID},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.CANCELED)),
             expect_error="Query execution failed: Unknown error.",
         )
 
 
-class TestSQLQuery(QueryResultsTest):
+class TestSQLQuery(QueryResultTest):
     tool_name = "assetdb_sql_query"
-
-    def call_params(self, **override):
-        return {"query": "SELECT 1"} | override
 
     def post_data(self, **override):
         return {
             "query": "SELECT 1",
             "data_source_id": 1,
-            "max_age": 0,
+            "max_age": 3600,
             "parameters": {},
             "apply_auto_limit": True,
         } | override
 
+    @json_guard_parametrize([-1, 0, 3600, 3600 * 24 * 365])
+    async def test_max_age(self, mangle, value):
+        await self.assert_tool_call(
+            {"query": "SELECT 1", "max_age": mangle(value)},
+            self.expect_post(self.post_data(max_age=value), self.result_response()),
+        )
+
+    # The tests from here down are _very similar_ but not quite all
+    # identical to those in TestQueryResult.
+
     @json_guard_parametrize([30, 120])
     async def test_instant_result(self, mangle, value):
         await self.assert_tool_call(
-            self.call_params(timeout=mangle(value)),
+            {"query": "SELECT 1", "timeout": mangle(value)},
             self.expect_post(self.post_data(), self.result_response()),
         )
 
     async def test_job_immediate_success(self, async_sleeps):
         await self.assert_tool_call(
-            self.call_params(),
+            {"query": "SELECT 1"},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.FINISHED)),
-            self.expect_get_results(self.result_response()),
+            self.expect_get_result(self.result_response()),
         )
         assert async_sleeps == []
 
     async def test_job_multi_status_transition(self, async_sleeps):
         """Test async job progressing through QUEUED → STARTED → FINISHED."""
         await self.assert_tool_call(
-            self.call_params(),
+            {"query": "SELECT 1"},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.STARTED)),
             self.expect_get_job(self.job_response(JobStatus.FINISHED)),
-            self.expect_get_results(self.result_response()),
+            self.expect_get_result(self.result_response()),
         )
         assert async_sleeps == [2, 4]
 
     @json_guard_parametrize([60])
     async def test_job_timeout(self, mangle, value, async_sleeps):
         await self.assert_tool_call(
-            self.call_params(timeout=mangle(value)),
+            {"query": "SELECT 1", "timeout": mangle(value)},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.QUEUED)),
@@ -619,7 +637,7 @@ class TestSQLQuery(QueryResultsTest):
     async def test_job_failure(self):
         """Test async job that fails (QUEUED → FAILED)."""
         await self.assert_tool_call(
-            self.call_params(),
+            {"query": "SELECT 1"},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.FAILED)),
             expect_error="Query execution failed: Oh no borken",
@@ -630,7 +648,7 @@ class TestSQLQuery(QueryResultsTest):
         # This _should_ in fact never happen but it serves to test the terminal-
         # state-with-no-error-message behaviour.
         await self.assert_tool_call(
-            self.call_params(),
+            {"query": "SELECT 1"},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.CANCELED)),
             expect_error="Query execution failed: Unknown error.",
@@ -654,19 +672,3 @@ def q456():
         name="Test Query 2",
         is_draft=True,
     )
-
-
-def query_result_response(result_id: int):
-    return {
-        "query_result": {
-            "id": result_id,
-            "query": "SELECT 1 AS col",
-            "data": {
-                "columns": [{"name": "col", "type": "int", "friendly_name": "Col"}],
-                "rows": [{"col": 1}],
-            },
-            "data_source_id": 1,
-            "runtime": 0.1,
-            "retrieved_at": "2024-01-01T00:00:00Z",
-        },
-    }
