@@ -1,3 +1,8 @@
+# LICENSE HEADER MANAGED BY add-license-header
+#
+# Copyright (c) 2025 Stacklet, Inc.
+#
+
 import pytest
 
 from stacklet.mcp.utils.text import get_file_text

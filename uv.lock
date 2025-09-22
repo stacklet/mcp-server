@@ -3,6 +3,18 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
+name = "add-license-header"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "identify" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/e5/6935d8e6b1f0a1388038bda6e497d3a5ec8ddee0e2a68f3f0311d518af16/add_license_header-2.4.0.tar.gz", hash = "sha256:3d2425313de44aad9dee75c7eadce1113da6c887a05c33b7fef90ab24b971daa", size = 6564, upload-time = "2025-06-07T22:28:50.011Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/9a/43b1bdf6925a205f50b4c9ce34266c935f8a7e3d7559d40056062f33573d/add_license_header-2.4.0-py3-none-any.whl", hash = "sha256:e0e056e55deaa36e7100351a5821e465461b28afbde9474d6bd57028bf53588f", size = 7608, upload-time = "2025-06-07T22:28:48.794Z" },
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1245,6 +1257,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "add-license-header" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pyproject-fmt" },
@@ -1265,12 +1278,13 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "add-license-header", specifier = ">=2.4.0" },
     { name = "mypy", specifier = ">=1.8" },
     { name = "pre-commit", specifier = ">=4.2" },
     { name = "pyproject-fmt", specifier = ">=2.6" },
     { name = "pytest", specifier = ">=7" },
     { name = "pytest-asyncio", specifier = ">=0.21" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pytest-cov", specifier = ">=7" },
     { name = "ruff", specifier = ">=0.12" },
 ]
 

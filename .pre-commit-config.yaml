@@ -29,3 +29,13 @@ repos:
         additional_dependencies:
           - fastmcp
           - pydantic
+
+  - repo: https://github.com/arkinmodi/add-license-header
+    rev: v2.4.0
+    hooks:
+      - id: add-license-header
+        args:
+          - --single-year-if-same
+          - --year-delimiter='-'
+          - --license-file=license-header.tpl
+        files: ^.*\.py$

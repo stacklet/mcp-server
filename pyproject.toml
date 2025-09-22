@@ -25,6 +25,7 @@ scripts.stacklet-mcp = "stacklet.mcp.mcp:main"
 
 [dependency-groups]
 dev = [
+  "add-license-header>=2.4",
   "mypy>=1.8",
   "pre-commit>=4.2",
   "pyproject-fmt>=2.6",
