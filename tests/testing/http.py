@@ -104,13 +104,11 @@ def mock_http_request(monkeypatch, mock_stacklet_credentials):
     controller = ExpectedRequestsController()
 
     async def mock_request(self, method, url, **kwargs):
-        print("request", method, url)
         assert self.cookies["stacklet-auth"] == mock_stacklet_credentials.identity_token
         return controller.next_request().respond(method, url, **kwargs)
 
     def mock_stream(self, method, url, **kwargs):
         """Mock stream method that returns the response directly for async context manager use."""
-        print("stream", method, url)
         assert self.cookies["stacklet-auth"] == mock_stacklet_credentials.identity_token
         return controller.next_request().respond(method, url, **kwargs)
 
