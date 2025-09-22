@@ -1,3 +1,8 @@
+# LICENSE HEADER MANAGED BY add-license-header
+#
+# Copyright (c) 2025 Stacklet, Inc.
+#
+
 """
 Test data factories for creating mock AssetDB responses that match real Redash API format.
 """

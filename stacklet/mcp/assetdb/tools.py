@@ -1,3 +1,8 @@
+# LICENSE HEADER MANAGED BY add-license-header
+#
+# Copyright (c) 2025 Stacklet, Inc.
+#
+
 from typing import Annotated, Any, Callable
 
 from fastmcp import Context

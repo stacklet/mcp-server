@@ -1,3 +1,8 @@
+# LICENSE HEADER MANAGED BY add-license-header
+#
+# Copyright (c) 2025 Stacklet, Inc.
+#
+
 from textwrap import dedent
 from unittest.mock import MagicMock
 
