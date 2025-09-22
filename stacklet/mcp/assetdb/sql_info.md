@@ -112,6 +112,27 @@ assetdb_query_result(query_id, parameters={"account_filter": "123456"})
 # User saw "Production" but parameter receives "123456"
 ```
 
+**🤖 LLM Parameter Discovery Workflow:**
+
+1. **Check query definition:** `mcp__Stacklet__assetdb_query_get(query_id)` to see parameter structure
+2. **For dropdown parameters with `"queryId"`:** Execute the source query first: `mcp__Stacklet__assetdb_query_result(query_id=dropdown_source_id)`
+3. **Use the `value` field** from dropdown results, never the `name` field
+4. **400 errors usually mean** invalid parameter values - re-check the dropdown source query for valid options
+
+**Example:**
+```python
+# Query 74 has parameter: {"name": "resource_type_filter", "type": "query", "queryId": 73}
+# Step 1: Get valid dropdown values
+options = mcp__Stacklet__assetdb_query_result(query_id=73)
+valid_values = [row['value'] for row in options['some_rows']]  # ["aws.ec2", "aws.s3", ...]
+
+# Step 2: Use discovered value
+result = mcp__Stacklet__assetdb_query_result(
+    query_id=74,
+    parameters={"resource_type_filter": "aws.ec2"}  # ← from options above
+)
+```
+
 ### **Query Execution Behavior**
 
 **Result Format Availability:**
