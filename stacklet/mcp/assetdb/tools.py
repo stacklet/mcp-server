@@ -284,6 +284,12 @@ async def assetdb_query_result(
 
     Parameters are required for parameterized queries - check the query definition
     first using assetdb_query_get() to see what parameters are expected.
+
+    **Result Handling:**
+    - Only the first 20 rows are included in the response to reduce context usage
+    - Complete query results are automatically saved to a temporary JSON file for analysis
+    - Download links include authentication and can be used directly to access full datasets
+    - All formats are available for any successfully executed query, even if it returns 0 rows
     """
     client = AssetDBClient.get(ctx)
 
@@ -323,6 +329,12 @@ async def assetdb_sql_query(
 
     This tool is for ad-hoc analysis and exploration. For frequently-used queries,
     consider saving them with assetdb_query_save() for better performance and reuse.
+
+    **Result Handling:**
+    - Only the first 20 rows are included in the response to reduce context usage
+    - Complete query results are automatically saved to a temporary JSON file for analysis
+    - For alternate formats, save the query first with assetdb_query_save() then use
+      assetdb_query_result()
     """
     client = AssetDBClient.get(ctx)
     query_result = await client.execute_adhoc_query(query, max_age=max_age, timeout=timeout)
@@ -336,10 +348,15 @@ def _tool_query_result(
     Convert a raw QueryResult into an LLM-friendly ToolQueryResult.
 
     This helper function processes query results by:
-    - Saving the complete result data to a local JSON file for analysis
+    - Saving the complete result data to a temporary JSON file for analysis with other tools
     - Truncating row data to first 20 rows for context efficiency
-    - Generating shareable download links when a saved query is provided
+    - Generating authenticated download links when a saved query is provided
     - Creating a structured response suitable for LLM consumption
+
+    **Download Behavior:**
+    - Saved queries (query != None): Provides alternate_formats with download links
+    - Ad-hoc queries (query == None): No alternate_formats, only local JSON file saved
+    - All download links include API key authentication for direct access
 
     Args:
         client: AssetDB client for generating download URLs
@@ -347,7 +364,7 @@ def _tool_query_result(
         query: Optional saved query object (None for ad-hoc queries)
 
     Returns:
-        ToolQueryResult with truncated data and download options
+        ToolQueryResult with truncated data and download options (if available)
     """
     # We've always got the whole dataset, but we generally don't want to dump it
     # all into context. Preserve the whole thing for analysis with other tools.
