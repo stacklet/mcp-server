@@ -6,6 +6,7 @@ from fastmcp import Context
 from pydantic import Field
 
 from ..settings import SETTINGS
+from ..utils.file import download_file
 from ..utils.json import json_guard
 from ..utils.text import get_file_text
 from ..utils.tool import ToolsetInfo, info_tool_result
@@ -369,7 +370,7 @@ def _tool_query_result(
     # We've always got the whole dataset, but we generally don't want to dump it
     # all into context. Preserve the whole thing for analysis with other tools.
     identity = f"{query.id}_{query_result.id}" if query else f"{query_result.id}"
-    with SETTINGS.download_file("w", f"assetdb_{identity}", ".json") as f:
+    with download_file("w", f"assetdb_{identity}", ".json") as f:
         json.dump(query_result.model_dump(mode="json"), f, ensure_ascii=False)
         full_results_saved_to = f.name
 
