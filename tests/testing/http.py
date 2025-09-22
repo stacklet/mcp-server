@@ -34,20 +34,6 @@ class MockHTTPXResponse:
                 response=self,  # type:ignore
             )
 
-    async def __aenter__(self):
-        """Support async context manager for streaming responses."""
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Support async context manager for streaming responses."""
-        return False
-
-    async def aiter_bytes(self, chunk_size=1024):
-        """Async iterator for response bytes in chunks."""
-        data = self._data.encode() if isinstance(self._data, str) else self._data
-        for i in range(0, len(data), chunk_size):
-            yield data[i : i + chunk_size]
-
 
 class ExpectRequest:
     def __init__(self, url, *, method="GET", data=None, status_code=200, response: Any = ""):
@@ -107,13 +93,7 @@ def mock_http_request(monkeypatch, mock_stacklet_credentials):
         assert self.cookies["stacklet-auth"] == mock_stacklet_credentials.identity_token
         return controller.next_request().respond(method, url, **kwargs)
 
-    def mock_stream(self, method, url, **kwargs):
-        """Mock stream method that returns the response directly for async context manager use."""
-        assert self.cookies["stacklet-auth"] == mock_stacklet_credentials.identity_token
-        return controller.next_request().respond(method, url, **kwargs)
-
     monkeypatch.setattr("httpx.AsyncClient.request", mock_request)
-    monkeypatch.setattr("httpx.AsyncClient.stream", mock_stream)
 
     return controller
 
@@ -127,13 +107,7 @@ def _mock_http_request_with_auth_check(monkeypatch, mock_stacklet_credentials, a
         auth_check_func(self, mock_stacklet_credentials)
         return controller.next_request().respond(method, url, **kwargs)
 
-    def mock_stream(self, method, url, **kwargs):
-        """Mock streaming requests - returns the response directly as async context manager."""
-        auth_check_func(self, mock_stacklet_credentials)
-        return controller.next_request().respond(method, url, **kwargs)
-
     monkeypatch.setattr("httpx.AsyncClient.request", mock_request)
-    monkeypatch.setattr("httpx.AsyncClient.stream", mock_stream)
     return controller
 
 
