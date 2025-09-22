@@ -16,7 +16,6 @@ from urllib.parse import urljoin
 import httpx
 
 from fastmcp import Context
-from fastmcp.utilities.logging import get_logger
 
 from ..lifespan import server_cached
 from ..settings import SETTINGS
@@ -63,7 +62,6 @@ class AssetDBClient:
             Decoded response JSON
         """
         url = urljoin(self.redash_url, endpoint)
-        get_logger("stacklet").info(f"REQUEST {method} {endpoint} {kwargs}")
         response = await self.session.request(method, url, **kwargs)
         response.raise_for_status()
         return response.json()
