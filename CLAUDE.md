@@ -11,9 +11,11 @@ This is an MCP (Model Context Protocol) server that provides comprehensive tools
 The codebase follows a modular design with clear separation of concerns:
 
 **Core Components:**
-- `stacklet/mcp/mcp.py` - Main FastMCP server with tool definitions
+- `stacklet/mcp/server.py` - Server factory that creates the FastMCP instance
+- `stacklet/mcp/mcp.py` - Main entry point with CLI integration
+- `stacklet/mcp/cmdline.py` - Command line interface with agent config generation
 - `stacklet/mcp/stacklet_auth.py` - Authentication credential loading
-- `stacklet/mcp/utils/` - Utility functions package for tool implementations
+- `stacklet/mcp/utils/` - Utility functions package (text, json, mcp_json, tool helpers)
 - `stacklet/mcp/settings.py` - Server configuration and feature flags
 - `stacklet/mcp/lifespan.py` - Application lifespan management
 
@@ -63,9 +65,12 @@ uv run stacklet-mcp
 
 **Development commands (via justfile):**
 ```bash
-just format    # Format code with ruff
-just lint      # Run pre-commit hooks
-just test      # Run pytest with optional args
+just install      # Install dependencies and generate .mcp.json if needed
+just lint         # Run pre-commit hooks (formatters and linters)
+just test         # Run pytest with optional args
+just test-coverage # Run tests with coverage reporting
+just inspect      # Run MCP inspector tool
+just agent-config # Generate .mcp.json configuration
 ```
 
 
@@ -162,10 +167,31 @@ type annotation to encode (and advertise to clients!) expectations. Obvious exam
 - assetdb result timeout
 - query_id >= 1
 
+## Agent Configuration
+
+**MCP Client Configuration:**
+The server supports generating `.mcp.json` configuration files for Claude Desktop and other MCP clients:
+
+```bash
+# List available profiles
+just run agent-config list
+
+# Generate configuration for default profile (restricted)
+just run agent-config generate default
+
+# Generate configuration for unrestricted profile (all tools enabled)
+just run agent-config generate unrestricted
+```
+
+**Configuration Profiles:**
+- `default` - Safe profile with write operations disabled (assetdb_allow_save=false, assetdb_allow_archive=false, platform_allow_mutations=false)
+- `unrestricted` - Full access profile with all tools enabled
+
 ## Important Advice
 
 - When running python in this project, always use "uv run python".
 - When you've made code changes, verify them with "just test" and "just lint".
+- Use `just install` to set up the development environment and generate `.mcp.json` automatically.
 - You will find it useful to have access to the Redash source code as you work; this
   project talks to `https://github.com/stacklet/redash`, NOT the upstream project by
   `getredash`. Cloning that repository into a temp directory and using the filesystem

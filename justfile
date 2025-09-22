@@ -13,13 +13,7 @@ install:
 run *args:
     uv run stacklet-mcp {{args}}
 
-# Run code formatters
-format:
-    uv run ruff check --fix
-    uv run ruff format
-    - uv run pyproject-fmt -n pyproject.toml
-
-# Run code linters
+# Run code formatters/linters
 lint:
     uv run pre-commit run --all-files
 
