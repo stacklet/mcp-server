@@ -129,10 +129,18 @@ The server requires Stacklet credentials configured through one of:
 
 **Server Settings:**
 Additional configuration via environment variables with `STACKLET_MCP_` prefix:
+- `STACKLET_MCP_DOWNLOADS_PATH` (default: system temp directory) - Directory for storing query result files
 - `STACKLET_MCP_ASSETDB_DATASOURCE` (default: 1) - AssetDB data source ID
 - `STACKLET_MCP_ASSETDB_ALLOW_SAVE` (default: false) - Enable query save/update functionality
 - `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE` (default: false) - Enable query archiving functionality
 - `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS` (default: false) - Enable calling mutations in the Platform GraphQL API
+
+**File Storage:**
+Query results from AssetDB tools are automatically saved to the configured downloads directory:
+- Complete query results are saved as JSON files for analysis with other tools
+- Files use descriptive naming: `assetdb_{query_id}_{result_id}.json` (for saved queries) or `assetdb_{result_id}.json` (for ad-hoc queries)
+- The downloads directory is created automatically if it doesn't exist
+- Files persist after tool execution for further analysis
 
 **External Dependencies:**
 - Documentation files are fetched from the live Stacklet docs service at runtime

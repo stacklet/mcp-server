@@ -287,9 +287,8 @@ async def assetdb_query_result(
 
     **Result Handling:**
     - Only the first 20 rows are included in the response to reduce context usage
-    - Complete query results are automatically saved to a temporary JSON file for analysis
+    - Complete query results are saved as JSON files in the configured downloads directory
     - Download links include authentication and can be used directly to access full datasets
-    - All formats are available for any successfully executed query, even if it returns 0 rows
     """
     client = AssetDBClient.get(ctx)
 
@@ -332,7 +331,7 @@ async def assetdb_sql_query(
 
     **Result Handling:**
     - Only the first 20 rows are included in the response to reduce context usage
-    - Complete query results are automatically saved to a temporary JSON file for analysis
+    - Complete query results are saved as JSON files in the configured downloads directory
     - For alternate formats, save the query first with assetdb_query_save() then use
       assetdb_query_result()
     """
@@ -354,8 +353,9 @@ def _tool_query_result(
     - Creating a structured response suitable for LLM consumption
 
     **Download Behavior:**
+    - Local JSON files are saved to the directory specified by STACKLET_MCP_DOWNLOADS_PATH
     - Saved queries (query != None): Provides alternate_formats with download links
-    - Ad-hoc queries (query == None): No alternate_formats, only local JSON file saved
+    - Ad-hoc queries (query == None): No alternate_formats
     - All download links include API key authentication for direct access
 
     Args:
