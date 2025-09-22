@@ -32,3 +32,11 @@ inspect:
 # Generate agent configuration (.mcp.json)
 agent-config profile="default":
     just run agent-config generate {{profile}} > .mcp.json
+
+# Tag current commit with a release tag based on the project version
+tag-release:
+    #!/usr/bin/env bash
+    set -e
+
+    version="$(uv run python -c 'from stacklet.mcp import __version__; print(__version__)')"
+    git tag -a "$version" -m "Version $version"

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 requires = [ "hatchling" ]
 
 [project]
-name = "stacklet-mcp-server"
-description = "A simple MCP server using FastMCP 2"
+name = "stacklet-mcp"
+description = "MCP server for the Stacklet environment"
 requires-python = ">=3.12"
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
