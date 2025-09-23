@@ -28,7 +28,7 @@ pip install stacklet-mcp
 or
 
 ```
-uv install stacklet-mcp
+uv tool install stacklet-mcp
 ```
 
 Once installed, an agent configuration file (`.mcp.json`) can be generated with

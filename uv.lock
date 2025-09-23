@@ -1245,7 +1245,7 @@ wheels = [
 ]
 
 [[package]]
-name = "stacklet-mcp-server"
+name = "stacklet-mcp"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },

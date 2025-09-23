@@ -22,8 +22,8 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
-        exclude: ^tests/
         args: [--config-file=pyproject.toml]
+        exclude: ^tests/
         # some dependencies don't export types, so they're needed in the mypy
         # virtualenv
         additional_dependencies:
