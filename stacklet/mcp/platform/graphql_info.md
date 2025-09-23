@@ -69,3 +69,22 @@ query GetAccounts($first: Int!) {
 - Executions: Binding runs and policy execution results for analysis and troubleshooting
 
 **Related Tools**: `platform_dataset_info` for export guidance, AssetDB tools for warehouse queries
+
+## **Administrative Capabilities Available**
+
+The Platform GraphQL API provides extensive administrative mutations beyond the read-only operations shown above. These include:
+
+- **Account Discovery & Management**: `upsertAWSAccountDiscovery`, `triggerAccountDiscovery`, `updateAccountDiscoverySchedule`
+- **Notification & Communication Setup**: `addSlackProfile`, `addEmailProfile`, `addJiraProfile`, `upsertReportGroups`
+- **User & Role Management**: `addUser`, `updateRoleAssignment`, `upsertSSOGroups`
+- **Template Management**: `addTemplate`, template preview and validation
+- **Policy & Repository Operations**: `upsertPolicyCollectionMappings`, `processRepository`, `deployBinding`
+
+⚠️  **Important**: These mutations can make significant infrastructure changes. Before using them:
+
+1. **Read the comprehensive Platform API documentation** using the `docs_read` tool
+2. **Test in a non-production environment first**
+3. **Understand the full implications** of each mutation
+4. **Follow your organization's change management processes**
+
+For detailed examples, input schemas, and best practices, use `docs_read` to access the Platform API documentation rather than experimenting directly. Files with paths that start with `how-to/api/` are especially relevant.
