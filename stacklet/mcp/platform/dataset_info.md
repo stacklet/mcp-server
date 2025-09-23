@@ -9,7 +9,7 @@ Export GraphQL Connection data to CSV with filtering, custom columns, and JMESPa
 **Always check scope:**
 ```python
 # Test before full export
-mcp__stacklet__platform_graphql_query(
+platform_graphql_query(
     query="query { resources(first: 1, filterElement: {single: {name: \"provider\", value: \"aws\"}}) { pageInfo { total } } }"
 )
 ```
@@ -19,7 +19,7 @@ mcp__stacklet__platform_graphql_query(
 ## Basic Usage
 
 ```python
-mcp__stacklet__platform_dataset_export(
+platform_dataset_export(
     connection_field="accounts",
     columns=[
         {"name": "account_key", "path": "key"},
@@ -70,7 +70,7 @@ params=[{"name": "filterElement", "type": "FilterElementInput",
 
 **Export from node:**
 ```python
-mcp__stacklet__platform_dataset_export(
+platform_dataset_export(
     connection_field="groupMappings",
     node_id="WyJhY2NvdW50IiwgImdjcCIsICJzdGFja2xldC10ZXN0LXJ1bm5lciJd",
     columns=[{"name": "group_name", "path": "group.name"}]
@@ -91,7 +91,7 @@ mcp__stacklet__platform_dataset_export(
 
 **AWS VPC with tags:**
 ```python
-mcp__stacklet__platform_dataset_export(
+platform_dataset_export(
     connection_field="resources",
     columns=[
         {"name": "key", "path": "key"},

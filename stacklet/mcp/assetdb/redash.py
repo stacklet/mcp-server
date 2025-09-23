@@ -174,7 +174,8 @@ class AssetDBClient:
 
         job = Job(**response["job"])
         result_id = await self._poll_job(job, timeout)
-        return await self.get_query_result_data(result_id)
+        qr_response = await self._make_request("GET", f"api/query_results/{result_id}")
+        return QueryResult(**qr_response["query_result"])
 
     async def _poll_job(self, job: Job, timeout: int) -> int:
         """
@@ -202,19 +203,6 @@ class AssetDBClient:
                 raise RuntimeError(f"Query execution timed out after {timeout} seconds")
             await asyncio.sleep(min(interval_s, remaining_s))
             interval_s *= 2
-
-    async def get_query_result_data(self, result_id: int) -> QueryResult:
-        """
-        Get query result data by result ID.
-
-        Args:
-            result_id: ID of the query result to retrieve
-
-        Returns:
-            Query result data with columns and rows
-        """
-        response = await self._make_request("GET", f"api/query_results/{result_id}")
-        return QueryResult(**(cast(dict[str, Any], response)["query_result"]))
 
     def get_query_result_urls(
         self, query: Query, query_result: QueryResult

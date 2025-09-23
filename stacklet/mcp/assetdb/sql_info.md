@@ -12,7 +12,7 @@ Many AssetDB tables are extremely large. Always use LIMIT and indexed column fil
 |------------------------------------------|-------------------------------------|-----------------|--------------------------------------|
 | `resources`                              | Current resource JSON               | Very Large      | LIMIT + indexed filters required     |
 | `resource_revisions`                     | Resource history JSON               | Extremely Large | Primary key access only              |
-| `aws_ec2`, `gcp_gke_cluster`, etc.       | Provider-specific columns           | Large           | Preferred over raw JSON for analysis |
+| `aws_s3`, `gcp_gke_cluster`, etc.        | Provider-specific columns           | Large           | Preferred over raw JSON for analysis |
 | `resource_tags`, `resource_tags_mapping` | Tag analysis                        | Large           | Start here for tag queries           |
 | `account_cost`                           | Cost by date/service/account/region | Medium          | Best starting point for costs        |
 | `resource_cost_summaries`                | Monthly avg cost per resource       | Large           | More granular, incomplete coverage   |
@@ -114,22 +114,23 @@ assetdb_query_result(query_id, parameters={"account_filter": "123456"})
 
 **🤖 LLM Parameter Discovery Workflow:**
 
-1. **Check query definition:** `mcp__Stacklet__assetdb_query_get(query_id)` to see parameter structure
-2. **For dropdown parameters with `"queryId"`:** Execute the source query first: `mcp__Stacklet__assetdb_query_result(query_id=dropdown_source_id)`
+1. **Check query definition:** `assetdb_query_get(query_id)` to see parameter structure
+2. **For dropdown parameters with `"queryId"`:** Execute the source query first: `assetdb_query_result(query_id=dropdown_source_id)`
 3. **Use the `value` field** from dropdown results, never the `name` field
 4. **400 errors usually mean** invalid parameter values - re-check the dropdown source query for valid options
+5. **Always run the source query first** for query-type parameters to get valid dropdown values before executing the main query
 
 **Example:**
 ```python
 # Query 74 has parameter: {"name": "resource_type_filter", "type": "query", "queryId": 73}
 # Step 1: Get valid dropdown values
-options = mcp__Stacklet__assetdb_query_result(query_id=73)
-valid_values = [row['value'] for row in options['some_rows']]  # ["aws.ec2", "aws.s3", ...]
+options = assetdb_query_result(query_id=73)
+valid_values = [row['value'] for row in options['some_rows']]  # ["aws.s3", "aws.account", ...]
 
 # Step 2: Use discovered value
-result = mcp__Stacklet__assetdb_query_result(
+result = assetdb_query_result(
     query_id=74,
-    parameters={"resource_type_filter": "aws.ec2"}  # ← from options above
+    parameters={"resource_type_filter": "aws.s3"}  # ← from options above
 )
 ```
 

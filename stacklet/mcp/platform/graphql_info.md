@@ -11,10 +11,35 @@ The Platform GraphQL API enables interaction with the Stacklet Platform, equival
 ### **Connection Query Best Practices**
 
 - Use small pages (5-10 items) to keep context compact
-- Use "PageInfo" for total counts, never count by paging
+- Use "PageInfo.total" for total counts, never count by paging
 - Query "filterSchema" to compose "FilterElementInput" values
 - For large datasets: test with small queries first, then use `platform_dataset_export`
 - Avoid nested connections (causes timeouts)
+
+### **Common Query Patterns**
+
+**Basic Connection Query:**
+```graphql
+query GetAccounts($first: Int!) {
+  accounts(first: $first) {
+    pageInfo {
+      total
+      hasNextPage
+    }
+    edges {
+      node {
+        id
+        name
+      }
+    }
+    problems {
+      message
+    }
+  }
+}
+```
+
+**Note**: Use `total` not `totalCount` in PageInfo, and Problem objects only have a `message` field (no `type` field).
 
 ### **Entity Guidelines**
 
