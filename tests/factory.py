@@ -99,3 +99,48 @@ def redash_query_list(
         "count": total,
         "results": queries,
     }
+
+
+def redash_job_response(
+    job_id: str,
+    status: int,
+    error: str = "",
+    query_result_id: int | None = None,
+    updated_at: int = 0,
+) -> dict[str, Any]:
+    """
+    Generate Redash job response matching serialize_job output.
+
+    Args:
+        job_id: Job ID string
+        status: Job status (1=QUEUED, 2=STARTED, 3=FINISHED, 4=FAILED/CANCELED)
+        error: Error message for failed jobs
+        query_result_id: Query result ID for successful jobs
+        updated_at: Job started timestamp
+    """
+    return {
+        "job": {
+            "id": job_id,
+            "updated_at": updated_at,
+            "status": status,
+            "error": error,
+            "result": query_result_id,  # this matches redash, but we ignore it
+            "query_result_id": query_result_id,
+        }
+    }
+
+
+def redash_query_result_response(result_id: int) -> dict[str, Any]:
+    return {
+        "query_result": {
+            "id": result_id,
+            "query": "SELECT 1 AS col",
+            "data": {
+                "columns": [{"name": "col", "type": "int", "friendly_name": "Col"}],
+                "rows": [{"col": i} for i in range(100)],  # yes, doesn't match query
+            },
+            "data_source_id": 1,
+            "runtime": 0.1,
+            "retrieved_at": "2024-01-01T00:00:00Z",
+        },
+    }

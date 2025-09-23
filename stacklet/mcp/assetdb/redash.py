@@ -8,10 +8,8 @@ AssetDB client using Redash API with Stacklet authentication.
 """
 
 import asyncio
-import tempfile
 import time
 
-from pathlib import Path
 from typing import Any, Self, cast
 from urllib.parse import urljoin
 
@@ -22,7 +20,7 @@ from fastmcp import Context
 from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
-from .models import ExportFormat, JobStatus, Query, QueryListResponse, QueryResult, QueryUpsert
+from .models import ExportFormat, Job, Query, QueryListResponse, QueryResult, QueryUpsert
 
 
 class AssetDBClient:
@@ -113,10 +111,10 @@ class AssetDBClient:
     async def execute_saved_query(
         self,
         query_id: int,
-        parameters: dict[str, Any] | None = None,
-        max_age: int = -1,
-        timeout: int = 60,
-    ) -> int:
+        parameters: dict[str, Any] | None,
+        max_age: int,
+        timeout: int,
+    ) -> QueryResult:
         """
         Execute a saved query by ID, with caching control.
 
@@ -127,16 +125,12 @@ class AssetDBClient:
             timeout: Timeout in seconds for query execution (if not cached)
 
         Returns:
-            Query result ID
+            Complete query result with data, columns, and metadata
         """
-        payload: dict[str, Any] = {"max_age": max_age}
-        if parameters:
-            payload["parameters"] = parameters
+        payload = {"max_age": max_age, "parameters": parameters or {}}
+        return await self._execute_results(f"api/queries/{query_id}/results", payload, timeout)
 
-        result = await self._make_request("POST", f"api/queries/{query_id}/results", json=payload)
-        return await self._get_query_result_id(result, timeout)
-
-    async def execute_adhoc_query(self, query: str, timeout: int = 60) -> int:
+    async def execute_adhoc_query(self, query: str, max_age: int, timeout: int) -> QueryResult:
         """
         Execute an ad-hoc SQL query without saving it.
 
@@ -145,130 +139,73 @@ class AssetDBClient:
             timeout: Timeout in seconds for query execution
 
         Returns:
-            Query result ID
+            Complete query result with data, columns, and metadata
         """
         payload = {
             "query": query,
             "data_source_id": self.data_source_id,
-            "max_age": 0,  # Force fresh results
-            "apply_auto_limit": True,
+            "max_age": max_age,
             "parameters": {},
+            "apply_auto_limit": True,
         }
+        return await self._execute_results("api/query_results", payload, timeout)
 
-        result = await self._make_request("POST", "api/query_results", json=payload)
-        return await self._get_query_result_id(result, timeout)
-
-    async def _get_query_result_id(self, result: dict[str, Any], timeout: int = 60) -> int:
-        """
-        Extract query result ID from execution response, handling both sync and async results.
-
-        Args:
-            result: API response from query execution
-            timeout: Timeout in seconds for async job polling
-
-        Returns:
-            Query result ID
-        """
-        # If query is async, poll for results
-        if "job" in result:
-            query_result = await self._poll_job_results(result["job"]["id"], timeout)
-        else:
-            query_result = QueryResult(**result["query_result"])
-        return query_result.id
-
-    async def _poll_job_results(
-        self, job_id: str, timeout: int = 60, interval: float = 1.0
+    async def _execute_results(
+        self, endpoint: str, payload: dict[str, Any], timeout: int
     ) -> QueryResult:
         """
-        Poll for async query results.
+        Execute query request and handle both sync and async results.
 
         Args:
-            job_id: Job ID to poll
-            timeout: Timeout in seconds
-            interval: Polling interval in seconds
+            endpoint: API endpoint to POST the query to
+            payload: Query parameters and options
+            timeout: Maximum time to wait for async job completion
 
         Returns:
-            Query results when complete
+            Complete query result with data, columns, and metadata
         """
-        end_time = time.monotonic() + timeout
-        while time.monotonic() < end_time:
-            job_result = await self._make_request("GET", f"api/jobs/{job_id}")
-            job_status = job_result.get("job", {}).get("status")
+        # This will contain either a "job" or a full "query_result". Since we're
+        # sometimes stuck grabbing a whole result set any way, we may as well do
+        # it every time; this also lets us always return a preview of the result
+        # data even when it's large.
+        response = await self._make_request("POST", endpoint, json=payload)
+        if "query_result" in response:
+            return QueryResult(**response["query_result"])
 
-            match job_status:
-                case (
-                    JobStatus.QUEUED | JobStatus.STARTED | JobStatus.DEFERRED | JobStatus.SCHEDULED
-                ):
-                    await asyncio.sleep(interval)
-                    continue
-                case JobStatus.FINISHED:
-                    job_data = job_result.get("job", {})
-                    if "query_result_id" in job_data:
-                        return await self.get_query_result_data(job_data["query_result_id"])
-                    else:
-                        # Return result directly
-                        return QueryResult(**job_data.get("result", {}))
+        job = Job(**response["job"])
+        result_id = await self._poll_job(job, timeout)
+        qr_response = await self._make_request("GET", f"api/query_results/{result_id}")
+        return QueryResult(**qr_response["query_result"])
 
-                case JobStatus.FAILED:
-                    error = job_result.get("job", {}).get("error", "Unknown error")
-                    raise RuntimeError(f"Query execution failed: {error}")
-                case JobStatus.CANCELED:
-                    raise RuntimeError("Query execution cancelled")
-
-            raise RuntimeError(f"Unhandled query execution status: {job_status}")
-        raise RuntimeError(f"Query execution timed out after {timeout} seconds")
-
-    async def get_query_result_data(self, result_id: int) -> QueryResult:
+    async def _poll_job(self, job: Job, timeout: int) -> int:
         """
-        Get query result data by result ID.
+        Poll an async job until completion using exponential backoff.
 
         Args:
-            result_id: ID of the query result to retrieve
+            job: Initial job object from query execution
+            timeout: Maximum time to wait before timing out
 
         Returns:
-            Query result data with columns and rows
+            Query result ID when job completes successfully
         """
-        response = await self._make_request("GET", f"api/query_results/{result_id}")
-        return QueryResult(**(cast(dict[str, Any], response)["query_result"]))
+        cutoff = time.monotonic() + timeout
+        interval_s = 2
+        while True:
+            job_result = await self._make_request("GET", f"api/jobs/{job.id}")
+            job = Job(**job_result["job"])
+            if job.query_result_id:
+                return job.query_result_id
+            elif job.status.is_terminal:
+                raise RuntimeError(f"Query execution failed: {job.error or 'Unknown error.'}")
 
-    async def download_query_result(
-        self,
-        result_id: int,
-        format: ExportFormat = ExportFormat.CSV,
-        download_path: str | None = None,
-    ) -> str:
-        """
-        Download query result to file and return file path.
-
-        Args:
-            result_id: ID of the query result to download
-            format: Download format - "csv", "json", "tsv", or "xlsx"
-            download_path: Optional path to save file. If None, uses temp dir.
-
-        Returns:
-            Path to the downloaded file
-        """
-        # Use path-based filetype as Redash expects: /api/query_results/{id}.{format}
-        url = urljoin(self.redash_url, f"api/query_results/{result_id}.{format}")
-
-        if not download_path:
-            download_path = f"{tempfile.gettempdir()}/assetdb_{result_id}.{format}"
-
-        # Ensure directory exists
-        Path(download_path).parent.mkdir(parents=True, exist_ok=True)
-
-        # Stream download for large files
-        async with self.session.stream("GET", url) as response:
-            response.raise_for_status()
-
-            with open(download_path, "wb") as f:
-                async for chunk in response.aiter_bytes():
-                    f.write(chunk)
-
-        return download_path
+            remaining_s = cutoff - time.monotonic()
+            if remaining_s <= 0:
+                raise RuntimeError(f"Query execution timed out after {timeout} seconds")
+            await asyncio.sleep(min(interval_s, remaining_s))
+            interval_s *= 2
 
     def get_query_result_urls(
-        self, query_id: int, result_id: int, api_key: str
+        self, query: Query, query_result: QueryResult
     ) -> dict[ExportFormat, str]:
         """
         Return download URLs for a query result.
@@ -284,7 +221,7 @@ class AssetDBClient:
         return {
             fmt: urljoin(
                 self.redash_url,
-                f"api/queries/{query_id}/results/{result_id}.{fmt}?api_key={api_key}",
+                f"api/queries/{query.id}/results/{query_result.id}.{fmt}?api_key={query.api_key}",
             )
             for fmt in ExportFormat
         }

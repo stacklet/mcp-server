@@ -15,11 +15,9 @@ from stacklet.mcp.stacklet_auth import StackletCredentials, get_stacklet_dir, lo
 
 
 @pytest.fixture
-def temp_stacklet_dir(tmp_path):
+def temp_stacklet_dir(tmp_path_factory):
     """Create a temporary .stacklet directory for testing."""
-    stacklet_dir = tmp_path / ".stacklet"
-    stacklet_dir.mkdir()
-    return stacklet_dir
+    return tmp_path_factory.mktemp(".stacklet")
 
 
 @pytest.fixture

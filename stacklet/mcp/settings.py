@@ -3,6 +3,10 @@
 # Copyright (c) 2025 Stacklet, Inc.
 #
 
+import tempfile
+
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +18,8 @@ class Settings(BaseSettings):
         env_prefix="stacklet_mcp_",
         validate_assignment=True,
     )
+
+    downloads_path: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()))
 
     assetdb_datasource: int = Field(
         default=1,

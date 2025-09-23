@@ -67,6 +67,7 @@ When the MCP is run from an agent, those can be set in the `"env"` section of th
 
 The following variables are available:
 
+- `STACKLET_MCP_DOWNLOADS_PATH`: directory for storing query result files (default: system temp directory)
 - `STACKLET_MCP_ASSETDB_DATASOURCE`: the datasource ID for AssetDB in Redash (default: `1`)
 - `STACKLET_MCP_ASSETDB_ALLOW_SAVE`: whether to enable write operations in AssetDB (default: `false`)
 - `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE`: whether to enable query archiving functionality in AssetDB (default: `false`)

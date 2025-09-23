@@ -47,7 +47,7 @@ class PlatformClient:
 
         Args:
             credentials: StackletCredentials object containing endpoint and access_token
-            enable_nutations: Whether to allow executing mutations
+            enable_mutations: Whether to allow executing mutations
         """
         self.credentials = credentials
         self.enable_mutations = enable_mutations

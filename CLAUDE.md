@@ -29,6 +29,7 @@ The codebase follows a modular design with clear separation of concerns:
 - `stacklet/mcp/platform/tools.py` - Platform tool implementations (platform_graphql_info, platform_graphql_query, platform_dataset_export, etc.)
 - `stacklet/mcp/platform/models.py` - Pydantic models for platform operations (ExportColumn, ExportParam, ConnectionExport, etc.)
 - `stacklet/mcp/platform/graphql_info.md` - Detailed guidance for using the Platform GraphQL API
+- `stacklet/mcp/platform/dataset_info.md` - Guide for exporting large datasets from the Platform API
 
 **AssetDB Package:**
 - `stacklet/mcp/assetdb/redash.py` - AssetDB client using Redash API for SQL queries and saved query management
@@ -94,11 +95,11 @@ just agent-config # Generate .mcp.json configuration
 11. **`assetdb_sql_query`** - Execute ad-hoc SQL queries against AssetDB
 12. **`assetdb_query_list`** - List and search saved queries with pagination
 13. **`assetdb_query_get`** - Get detailed information about specific saved queries
-14. **`assetdb_query_results`** - Get results for saved queries with caching control
+14. **`assetdb_query_result`** - Get results for saved queries with caching control
 15. **`assetdb_query_save`** - Create new queries or update existing ones (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_SAVE=true`)
 16. **`assetdb_query_archive`** - Archive saved queries (conditionally enabled via `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE=true`)
 
-Total: 14-16 tools (depending on configuration)
+Total: 16 tools (2 docs + 7 platform + 7 assetdb tools, with 2 assetdb tools conditionally enabled)
 
 The actual tools available are determined by each package's `tools()` function implementation, with some tools conditionally enabled based on server configuration settings.
 
@@ -133,10 +134,18 @@ The server requires Stacklet credentials configured through one of:
 
 **Server Settings:**
 Additional configuration via environment variables with `STACKLET_MCP_` prefix:
+- `STACKLET_MCP_DOWNLOADS_PATH` (default: system temp directory) - Directory for storing query result files
 - `STACKLET_MCP_ASSETDB_DATASOURCE` (default: 1) - AssetDB data source ID
 - `STACKLET_MCP_ASSETDB_ALLOW_SAVE` (default: false) - Enable query save/update functionality
 - `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE` (default: false) - Enable query archiving functionality
 - `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS` (default: false) - Enable calling mutations in the Platform GraphQL API
+
+**File Storage:**
+Query results from AssetDB tools are automatically saved to the configured downloads directory:
+- Complete query results are saved as JSON files for analysis with other tools
+- Files use descriptive naming: `assetdb_{query_id}_{result_id}.json` (for saved queries) or `assetdb_{result_id}.json` (for ad-hoc queries)
+- The downloads directory is created automatically if it doesn't exist
+- Files persist after tool execution for further analysis
 
 **External Dependencies:**
 - Documentation files are fetched from the live Stacklet docs service at runtime
@@ -195,4 +204,4 @@ just run agent-config generate unrestricted
 - You will find it useful to have access to the Redash source code as you work; this
   project talks to `https://github.com/stacklet/redash`, NOT the upstream project by
   `getredash`. Cloning that repository into a temp directory and using the filesystem
-  is the most effective way to answer questions about redah implementation details.
+  is the most effective way to answer questions about redash implementation details.
