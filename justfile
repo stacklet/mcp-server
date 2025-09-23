@@ -39,4 +39,4 @@ tag-release:
     set -e
 
     version="$(uv run python -c 'from stacklet.mcp import __version__; print(__version__)')"
-    git tag -a "$version" -m "Version $version"
+    git tag -a "v$version" -m "Version $version"
