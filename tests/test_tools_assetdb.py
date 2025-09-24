@@ -147,8 +147,10 @@ class TestQueryList(MCPCookieTest):
         ):
             result = await self.assert_call({"page": 999}, error=True)
 
-        # XXX better errors might be nice, "page 999 out of range" is… likely?
-        assert result.text == "Error calling tool 'assetdb_query_list': mocked http 400"
+        assert result.text == (
+            "Backend rejected request. This likely means the page parameter was out of bounds. "
+            "Next steps: check page 1, or try a simpler search. Original error: mocked http 400"
+        )
 
     @json_guard_parametrize([5, 10])
     async def test_page_size(self, mangle, value):
@@ -220,7 +222,9 @@ class TestQueryGet(MCPCookieTest):
         ):
             result = await self.assert_call({"query_id": 999}, error=True)
 
-        # XXX better errors might be nice, "query 999 does not exist"
+        # Generally, this is enough context for the LLM to handle it fine.
+        # Annotated errors come into their own when the meaning of a raw
+        # error is not immediately obvious.
         assert result.text == "Error calling tool 'assetdb_query_get': mocked http 404"
 
 
@@ -437,7 +441,7 @@ class QueryResultTest(MCPCookieTest):
             result = await self.assert_call(params, error=bool(expect_error))
 
         if expect_error:
-            assert result.text == f"Error calling tool '{self.tool_name}': " + expect_error
+            assert result.text == expect_error
         else:
             self.assert_tool_query_result(result)
 
@@ -549,7 +553,10 @@ class TestQueryResult(QueryResultTest):
             self.expect_get_job(self.job_response(JobStatus.STARTED)),
             self.expect_get_job(self.job_response(JobStatus.STARTED)),
             self.expect_get_job(self.job_response(JobStatus.STARTED)),
-            expect_error="Query execution timed out after 60 seconds",
+            expect_error=(
+                "Timed out after 60 seconds. This likely means the query is still executing. "
+                "Next steps: request cached results (with max_age=-1), or try a simpler query"
+            ),
         )
         assert async_sleeps == [2, 4, 8, 16, 30]
 
@@ -559,7 +566,11 @@ class TestQueryResult(QueryResultTest):
             {"query_id": self.QUERY_ID},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.FAILED)),
-            expect_error="Query execution failed: Oh no borken",
+            expect_error=(
+                "Query execution error: Oh no borken. This likely means the query SQL or "
+                "parameters were invalid. Next steps: investigate the errors, or try a simpler "
+                "query and build up"
+            ),
         )
 
     async def test_job_cancellation(self):
@@ -570,7 +581,11 @@ class TestQueryResult(QueryResultTest):
             {"query_id": self.QUERY_ID},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.CANCELED)),
-            expect_error="Query execution failed: Unknown error.",
+            expect_error=(
+                "Query execution error: (unknown). This likely means the query SQL or "
+                "parameters were invalid. Next steps: investigate the errors, or try a simpler "
+                "query and build up"
+            ),
         )
 
 
@@ -641,7 +656,10 @@ class TestSQLQuery(QueryResultTest):
             self.expect_get_job(self.job_response(JobStatus.STARTED)),
             self.expect_get_job(self.job_response(JobStatus.STARTED)),
             self.expect_get_job(self.job_response(JobStatus.STARTED)),
-            expect_error="Query execution timed out after 60 seconds",
+            expect_error=(
+                "Timed out after 60 seconds. This likely means the query is still executing. "
+                "Next steps: request cached results (with max_age=-1), or try a simpler query"
+            ),
         )
         assert async_sleeps == [2, 4, 8, 16, 30]
 
@@ -651,7 +669,11 @@ class TestSQLQuery(QueryResultTest):
             {"query": "SELECT 1"},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.FAILED)),
-            expect_error="Query execution failed: Oh no borken",
+            expect_error=(
+                "Query execution error: Oh no borken. This likely means the query SQL or "
+                "parameters were invalid. Next steps: investigate the errors, or try a simpler "
+                "query and build up"
+            ),
         )
 
     async def test_job_cancellation(self):
@@ -662,7 +684,11 @@ class TestSQLQuery(QueryResultTest):
             {"query": "SELECT 1"},
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.CANCELED)),
-            expect_error="Query execution failed: Unknown error.",
+            expect_error=(
+                "Query execution error: (unknown). This likely means the query SQL or "
+                "parameters were invalid. Next steps: investigate the errors, or try a simpler "
+                "query and build up"
+            ),
         )
 
 
