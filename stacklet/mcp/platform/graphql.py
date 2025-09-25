@@ -28,6 +28,7 @@ from graphql import (
 from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
+from ..utils.error import AnnotatedError
 from .models import (
     ConnectionExport,
     ExportRequest,
@@ -80,7 +81,11 @@ class PlatformClient:
             Structured GraphQL query result
         """
         if not self.enable_mutations and has_mutations(query):
-            raise Exception("Mutations not allowed in the client")
+            raise AnnotatedError(
+                problem="Mutations disabled",
+                likely_cause="the user doesn't want you to run mutations",
+                next_steps="tell the user to set 'STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS'",
+            )
 
         return await self._query(query, variables)
 
@@ -166,7 +171,11 @@ class PlatformClient:
         """
         result = await self._query(self.Q_START_EXPORT, {"input": spec.for_graphql()})
         if result.errors:
-            raise RuntimeError(f"Export mutation failed: {result.errors}")
+            raise AnnotatedError(
+                problem=f"Export mutation failed: {result.errors}",
+                likely_cause="what it says",
+                next_steps="check data types with 'platform_get_types'",
+            )
 
         # If no errors, data is at least guaranteed truthy.
         export = cast(dict[str, Any], result.data)["exportConnection"]["export"]
