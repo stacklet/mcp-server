@@ -20,7 +20,7 @@ from fastmcp import Context
 from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
-from ..utils.error import annotated_error
+from ..utils.error import AnnotatedError
 from .models import ExportFormat, Job, Query, QueryListResponse, QueryResult, QueryUpsert
 
 
@@ -98,7 +98,7 @@ class AssetDBClient:
             return QueryListResponse(**result)
         except httpx.HTTPStatusError as err:
             if err.response.status_code == 400:
-                raise annotated_error(
+                raise AnnotatedError(
                     problem="Backend rejected request",
                     likely_cause="the page parameter was out of bounds",
                     next_steps="check page 1, or try a simpler search",
@@ -207,7 +207,7 @@ class AssetDBClient:
             if job.query_result_id:
                 return job.query_result_id
             elif job.status.is_terminal:
-                raise annotated_error(
+                raise AnnotatedError(
                     problem=f"Query execution error: {job.error or '(unknown)'}",
                     likely_cause="the query SQL or parameters were invalid",
                     next_steps="investigate the errors, or try a simpler query and build up",
@@ -215,7 +215,7 @@ class AssetDBClient:
 
             remaining_s = cutoff - time.monotonic()
             if remaining_s <= 0:
-                raise annotated_error(
+                raise AnnotatedError(
                     problem=f"Timed out after {timeout} seconds",
                     likely_cause="the query is still executing",
                     next_steps="request cached results (with max_age=-1), or try a simpler query",
