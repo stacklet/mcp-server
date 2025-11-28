@@ -48,5 +48,6 @@ async def lifespan(server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerStat
 
 def server_cached(ctx: Context, key: str, construct: Callable[[], ServerCached]) -> ServerCached:
     """Get or construct and cache an object in the server context state, with the provided key."""
+    assert ctx.request_context is not None, "server_cached must be called within a request context"
     state = ctx.request_context.lifespan_context
     return cast(ServerCached, state.ensure_cached(key, construct))
