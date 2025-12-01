@@ -160,6 +160,7 @@ pathspec==0.12.1
     # via mypy
 pathvalidate==3.3.1
     # via py-key-value-aio
+pip==25.3
 platformdirs==4.5.0
     # via
     #   fastmcp
@@ -248,6 +249,9 @@ starlette==0.48.0
     # via mcp
 toml-fmt-common==1.0.1
     # via pyproject-fmt
+types-cachetools==6.2.0.20251022
+types-pyyaml==6.0.12.20250915
+types-requests==2.32.4.20250913
 typing-extensions==4.15.0
     # via
     #   anyio
@@ -266,7 +270,9 @@ typing-inspection==0.4.2
     #   pydantic
     #   pydantic-settings
 urllib3==2.5.0
-    # via requests
+    # via
+    #   requests
+    #   types-requests
 uvicorn==0.38.0 ; sys_platform != 'emscripten'
     # via mcp
 virtualenv==20.35.3
