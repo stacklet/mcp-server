@@ -7,14 +7,14 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.2
+    rev: v0.14.7
     hooks:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: v2.11.0
+    rev: v2.11.1
     hooks:
       - id: pyproject-fmt
 
@@ -40,9 +40,14 @@ repos:
           - --license-file=license-header.tpl
         files: ^.*\.py$
 
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.9
+    hooks:
+      - id: actionlint
+
   # A hack to get dependabot to find security vulnerabilities in our dependencies
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.5
+    rev: 0.9.13
     hooks:
       - id: uv-export
         files: ^(uv\.lock|pyproject\.toml|uv\.toml)$
