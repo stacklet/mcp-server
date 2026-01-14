@@ -7,7 +7,7 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.7
+    rev: v0.14.11
     hooks:
       - id: ruff-check
         args: [--fix]
@@ -19,7 +19,7 @@ repos:
       - id: pyproject-fmt
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.2
+    rev: v1.19.1
     hooks:
       - id: mypy
         args: [--config-file=pyproject.toml]
@@ -36,18 +36,18 @@ repos:
       - id: add-license-header
         args:
           - --single-year-if-same
-          - --year-delimiter='-'
+          - --year-delimiter=-
           - --license-file=license-header.tpl
         files: ^.*\.py$
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.9
+    rev: v1.7.10
     hooks:
       - id: actionlint
 
   # A hack to get dependabot to find security vulnerabilities in our dependencies
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.13
+    rev: 0.9.25
     hooks:
       - id: uv-export
         files: ^(uv\.lock|pyproject\.toml|uv\.toml)$
