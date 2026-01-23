@@ -17,6 +17,7 @@ import httpx
 
 from fastmcp import Context
 
+from .. import USER_AGENT
 from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
@@ -40,7 +41,9 @@ class AssetDBClient:
 
         self.redash_url = self.credentials.service_endpoint("redash")
         self.session = httpx.AsyncClient(
-            cookies={"stacklet-auth": credentials.identity_token}, timeout=60.0
+            headers={"User-Agent": USER_AGENT},
+            cookies={"stacklet-auth": credentials.identity_token},
+            timeout=60.0,
         )
 
     @classmethod

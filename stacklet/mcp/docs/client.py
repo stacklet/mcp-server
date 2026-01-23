@@ -14,6 +14,7 @@ import httpx
 
 from fastmcp import Context
 
+from .. import USER_AGENT
 from ..lifespan import server_cached
 from ..stacklet_auth import StackletCredentials
 from .models import DocContent, DocFile
@@ -32,7 +33,10 @@ class DocsClient:
 
         self.credentials = credentials
         self.docs_url = self.credentials.service_endpoint("docs")
-        self.session = httpx.AsyncClient(cookies={"stacklet-auth": credentials.identity_token})
+        self.session = httpx.AsyncClient(
+            headers={"User-Agent": USER_AGENT},
+            cookies={"stacklet-auth": credentials.identity_token},
+        )
         self._index: list[DocFile] = []
 
     @classmethod
