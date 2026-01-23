@@ -7,8 +7,8 @@ requires = [ "hatchling" ]
 name = "stacklet-mcp"
 description = "MCP server for the Stacklet environment"
 readme = "README.md"
-maintainers = [ { name = "Stacklet Engineering", email = "foss+stacklet-admin@stacklet.io" } ]
-authors = [ { name = "Stacklet Engineering", email = "foss+stacklet-admin@stacklet.io" } ]
+maintainers = [ { name = "Stacklet Engineering", email = "foss+mcp-server@stacklet.io" } ]
+authors = [ { name = "Stacklet Engineering", email = "foss+mcp-server@stacklet.io" } ]
 requires-python = ">=3.12"
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
