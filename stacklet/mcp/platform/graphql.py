@@ -25,6 +25,7 @@ from graphql import (
     print_type,
 )
 
+from .. import USER_AGENT
 from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
@@ -55,8 +56,9 @@ class PlatformClient:
 
         self.session = httpx.AsyncClient(
             headers={
-                "Content-Type": "application/json",
                 "Authorization": f"Bearer {credentials.access_token}",
+                "Content-Type": "application/json",
+                "User-Agent": USER_AGENT,
             },
             timeout=30.0,
         )

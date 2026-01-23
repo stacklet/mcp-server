@@ -6,3 +6,6 @@
 """Stacklet MCP server."""
 
 __version__ = "2025.11.0"
+
+
+USER_AGENT = f"stacklet.mcp/{__version__}"
