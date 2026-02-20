@@ -9,6 +9,7 @@ from pydantic_settings import (
     CliApp,
     CliPositionalArg,
     CliSubCommand,
+    get_subcommand,
 )
 
 from .server import make_server
@@ -40,7 +41,7 @@ class AgentConfigCommand(BaseModel):
     generate: CliSubCommand[AgentConfigGenerateCommand]
 
     def cli_cmd(self) -> None:
-        CliApp.run_subcommand(self)
+        get_subcommand(self, is_required=True).cli_cmd()
 
 
 class RunCommand(BaseModel):
