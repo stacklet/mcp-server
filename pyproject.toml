@@ -23,7 +23,7 @@ dependencies = [
   "graphql-core>=3.2",
   "httpx>=0.28.1",
   "pydantic>=2.11.7",
-  "pydantic-settings>=2.10.1",
+  "pydantic-settings>=2.13,<2.14",
 ]
 scripts.stacklet-mcp = "stacklet.mcp.mcp:main"
 
