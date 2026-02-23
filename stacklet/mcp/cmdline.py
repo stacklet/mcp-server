@@ -41,7 +41,11 @@ class AgentConfigCommand(BaseModel):
     generate: CliSubCommand[AgentConfigGenerateCommand]
 
     def cli_cmd(self) -> None:
-        get_subcommand(self, is_required=True).cli_cmd()
+        sub_command: AgentConfigListCommand | AgentConfigGenerateCommand = get_subcommand(
+            self,
+            is_required=True,
+        )  # type: ignore[assignment]
+        sub_command.cli_cmd()
 
 
 class RunCommand(BaseModel):
