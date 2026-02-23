@@ -6,13 +6,23 @@
 
 ### Fixes
 
+---
+
+## February 23, 2026
+
+### Features
+
+### Changes
+
+### Fixes
+
 - **Fix breakage with `pydantic-settings` 2.13.0 release**: The 2.13.0 release of `pydantic-settings`
   included a breaking change. Fixed the change, updated the library, and adjusted the version pinning
   to prevent future issues.
 
 ---
 
-## November 17, 2026
+## November 17, 2025
 
 ### Features
 
