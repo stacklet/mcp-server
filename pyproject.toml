@@ -1,6 +1,5 @@
 [build-system]
 build-backend = "hatchling.build"
-
 requires = [ "hatchling" ]
 
 [project]
@@ -17,7 +16,6 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dynamic = [ "version" ]
-
 dependencies = [
   "fastmcp>=2",
   "graphql-core>=3.2",
@@ -43,29 +41,26 @@ dev = [
   "types-requests",          # type stubs for mypy
 ]
 
-[tool.hatch.version]
-path = "stacklet/mcp/__init__.py"
-
-[tool.hatch.build.targets.wheel]
-packages = [ "stacklet" ]
+[tool.hatch]
+build.targets.wheel.packages = [ "stacklet" ]
+version.path = "stacklet/mcp/__init__.py"
 
 [tool.ruff]
 line-length = 100
-
 # Add `line-too-long` and isort to the enforced rule set.
 lint.extend-select = [ "E501", "I" ]
 lint.isort.lines-after-imports = 2
 # Use a single line between direct and from import.
 lint.isort.lines-between-types = 1
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-addopts = "--no-cov-on-fail"
+[tool.pytest]
+ini_options.asyncio_mode = "auto"
+ini_options.addopts = "--no-cov-on-fail"
 
-[tool.coverage.report]
-fail_under = 94.0
-show_missing = true
-skip_covered = true
+[tool.coverage]
+report.fail_under = 94.0
+report.show_missing = true
+report.skip_covered = true
 
 [tool.mypy]
 strict = true
