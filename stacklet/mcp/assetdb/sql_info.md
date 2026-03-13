@@ -8,16 +8,19 @@ Many AssetDB tables are extremely large. Always use LIMIT and indexed column fil
 
 ### **Key Tables**
 
-| Table                                    | Purpose                               | Scale           | Usage Notes                                  |
-| ---------------------------------------- | ------------------------------------- | --------------- | -------------------------------------------- |
-| `resources`                              | Current resource JSON                 | Very Large      | LIMIT + indexed filters required             |
-| `resource_revisions`                     | Resource history JSON                 | Extremely Large | Primary key access only                      |
-| `aws_s3`, `gcp_gke_cluster`, etc.        | Provider-specific columns             | Large           | Preferred over raw JSON for analysis         |
-| `resource_tags`, `resource_tags_mapping` | Tag analysis                          | Large           | Start here for tag queries                   |
-| `account_cost_monthly`                   | Cost per month/service/account/region | Medium          | Best starting point for costs                |
-| `account_focus_cost`                     | Cost per day/service/account/region   | Large           | `account_cost_monthly` with daily detail     |
-| `resource_cost_monthly`                  | Cost per month/resource               | Large           | Best starting point for resource-level costs |
-| `resource_focus_cost`                    | Cost per day/service/resource         | Very Large      | `resource_cost_monthly` with daily detail    |
+| Table                                    | Purpose                               | Scale           | Usage Notes                                            |
+| ---------------------------------------- | ------------------------------------- | --------------- | ------------------------------------------------------ |
+| `resources`                              | Current resource JSON                 | Very Large      | LIMIT + indexed filters required                       |
+| `resource_revisions`                     | Resource history JSON                 | Extremely Large | Primary key access only                                |
+| `aws_s3`, `gcp_gke_cluster`, etc.        | Provider-specific columns             | Large           | Preferred over raw JSON for analysis                   |
+| `resource_tags`, `resource_tags_mapping` | Tag analysis                          | Large           | Start here for tag queries                             |
+| `account_cost_monthly`                   | Cost per month/service/account/region | Medium          | Best starting point for costs                          |
+| `account_focus_cost`                     | Cost per day/service/account/region   | Large           | `account_cost_monthly` with daily detail               |
+| `resource_cost_monthly`                  | Cost per month/resource               | Large           | Best starting point for resource-level costs           |
+| `resource_focus_cost`                    | Cost per day/service/resource         | Very Large      | `resource_cost_monthly` with daily detail              |
+| `cost_source`                            | Lookup table for cost sources         | Very Small      | Sources of ingested cost data                          |
+| `account_id`                             | Lookup table for accounts             | Small           | Bridge between cost tables and account/provider detail |
+| `resource_id`                            | Lookup table for resources            | Medium          | Bridge between cost tables and resource detail         |
 
 ### **Special Considerations**
 
