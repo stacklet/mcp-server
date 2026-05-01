@@ -70,7 +70,7 @@ async def platform_graphql_list_types(
     Next step: Use platform_graphql_get_types() to see detailed definitions for interesting types.
     """
     client = PlatformClient.get(ctx)
-    return await client.list_types(match)
+    return await client.list_types(ctx, match)
 
 
 @json_guard
@@ -99,7 +99,7 @@ async def platform_graphql_get_types(
     The SDL output shows exactly how to structure your GraphQL queries.
     """
     client = PlatformClient.get(ctx)
-    return await client.get_types(type_names)
+    return await client.get_types(ctx, type_names)
 
 
 @json_guard
@@ -129,7 +129,7 @@ async def platform_graphql_query(
     - For large exports, use platform_dataset_export() instead
     """
     client = PlatformClient.get(ctx)
-    return await client.query(query, variables or {})
+    return await client.query(ctx, query, variables or {})
 
 
 def platform_dataset_info() -> ToolsetInfo:
@@ -200,8 +200,8 @@ async def platform_dataset_export(
     )
 
     client = PlatformClient.get(ctx)
-    dataset_id = await client.start_export(dataset_input)
-    return await client.wait_for_export(dataset_id, timeout)
+    dataset_id = await client.start_export(ctx, dataset_input)
+    return await client.wait_for_export(ctx, dataset_id, timeout)
 
 
 @json_guard
@@ -237,4 +237,4 @@ async def platform_dataset_lookup(
     Download URLs are temporary and expire after a few hours.
     """
     client = PlatformClient.get(ctx)
-    return await client.wait_for_export(dataset_id, timeout)
+    return await client.wait_for_export(ctx, dataset_id, timeout)

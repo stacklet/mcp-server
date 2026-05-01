@@ -74,6 +74,82 @@ The following variables are available:
 - `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS`: whether to enable executing mutations in Platform API (default: `false`)
 
 
+## Transports
+
+The MCP server supports two transports:
+
+### `stdio` (default)
+
+For local use — one user per process, credentials loaded from `~/.stacklet/` or `STACKLET_*`
+environment variables:
+
+```
+stacklet-mcp run
+```
+
+### `streamable-http` (for hosting)
+
+For running the server as a multi-user network service. Each incoming request must carry its
+own credentials in headers; those credentials are forwarded untouched to upstream Platform
+GraphQL and Redash so the upstream's existing per-user RLS applies automatically.
+
+```
+stacklet-mcp run --transport streamable-http --host 0.0.0.0 --port 8080
+```
+
+Required request headers for every call (except `/health`):
+
+- `Authorization: Bearer <access_token>` — a valid Stacklet access token
+- `X-Stacklet-Identity-Token: <identity_token>` — the matching identity token
+
+The server's `STACKLET_ENDPOINT` environment variable sets the Stacklet API base URL;
+the endpoint is **server-level, not per-request**, which closes the path where a caller
+could aim the proxy at a malicious backend.
+
+`/health` is reachable without auth and returns `{"status": "ok", "version": ..., "git_sha": ...}`.
+It accepts both GET and HEAD, and is safe for ALB target-group health checks.
+
+**Token expiry**: access and identity tokens expire periodically. When that happens the user
+must re-run `stacklet-admin login` and regenerate their MCP client config by hand. A future release
+will add an `agent-config --remote` flag to emit the ready-to-paste JSON, and potentially a
+token-refresh broker.
+
+
+## Hosting guide
+
+If you're running `streamable-http` behind an ALB / ECS (the intended deployment):
+
+- **One uvicorn worker per task**. Horizontal scaling is via ECS task count. This server
+  embeds uvicorn directly (not `uvicorn ...` on the CLI); per-task-count scaling via ECS is
+  the supported path.
+- **Graceful shutdown**: uvicorn's default `timeout-graceful-shutdown` is too short for
+  long-running AssetDB polls (up to 300s). The server defaults to 305s and exposes it via
+  `--timeout-graceful-shutdown`. The ECS task definition's `stopTimeout` must be greater.
+- **Proxy-headers trust**: pass `--forwarded-allow-ips="<VPC CIDR>"` (or `"*"` behind a
+  trusted ALB) so `request.client.host` reflects the real caller. This threads to uvicorn's
+  own `ProxyHeadersMiddleware`, which rewrites `scope['client']` from trusted
+  `X-Forwarded-*` before any application middleware sees the request. Do NOT expose uvicorn
+  directly without an ALB — callers could otherwise spoof their IP by sending
+  `X-Forwarded-For`.
+- **Request body size**: `--max-bytes` defaults to 4 MiB. Raise with the flag if your
+  traffic legitimately exceeds it.
+- **ALB idle timeout**: set to at least 305s so long-running AssetDB polls don't trip the
+  idle timer before finishing.
+- **`STACKLET_ENDPOINT`** is immutable post-boot. Service URLs are derived once at startup;
+  hot-reloading the env var has no effect.
+
+Example invocation behind an ALB:
+
+```
+STACKLET_ENDPOINT=https://api.my-stacklet.example \
+  stacklet-mcp run \
+    --transport streamable-http \
+    --host 0.0.0.0 --port 8080 \
+    --forwarded-allow-ips "10.0.0.0/8" \
+    --timeout-graceful-shutdown 305
+```
+
+
 ## Development
 
 For development, a few setup steps are required:

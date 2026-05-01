@@ -35,9 +35,9 @@ async def docs_list(ctx: Context) -> DocsList:
     Use docs_read() with any of the returned file paths to get the actual content.
     """
     client = DocsClient.get(ctx)
-    index = await client.get_index()
+    index = await client.get_index(ctx)
     return DocsList(
-        base_url=client.docs_url,
+        base_url=client.docs_url(ctx),
         available_document_files=index,
         note="Use docs_read with any of these file paths to read the content",
     )
@@ -68,4 +68,4 @@ async def docs_read(
     the latest Stacklet features and best practices.
     """
     client = DocsClient.get(ctx)
-    return await client.get_doc_file(file_path)
+    return await client.get_doc_file(ctx, file_path)

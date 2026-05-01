@@ -15,23 +15,24 @@ from .settings import SETTINGS
 
 
 # an object cached in the server global state
-ServerCached = TypeVar("ServerCached")
+ServerSingleton = TypeVar("ServerSingleton")
 
 
 class ServerState(dict[str, Any]):
     """Server-global state.
 
-    This is practical for local servers since there's always a single client,
-    but won't work for network-based ones.
-
+    Values stored here MUST be identical for every caller. No per-user state, ever.
+    In a multi-user HTTP deployment this dict is shared across all requests, so any
+    value cached here is seen by every caller; credentials, per-user caches, and
+    anything derived from a specific request must live on the request instead.
     """
 
-    def ensure_cached(self, key: str, construct: Callable[[], ServerCached]) -> ServerCached:
+    def ensure_cached(self, key: str, construct: Callable[[], ServerSingleton]) -> ServerSingleton:
         obj = self.get(key)
         if obj is None:
             obj = construct()
             self[key] = obj
-        return cast(ServerCached, obj)
+        return cast(ServerSingleton, obj)
 
 
 @asynccontextmanager
@@ -46,8 +47,17 @@ async def lifespan(server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerStat
     yield ServerState()
 
 
-def server_cached(ctx: Context, key: str, construct: Callable[[], ServerCached]) -> ServerCached:
-    """Get or construct and cache an object in the server context state, with the provided key."""
-    assert ctx.request_context is not None, "server_cached must be called within a request context"
+def server_singleton(
+    ctx: Context, key: str, construct: Callable[[], ServerSingleton]
+) -> ServerSingleton:
+    """Get or construct a server-wide singleton.
+
+    The value is shared across every request handled by this server process and
+    MUST be credential-free (no access tokens, identity tokens, per-user caches,
+    etc.). Per-request state belongs on the request, not here.
+    """
+    assert ctx.request_context is not None, (
+        "server_singleton must be called within a request context"
+    )
     state = ctx.request_context.lifespan_context
-    return cast(ServerCached, state.ensure_cached(key, construct))
+    return cast(ServerSingleton, state.ensure_cached(key, construct))

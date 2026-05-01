@@ -11,7 +11,12 @@ from unittest.mock import patch
 
 import pytest
 
-from stacklet.mcp.stacklet_auth import StackletCredentials, get_stacklet_dir, load_stacklet_auth
+from stacklet.mcp.stacklet_auth import (
+    StackletCredentials,
+    get_stacklet_dir,
+    load_stacklet_auth,
+    service_endpoint,
+)
 
 
 @pytest.fixture
@@ -153,6 +158,55 @@ class TestLoadStackletAuth:
         """A service endpoint is returned correctly."""
         creds = load_stacklet_auth()
         assert creds.service_endpoint("redash") == "https://redash.example.com/"
+
+
+class TestServiceEndpoint:
+    """Test the service_endpoint helper."""
+
+    def test_simple_host(self):
+        assert (
+            service_endpoint("https://api.example.com", "redash") == "https://redash.example.com/"
+        )
+
+    def test_trailing_slash_preserved(self):
+        assert (
+            service_endpoint("https://api.example.com/", "redash") == "https://redash.example.com/"
+        )
+
+    def test_port_preserved(self):
+        assert (
+            service_endpoint("https://api.example.com:8080", "redash")
+            == "https://redash.example.com:8080/"
+        )
+
+    def test_path_preserved(self):
+        assert (
+            service_endpoint("https://api.example.com/foo", "redash")
+            == "https://redash.example.com/foo/"
+        )
+
+    def test_rejects_substring_api_in_host(self):
+        # Naive str.replace("api.", ...) would turn this into
+        # "https://foo-redash.example.com/" silently. urlparse-based
+        # logic rejects it because the host doesn't start with "api.".
+        with pytest.raises(ValueError, match="must start with 'api.'"):
+            service_endpoint("https://foo-api.example.com", "redash")
+
+    def test_rejects_non_api_host(self):
+        with pytest.raises(ValueError, match="must start with 'api.'"):
+            service_endpoint("https://example.com", "redash")
+
+    def test_rejects_localhost(self):
+        with pytest.raises(ValueError, match="must start with 'api.'"):
+            service_endpoint("http://localhost:9000", "redash")
+
+    def test_rejects_empty_endpoint(self):
+        with pytest.raises(ValueError, match="no host"):
+            service_endpoint("", "redash")
+
+    def test_rejects_path_only(self):
+        with pytest.raises(ValueError, match="no host"):
+            service_endpoint("/api/v1", "redash")
 
 
 class TestExceptionBubbling:

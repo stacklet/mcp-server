@@ -147,10 +147,9 @@ class TestQueryList(MCPCookieTest):
         ):
             result = await self.assert_call({"page": 999}, error=True)
 
-        assert result.text == (
-            "Backend rejected request. This likely means the page parameter was out of bounds. "
-            "Next steps: check page 1, or try a simpler search. Original error: mocked http 400"
-        )
+        assert "Backend rejected request" in result.text
+        assert "the page parameter was out of bounds" in result.text
+        assert "check page 1, or try a simpler search" in result.text
 
     @json_guard_parametrize([5, 10])
     async def test_page_size(self, mangle, value):
@@ -222,10 +221,9 @@ class TestQueryGet(MCPCookieTest):
         ):
             result = await self.assert_call({"query_id": 999}, error=True)
 
-        # Generally, this is enough context for the LLM to handle it fine.
-        # Annotated errors come into their own when the meaning of a raw
-        # error is not immediately obvious.
-        assert result.text == "Error calling tool 'assetdb_query_get': mocked http 404"
+        # Upstream 404 gets mapped to an AnnotatedError via the
+        # upstream_errors helper ("other 4xx" path, sanitized body).
+        assert "Upstream HTTP 404" in result.text
 
 
 class TestQuerySave(MCPCookieTest):

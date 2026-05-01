@@ -81,7 +81,7 @@ class PlatformSchemaTest(MCPBearerTest):
         """Mock PlatformClient.get_schema to return our test schema."""
         schema = build_schema(self.SCHEMA)
 
-        async def mock_get_schema(self):
+        async def mock_get_schema(self, ctx):
             return schema
 
         monkeypatch.setattr(
@@ -272,19 +272,24 @@ class TestGraphQLQuery(MCPBearerTest):
         # Verify that the variables were passed through correctly
         assert result.json()["variables"] == value
 
-    @pytest.mark.parametrize("status_code", [400, 403, 500, 502])
+    @pytest.mark.parametrize("status_code", [200, 400])
     async def test_http_error_with_valid_graphql(self, status_code):
-        """Test HTTP 4xx/5xx status but with valid GraphQL response - should parse GraphQL."""
+        """200 and 400 responses with valid GraphQL bodies are parsed.
+
+        401/403/5xx are deliberately NOT in this test — they short-circuit
+        to mapped AnnotatedError via upstream_errors.check_response, which
+        is the behavior under test in test_status_code_mapping below.
+        """
         query = "{ platform { version } }"
         data = {"platform": {"version": "test-version"}}
 
-        # Backend erroneously returns error status but with valid GraphQL data
+        # Backend erroneously returns error status but with valid GraphQL data.
         with self.http.expect(
             self.r(query, response=graphql_success_response(data), status_code=status_code)
         ):
             result = await self.assert_call({"query": query})
 
-        # Should parse the GraphQL data despite HTTP error status
+        # Should parse the GraphQL data despite HTTP error status.
         assert result.json() == {
             "query": query,
             "variables": {},
@@ -292,23 +297,45 @@ class TestGraphQLQuery(MCPBearerTest):
             "errors": None,
         }
 
-    @pytest.mark.parametrize("status_code", [200, 400, 403, 500, 502])
+    @pytest.mark.parametrize(
+        "status_code,marker",
+        [
+            (401, "session has expired"),
+            (403, "don't have access"),
+            (500, "upstream is unavailable"),
+            (502, "upstream is unavailable"),
+        ],
+    )
+    async def test_status_code_mapping(self, status_code, marker):
+        """401/403/5xx short-circuit to a user-friendly AnnotatedError even
+        when the body looks like a valid GraphQL response.
+        """
+        query = "{ platform { version } }"
+        data = {"platform": {"version": "test-version"}}
+
+        with self.http.expect(
+            self.r(query, response=graphql_success_response(data), status_code=status_code)
+        ):
+            result = await self.assert_call({"query": query}, error=True)
+        assert marker in result.text
+
+    @pytest.mark.parametrize("status_code", [200, 400])
     @pytest.mark.parametrize(
         "response_content",
         [
-            "invalid json content",  # Invalid JSON
-            '{"unexpected": "format"}',  # Valid JSON but not GraphQL structure
-            '{"data": "not an object"}',  # GraphQL-like but invalid data type
+            "invalid json content",
+            '{"unexpected": "format"}',
+            '{"data": "not an object"}',
         ],
     )
     async def test_http_codes_with_invalid_response(self, status_code, response_content):
-        """Test HTTP 4xx/5xx with invalid JSON or unexpected format - should raise HTTP error."""
+        """200 and 400 responses that fail JSON/GraphQL parsing bubble up the
+        raw upstream body so the LLM can see what actually came back.
+        """
         query = "{ platform { version } }"
 
         with self.http.expect(self.r(query, response=response_content, status_code=status_code)):
-            # Should raise an error due to invalid response content
             result = await self.assert_call({"query": query}, error=True)
-            # The error should contain the original response content
             assert response_content in result.text
 
 

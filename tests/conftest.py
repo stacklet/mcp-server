@@ -27,6 +27,8 @@ __all__ = ["mock_http_cookie", "mock_http_bearer", "default_settings", "override
 @pytest.fixture
 def mock_stacklet_credentials(monkeypatch):
     """Mock load_stacklet_auth to return fake test credentials."""
+    from stacklet.mcp.request_credentials import reset_stdio_credentials
+
     fake_credentials = StackletCredentials(
         endpoint="https://api.example.com/",
         access_token="fake-access-token",
@@ -34,6 +36,9 @@ def mock_stacklet_credentials(monkeypatch):
     )
 
     monkeypatch.setattr("stacklet.mcp.stacklet_auth.load_stacklet_auth", lambda: fake_credentials)
+    # Clear any stdio credentials cached by a previous test so this test's
+    # monkeypatched load_stacklet_auth actually runs on first call.
+    reset_stdio_credentials()
     return fake_credentials
 
 

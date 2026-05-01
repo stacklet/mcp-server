@@ -107,7 +107,7 @@ The actual tools available are determined by each package's `tools()` function i
 
 **Schema Caching:** The `PlatformClient` class implements instance-level caching to avoid repeated introspection queries, improving performance for schema-heavy operations.
 
-**Client Management:** Both AssetDB and Platform clients use a `.get(ctx)` pattern for lazy initialization and caching in FastMCP context. Credentials are loaded once per session using `StackletCredentials.get(ctx)`.
+**Client Management:** AssetDB, Platform, and Docs clients use a `.get(ctx)` pattern for lazy initialization as a server-wide singleton. Per-request credentials come from `current_credentials(ctx)` (in `stacklet/mcp/request_credentials.py`); never store credentials on a client instance — they're per-request, not per-process.
 
 **Error Handling:** All GraphQL and SQL operations return structured responses, with network errors and JSON parsing errors handled gracefully. AssetDB supports async query polling for long-running operations.
 
