@@ -3,6 +3,8 @@
 # Copyright (c) 2025-2026 Stacklet, Inc.
 #
 
+import itertools
+
 from textwrap import dedent
 from unittest.mock import MagicMock
 
@@ -53,9 +55,15 @@ class TestCLIArguments:
         )
         assert err == ""
 
-    @pytest.mark.parametrize("profile", Profile)
-    def test_agent_config_generate(self, capsys, run_cli, profile):
+    @pytest.mark.parametrize(
+        "profile, platform", itertools.product(Profile, ["win32", "linux", "darwin"])
+    )
+    def test_agent_config_generate(self, capsys, run_cli, monkeypatch, profile, platform):
+        monkeypatch.setattr("sys.platform", platform)
         run_cli("agent-config", "generate", str(profile))
         out, err = capsys.readouterr()
         assert out == mcp_config(profile) + "\n"
         assert err == ""
+
+        force_utf8 = platform == "win32"
+        assert ('"PYTHONUTF8": "1"' in out) == force_utf8

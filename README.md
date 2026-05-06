@@ -73,6 +73,10 @@ The following variables are available:
 - `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE`: whether to enable query archiving functionality in AssetDB (default: `false`)
 - `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS`: whether to enable executing mutations in Platform API (default: `false`)
 
+Note: Setting `PYTHONUTF8` to `1` can avoid encoding errors at startup on Windows machines.
+The `stacklet-mcp agent-config generate` command should define that environment variable only
+when run on Windows. Note that while this isn't necessary on Mac or Linux, it also won't do
+any harm.
 
 ## Development
 
