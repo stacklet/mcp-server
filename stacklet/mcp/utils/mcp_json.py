@@ -79,4 +79,7 @@ def _get_profile_env(profile: Profile) -> dict[str, str] | None:
         (env_prefix + name).upper(): str(value)
         for name, value in settings.model_dump(exclude_defaults=True).items()
     }
+    # Force UTF-8 mode to avoid encoding errors on Windows
+    if sys.platform == "win32":
+        env["PYTHONUTF8"] = "1"
     return env or None
