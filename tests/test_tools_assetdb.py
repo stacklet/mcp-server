@@ -427,7 +427,7 @@ class QueryResultTest(MCPCookieTest):
         )
 
     def job_response(self, status):
-        error = "Oh no borken" if status == JobStatus.FAILED else ""
+        error = "Oh no broken" if status == JobStatus.FAILED else ""
         result_id = self.RESULT_ID if status == JobStatus.FINISHED else None
         return factory.redash_job_response(
             self.JOB_ID, status, error=error, query_result_id=result_id
@@ -567,7 +567,7 @@ class TestQueryResult(QueryResultTest):
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.FAILED)),
             expect_error=(
-                "Query execution error: Oh no borken. This likely means the query SQL or "
+                "Query execution error: Oh no broken. This likely means the query SQL or "
                 "parameters were invalid. Next steps: investigate the errors, or try a simpler "
                 "query and build up"
             ),
@@ -670,7 +670,7 @@ class TestSQLQuery(QueryResultTest):
             self.expect_post(self.post_data(), self.job_response(JobStatus.QUEUED)),
             self.expect_get_job(self.job_response(JobStatus.FAILED)),
             expect_error=(
-                "Query execution error: Oh no borken. This likely means the query SQL or "
+                "Query execution error: Oh no broken. This likely means the query SQL or "
                 "parameters were invalid. Next steps: investigate the errors, or try a simpler "
                 "query and build up"
             ),

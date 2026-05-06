@@ -53,15 +53,6 @@ lint.isort.lines-after-imports = 2
 # Use a single line between direct and from import.
 lint.isort.lines-between-types = 1
 
-[tool.pytest]
-ini_options.asyncio_mode = "auto"
-ini_options.addopts = "--no-cov-on-fail"
-
-[tool.coverage]
-report.fail_under = 94.0
-report.show_missing = true
-report.skip_covered = true
-
 [tool.mypy]
 strict = true
 install_types = true
@@ -75,3 +66,12 @@ ignore_missing_imports = true
 non_interactive = true
 exclude = [ "tests/" ]
 plugins = [ "pydantic.mypy" ]
+
+[tool.pytest]
+ini_options.asyncio_mode = "auto"
+ini_options.addopts = "--no-cov-on-fail"
+
+[tool.coverage]
+report.fail_under = 94.0
+report.show_missing = true
+report.skip_covered = true
