@@ -43,7 +43,7 @@ The configuration can be manually tweaked to just allow some edits.
 
 ## Authentication
 
-The MCP server needs to be authenticated wtih the Stacklet environment before use.
+The MCP server needs to be authenticated with the Stacklet environment before use.
 The easiest way to authenticate to your Stacklet environment is to use the [stacklet-admin](https://pypi.org/project/stacklet.client.platform/) command, which is most easily installed with:
 
 ```
