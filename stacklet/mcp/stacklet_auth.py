@@ -7,11 +7,43 @@ import json
 import os
 
 from pathlib import Path
-from typing import NamedTuple, Self, cast
+from typing import NamedTuple
+from urllib.parse import urlparse, urlunparse
 
-from fastmcp import Context
 
-from .lifespan import server_cached
+def service_endpoint(endpoint: str, service: str) -> str:
+    """Return the URL for a Stacklet service (e.g. "redash", "docs").
+
+    Derives the service URL by replacing the ``api.`` prefix of the host with
+    ``{service}.``. Substring-replace on the whole URL is unsafe — hosts like
+    ``foo-api.example.com`` would match spuriously and silently produce the
+    wrong service URL.
+
+    Raises ValueError if the endpoint has no host or the host does not start
+    with ``api.`` (so local dev hosts or path-based endpoints fail loudly
+    instead of silently pointing at the wrong service).
+    """
+    parsed = urlparse(endpoint)
+    host = parsed.hostname
+    if not host:
+        raise ValueError(f"Invalid endpoint (no host): {endpoint!r}")
+    if not host.startswith("api."):
+        raise ValueError(
+            f"Endpoint host must start with 'api.' to derive service URLs; got {host!r}"
+        )
+    # urlunparse with a new netloc would silently drop userinfo. Stacklet
+    # URLs don't carry user:pass@, but refuse to drop any caller's
+    # credentials rather than silently losing them.
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError(f"Endpoint must not contain userinfo: {endpoint!r}")
+    new_host = service + host[len("api") :]
+    new_netloc = new_host
+    if parsed.port is not None:
+        new_netloc = f"{new_host}:{parsed.port}"
+    rebuilt = urlunparse(parsed._replace(netloc=new_netloc))
+    if not rebuilt.endswith("/"):
+        rebuilt += "/"
+    return rebuilt
 
 
 class StackletCredentials(NamedTuple):
@@ -21,16 +53,9 @@ class StackletCredentials(NamedTuple):
     access_token: str
     identity_token: str
 
-    @classmethod
-    def get(cls, ctx: Context) -> Self:
-        return cast(Self, server_cached(ctx, "STACKLET_CREDS", load_stacklet_auth))
-
     def service_endpoint(self, service: str) -> str:
-        """Return the endpoint for a service."""
-        endpoint = self.endpoint.replace("api.", f"{service}.", 1)
-        if not endpoint.endswith("/"):
-            endpoint += "/"
-        return endpoint
+        """Return the URL for a Stacklet service (e.g. "redash", "docs")."""
+        return service_endpoint(self.endpoint, service)
 
 
 def get_stacklet_dir() -> Path:

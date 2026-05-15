@@ -99,6 +99,7 @@ async def assetdb_query_list(
     """
     client = AssetDBClient.get(ctx)
     response = await client.list_queries(
+        ctx,
         page=page,
         page_size=page_size,
         search=search,
@@ -149,7 +150,7 @@ async def assetdb_query_get(
     execute the query and get data.
     """
     client = AssetDBClient.get(ctx)
-    return await client.get_query(query_id)
+    return await client.get_query(ctx, query_id)
 
 
 @json_guard
@@ -220,13 +221,13 @@ async def assetdb_query_save(
 
     client = AssetDBClient.get(ctx)
     if query_id and query_id > 0:
-        return await client.update_query(query_id, upsert)
+        return await client.update_query(ctx, query_id, upsert)
 
     if not upsert.name:  # Accepted by redash, but unreasonable.
         upsert.name = "Untitled LLM Query"
     if upsert.query is None:  # This would actually 500.
         upsert.query = ""  # Maybe also unreasonable, but will get feedback.
-    return await client.create_query(upsert)
+    return await client.create_query(ctx, upsert)
 
 
 @json_guard
@@ -245,7 +246,7 @@ async def assetdb_query_archive(
     in the database and could potentially be restored by database administrators.
     """
     client = AssetDBClient.get(ctx)
-    await client.delete_query(query_id)
+    await client.delete_query(ctx, query_id)
     return QueryArchiveResult(
         success=True,
         message=f"Query {query_id} has been successfully archived",
@@ -299,10 +300,14 @@ async def assetdb_query_result(
     client = AssetDBClient.get(ctx)
 
     query_result = await client.execute_saved_query(
-        query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout
+        ctx,
+        query_id=query_id,
+        parameters=parameters,
+        max_age=max_age,
+        timeout=timeout,
     )
-    query = await client.get_query(query_id)
-    return _tool_query_result(client, query_result, query)
+    query = await client.get_query(ctx, query_id)
+    return _tool_query_result(ctx, client, query_result, query)
 
 
 @json_guard
@@ -342,12 +347,15 @@ async def assetdb_sql_query(
       assetdb_query_result()
     """
     client = AssetDBClient.get(ctx)
-    query_result = await client.execute_adhoc_query(query, max_age=max_age, timeout=timeout)
-    return _tool_query_result(client, query_result, None)
+    query_result = await client.execute_adhoc_query(ctx, query, max_age=max_age, timeout=timeout)
+    return _tool_query_result(ctx, client, query_result, None)
 
 
 def _tool_query_result(
-    client: AssetDBClient, query_result: QueryResult, query: Query | None
+    ctx: Context,
+    client: AssetDBClient,
+    query_result: QueryResult,
+    query: Query | None,
 ) -> ToolQueryResult:
     """
     Convert a raw QueryResult into an LLM-friendly ToolQueryResult.
@@ -383,7 +391,7 @@ def _tool_query_result(
     if query:
         # If we've got an actual Query, we can use its API key to give back
         # handles to the data in all available formats.
-        result_urls = client.get_query_result_urls(query, query_result)
+        result_urls = client.get_query_result_urls(ctx, query, query_result)
         alternate_formats = [
             ToolQueryResultArtifact(format=fmt, download_from=url)
             for fmt, url in result_urls.items()

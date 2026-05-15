@@ -88,19 +88,12 @@ class ExpectedRequestsController:
         return ExpectationContext(self.expected_requests)
 
 
-@pytest.fixture
-def mock_http_request(monkeypatch, mock_stacklet_credentials):
-    """Mock httpx.AsyncClient.request with ordered expectations."""
-
-    controller = ExpectedRequestsController()
-
-    async def mock_request(self, method, url, **kwargs):
-        assert self.cookies["stacklet-auth"] == mock_stacklet_credentials.identity_token
-        return controller.next_request().respond(method, url, **kwargs)
-
-    monkeypatch.setattr("httpx.AsyncClient.request", mock_request)
-
-    return controller
+def _per_call(kwargs: dict, kind: str, key: str) -> str | None:
+    """Return kwargs[kind][key] if present (for session-level auth absence)."""
+    mapping = kwargs.get(kind) or {}
+    if hasattr(mapping, "get"):
+        return mapping.get(key)
+    return None
 
 
 def _mock_http_request_with_auth_check(monkeypatch, mock_stacklet_credentials, auth_check_func):
@@ -109,7 +102,7 @@ def _mock_http_request_with_auth_check(monkeypatch, mock_stacklet_credentials, a
     controller = ExpectedRequestsController()
 
     async def mock_request(self, method, url, **kwargs):
-        auth_check_func(self, mock_stacklet_credentials)
+        auth_check_func(kwargs, mock_stacklet_credentials)
         return controller.next_request().respond(method, url, **kwargs)
 
     monkeypatch.setattr("httpx.AsyncClient.request", mock_request)
@@ -118,10 +111,18 @@ def _mock_http_request_with_auth_check(monkeypatch, mock_stacklet_credentials, a
 
 @pytest.fixture
 def mock_http_cookie(monkeypatch, mock_stacklet_credentials):
-    """Mock httpx.AsyncClient.request with cookie-based auth expectations."""
+    """Mock httpx.AsyncClient.request with cookie-based auth expectations.
 
-    def check_cookie_auth(client, credentials):
-        assert client.cookies["stacklet-auth"] == credentials.identity_token
+    Auth must be passed per-call via `cookies=`; session-level cookie jars
+    are a regression.
+    """
+
+    def check_cookie_auth(kwargs, credentials):
+        cookie = _per_call(kwargs, "cookies", "stacklet-auth")
+        assert cookie == credentials.identity_token, (
+            "expected stacklet-auth cookie on per-call kwargs; clients must "
+            "pass auth per-call, not via session defaults"
+        )
 
     return _mock_http_request_with_auth_check(
         monkeypatch, mock_stacklet_credentials, check_cookie_auth
@@ -130,10 +131,19 @@ def mock_http_cookie(monkeypatch, mock_stacklet_credentials):
 
 @pytest.fixture
 def mock_http_bearer(monkeypatch, mock_stacklet_credentials):
-    """Mock httpx.AsyncClient.request with bearer token auth expectations."""
+    """Mock httpx.AsyncClient.request with bearer-token auth expectations.
 
-    def check_bearer_auth(client, credentials):
-        assert client.headers["Authorization"] == f"Bearer {credentials.access_token}"
+    Auth must be passed per-call via `headers=`; session-level defaults
+    are a regression.
+    """
+
+    def check_bearer_auth(kwargs, credentials):
+        expected = f"Bearer {credentials.access_token}"
+        actual = _per_call(kwargs, "headers", "Authorization")
+        assert actual == expected, (
+            "expected Authorization header on per-call kwargs; clients must "
+            "pass auth per-call, not via session defaults"
+        )
 
     return _mock_http_request_with_auth_check(
         monkeypatch, mock_stacklet_credentials, check_bearer_auth

@@ -38,14 +38,24 @@ class TestDocsList(MCPCookieTest):
             "recommended_start": "index_llms.md",
         }
 
-    async def test_cached(self):
-        """Document listing is cached across requests.."""
+    async def test_not_cached(self):
+        """Document listing is fetched per request (no server-wide cache).
+
+        The previous instance-level _index cache leaked the first caller's
+        authenticated index to every subsequent caller, so it was removed.
+        Two sequential docs_list calls must therefore each trigger an
+        upstream fetch.
+        """
         docs = [
             {"path": "foo.md", "title": "How to foo"},
             {"path": "bar.md", "title": "How to bar"},
         ]
 
         with self.http.expect(
+            ExpectRequest(
+                url="https://docs.example.com/index.json",
+                response=json.dumps(docs),
+            ),
             ExpectRequest(
                 url="https://docs.example.com/index.json",
                 response=json.dumps(docs),
