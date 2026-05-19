@@ -15,7 +15,7 @@ import httpx
 from fastmcp import Context
 
 from .. import USER_AGENT
-from ..lifespan import ServerState, server_cached
+from ..lifespan import ServerStateProtocol, server_cached
 from ..stacklet_auth import StackletCredentials
 from .models import DocContent, DocFile
 
@@ -23,7 +23,7 @@ from .models import DocContent, DocFile
 class DocsClient:
     """Client to fetch documentation files."""
 
-    def __init__(self, credentials: StackletCredentials, server_state: ServerState):
+    def __init__(self, credentials: StackletCredentials, server_state: ServerStateProtocol):
         self.credentials = credentials
         self.server_state = server_state
         self.docs_url = self.credentials.service_endpoint("docs")
@@ -42,7 +42,10 @@ class DocsClient:
 
     async def get_index(self) -> list[DocFile]:
         """Fetch documents index, using the server-level cache."""
-        return await self.server_state.ensure_cached_async("DOCS_INDEX", self._fetch_index)
+        return cast(
+            list[DocFile],
+            await self.server_state.ensure_cached_async("DOCS_INDEX", self._fetch_index),
+        )
 
     async def get_doc_file(self, resource: str) -> DocContent:
         """Fetch a documentation file.

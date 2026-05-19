@@ -26,7 +26,7 @@ from graphql import (
 )
 
 from .. import USER_AGENT
-from ..lifespan import ServerState, server_cached
+from ..lifespan import ServerStateProtocol, server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 from ..utils.error import AnnotatedError
@@ -46,7 +46,7 @@ class PlatformClient:
     def __init__(
         self,
         credentials: StackletCredentials,
-        server_state: ServerState,
+        server_state: ServerStateProtocol,
         enable_mutations: bool = False,
     ):
         self.credentials = credentials

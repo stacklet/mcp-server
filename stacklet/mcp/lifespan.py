@@ -6,9 +6,10 @@
 import asyncio
 
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Awaitable, Callable, TypeVar, cast
+from typing import Any, AsyncIterator, Awaitable, Callable, Protocol, TypeVar, cast
 
 from fastmcp import Context, FastMCP
+from fastmcp.server.server import LifespanCallable
 from fastmcp.utilities.logging import get_logger
 
 from mcp.server.lowlevel.server import LifespanResultT
@@ -16,21 +17,43 @@ from mcp.server.lowlevel.server import LifespanResultT
 from .settings import SETTINGS
 
 
-# an object cached in the server global state
 ServerCached = TypeVar("ServerCached")
 
 
-class ServerState(dict[str, Any]):
-    """Server-global state.
+class ServerStateProtocol(Protocol):
+    """Protocol for server-wide request state.
 
-    This is practical for local servers since there's always a single client,
-    but won't work for network-based ones.
-
+    The local implementation caches objects for the process lifetime (safe for
+    single-user stdio servers). A hosted implementation can key caches per user
+    or skip caching entirely so each request gets a fresh client constructed
+    from that request's forwarded credentials.
     """
 
-    def __init__(self) -> None:
+    @property
+    def auth_provider(self) -> Any:
+        """Auth provider for this server instance."""
+        ...
+
+    def ensure_cached(self, key: str, construct: Callable[[], Any]) -> Any:
+        """Return the cached object for key, constructing it if not present."""
+        ...
+
+    async def ensure_cached_async(self, key: str, construct: Callable[[], Awaitable[Any]]) -> Any:
+        """Async variant of ensure_cached for objects that require async construction."""
+        ...
+
+
+class ServerState(dict[str, Any]):
+    """Local server state — caches objects for the process lifetime."""
+
+    def __init__(self, auth_provider: Any) -> None:
         super().__init__()
+        self._auth_provider = auth_provider
         self._async_locks: dict[str, asyncio.Lock] = {}
+
+    @property
+    def auth_provider(self) -> Any:
+        return self._auth_provider
 
     def ensure_cached(self, key: str, construct: Callable[[], ServerCached]) -> ServerCached:
         obj = self.get(key)
@@ -54,16 +77,28 @@ class ServerState(dict[str, Any]):
             return cast(ServerCached, obj)
 
 
-@asynccontextmanager
-async def lifespan(_server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerState]:
-    """Server lifespan context manager."""
-    logger = get_logger("stacklet")
+def make_lifespan(
+    auth_provider: Any,
+    state_factory: Callable[[Any], ServerStateProtocol] | None = None,
+) -> LifespanCallable[Any]:
+    """Return a lifespan context manager parameterized with the given auth provider.
 
-    # startup logging
-    logger.info(f"Server settings: {SETTINGS.model_dump()}")
+    Args:
+        auth_provider: Auth provider passed to the state factory.
+        state_factory: Callable that takes an auth provider and returns a
+            ServerStateProtocol. Defaults to ServerState (local, cached).
+            A hosted deployment can pass an implementation that creates
+            per-request state instead.
+    """
+    factory: Callable[[Any], ServerStateProtocol] = state_factory or ServerState
 
-    # return shared state
-    yield ServerState()
+    @asynccontextmanager
+    async def _lifespan(_server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerStateProtocol]:
+        logger = get_logger("stacklet")
+        logger.info(f"Server settings: {SETTINGS.model_dump()}")
+        yield factory(auth_provider)
+
+    return _lifespan
 
 
 def server_cached(ctx: Context, key: str, construct: Callable[[], ServerCached]) -> ServerCached:
