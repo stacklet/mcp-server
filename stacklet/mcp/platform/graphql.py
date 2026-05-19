@@ -26,7 +26,7 @@ from graphql import (
 )
 
 from .. import USER_AGENT
-from ..lifespan import server_cached
+from ..lifespan import ServerState, server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 from ..utils.error import AnnotatedError
@@ -43,15 +43,14 @@ from .models import (
 class PlatformClient:
     """Client for Stacklet Platform GraphQL API."""
 
-    def __init__(self, credentials: StackletCredentials, enable_mutations: bool = False):
-        """
-        Initialize Platform client with Stacklet credentials.
-
-        Args:
-            credentials: StackletCredentials object containing endpoint and access_token
-            enable_mutations: Whether to allow executing mutations
-        """
+    def __init__(
+        self,
+        credentials: StackletCredentials,
+        server_state: ServerState,
+        enable_mutations: bool = False,
+    ):
         self.credentials = credentials
+        self.server_state = server_state
         self.enable_mutations = enable_mutations
 
         self.session = httpx.AsyncClient(
@@ -62,12 +61,13 @@ class PlatformClient:
             },
             timeout=30.0,
         )
-        self._schema_cache = None
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
         def construct() -> PlatformClient:
-            return cls(StackletCredentials.get(ctx), SETTINGS.platform_allow_mutations)
+            assert ctx.request_context is not None
+            state = ctx.request_context.lifespan_context
+            return cls(StackletCredentials.get(ctx), state, SETTINGS.platform_allow_mutations)
 
         return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
 
@@ -92,19 +92,11 @@ class PlatformClient:
         return await self._query(query, variables)
 
     async def get_schema(self) -> GraphQLSchema:
-        """
-        Retrieve the GraphQL schema from the Stacklet Platform API.
-        Uses instance-level caching to avoid repeated introspection queries.
+        """Retrieve the GraphQL schema, using the server-level cache."""
+        return await self.server_state.ensure_cached_async("PLATFORM_SCHEMA", self._fetch_schema)
 
-        Returns:
-            GraphQL schema object
-        """
-        if self._schema_cache is not None:
-            return self._schema_cache
-
-        # Use the standard GraphQL introspection query
+    async def _fetch_schema(self) -> GraphQLSchema:
         introspection_query = {"query": get_introspection_query()}
-
         response = await self.session.post(self.credentials.endpoint, json=introspection_query)
         response.raise_for_status()
 
@@ -116,9 +108,7 @@ class PlatformClient:
         if not schema:
             raise Exception("GraphQL introspection returned no schema data")
 
-        # Cache the schema for future requests
-        self._schema_cache = build_client_schema({"__schema": schema})
-        return self._schema_cache
+        return build_client_schema({"__schema": schema})
 
     async def list_types(self, match: str | None = None) -> ListTypesResult:
         """
