@@ -3,6 +3,8 @@
 # Copyright (c) 2025-2026 Stacklet, Inc.
 #
 
+import asyncio
+
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Awaitable, Callable, TypeVar, cast
 
@@ -26,6 +28,10 @@ class ServerState(dict[str, Any]):
 
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._async_locks: dict[str, asyncio.Lock] = {}
+
     def ensure_cached(self, key: str, construct: Callable[[], ServerCached]) -> ServerCached:
         obj = self.get(key)
         if obj is None:
@@ -37,10 +43,15 @@ class ServerState(dict[str, Any]):
         self, key: str, construct: Callable[[], Awaitable[ServerCached]]
     ) -> ServerCached:
         obj = self.get(key)
-        if obj is None:
-            obj = await construct()
-            self[key] = obj
-        return cast(ServerCached, obj)
+        if obj is not None:
+            return cast(ServerCached, obj)
+        lock = self._async_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            obj = self.get(key)
+            if obj is None:
+                obj = await construct()
+                self[key] = obj
+            return cast(ServerCached, obj)
 
 
 @asynccontextmanager

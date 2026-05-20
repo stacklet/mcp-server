@@ -35,8 +35,7 @@ class DocsClient:
     @classmethod
     def get(cls, ctx: Context) -> Self:
         def construct() -> DocsClient:
-            assert ctx.request_context is not None
-            state = ctx.request_context.lifespan_context
+            state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
             return cls(StackletCredentials.get(ctx), state)
 
         return cast(Self, server_cached(ctx, "DOCS_CLIENT", construct))

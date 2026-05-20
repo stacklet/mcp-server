@@ -65,8 +65,7 @@ class PlatformClient:
     @classmethod
     def get(cls, ctx: Context) -> Self:
         def construct() -> PlatformClient:
-            assert ctx.request_context is not None
-            state = ctx.request_context.lifespan_context
+            state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
             return cls(StackletCredentials.get(ctx), state, SETTINGS.platform_allow_mutations)
 
         return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
