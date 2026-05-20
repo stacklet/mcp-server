@@ -13,9 +13,11 @@ __pycache__/
 !.vscode/launch.json
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
 
 # Local config
 .mcp.json
+.claude/settings.local.json

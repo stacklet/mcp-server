@@ -45,6 +45,9 @@ dev = [
 build.targets.wheel.packages = [ "stacklet" ]
 version.path = "stacklet/mcp/__init__.py"
 
+[tool.uv]
+exclude-newer = "7 days"
+
 [tool.ruff]
 line-length = 100
 # Add `line-too-long` and isort to the enforced rule set.
