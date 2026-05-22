@@ -3,8 +3,10 @@
 # Copyright (c) 2025-2026 Stacklet, Inc.
 #
 
+import asyncio
+
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, TypeVar, cast
+from typing import Any, AsyncIterator, Awaitable, Callable, TypeVar, cast
 
 from fastmcp import Context, FastMCP
 from fastmcp.utilities.logging import get_logger
@@ -26,6 +28,10 @@ class ServerState(dict[str, Any]):
 
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._async_locks: dict[str, asyncio.Lock] = {}
+
     def ensure_cached(self, key: str, construct: Callable[[], ServerCached]) -> ServerCached:
         obj = self.get(key)
         if obj is None:
@@ -33,9 +39,23 @@ class ServerState(dict[str, Any]):
             self[key] = obj
         return cast(ServerCached, obj)
 
+    async def ensure_cached_async(
+        self, key: str, construct: Callable[[], Awaitable[ServerCached]]
+    ) -> ServerCached:
+        obj = self.get(key)
+        if obj is not None:
+            return cast(ServerCached, obj)
+        lock = self._async_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            obj = self.get(key)
+            if obj is None:
+                obj = await construct()
+                self[key] = obj
+            return cast(ServerCached, obj)
+
 
 @asynccontextmanager
-async def lifespan(server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerState]:
+async def lifespan(_server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerState]:
     """Server lifespan context manager."""
     logger = get_logger("stacklet")
 
