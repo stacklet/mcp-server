@@ -18,6 +18,7 @@ import httpx
 from fastmcp import Context
 
 from .. import USER_AGENT
+from ..lifespan import ServerStateProtocol
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 from ..utils.error import AnnotatedError
@@ -27,27 +28,36 @@ from .models import ExportFormat, Job, Query, QueryListResponse, QueryResult, Qu
 class AssetDBClient:
     """Client for AssetDB interface via Redash API using Stacklet authentication."""
 
-    def __init__(self, credentials: StackletCredentials, data_source_id: int = 1) -> None:
+    def __init__(
+        self,
+        credentials: StackletCredentials,
+        server_state: ServerStateProtocol,
+        data_source_id: int = 1,
+    ) -> None:
         """
         Initialize AssetDB client with Stacklet credentials.
 
         Args:
             credentials: StackletCredentials object containing endpoint and id_token
+            server_state: Server state for shared resource caching
             data_source_id: ID of the Redash data source (default 1 for main AssetDB)
         """
         self.credentials = credentials
         self.data_source_id = data_source_id
 
         self.redash_url = self.credentials.service_endpoint("redash")
+        transport = server_state.ensure_cached("HTTP_TRANSPORT", httpx.AsyncHTTPTransport)
         self.session = httpx.AsyncClient(
             headers={"User-Agent": USER_AGENT},
             cookies={"stacklet-auth": credentials.identity_token},
+            transport=transport,
             timeout=60.0,
         )
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        return cls(StackletCredentials.get(ctx), SETTINGS.assetdb_datasource)
+        state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
+        return cls(StackletCredentials.get(ctx), state, SETTINGS.assetdb_datasource)
 
     async def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any:
         """

@@ -42,6 +42,10 @@ class ServerStateProtocol(Protocol):
         """Async variant of ensure_cached for objects that require async construction."""
         ...
 
+    async def aclose(self) -> None:
+        """Release any resources held by this state instance."""
+        ...
+
 
 class ServerState(dict[str, Any]):
     """Local server state — caches objects for the process lifetime."""
@@ -76,6 +80,11 @@ class ServerState(dict[str, Any]):
                 self[key] = obj
             return cast(ServerCached, obj)
 
+    async def aclose(self) -> None:
+        for value in self.values():
+            if hasattr(value, "aclose"):
+                await value.aclose()
+
 
 def make_lifespan(
     auth_provider: Any,
@@ -96,7 +105,11 @@ def make_lifespan(
     async def _lifespan(_server: FastMCP[LifespanResultT]) -> AsyncIterator[ServerStateProtocol]:
         logger = get_logger("stacklet")
         logger.info(f"Server settings: {SETTINGS.model_dump()}")
-        yield factory(auth_provider)
+        state = factory(auth_provider)
+        try:
+            yield state
+        finally:
+            await state.aclose()
 
     return _lifespan
 

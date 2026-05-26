@@ -53,12 +53,14 @@ class PlatformClient:
         self.server_state = server_state
         self.enable_mutations = enable_mutations
 
+        transport = server_state.ensure_cached("HTTP_TRANSPORT", httpx.AsyncHTTPTransport)
         self.session = httpx.AsyncClient(
             headers={
                 "Authorization": f"Bearer {credentials.access_token}",
                 "Content-Type": "application/json",
                 "User-Agent": USER_AGENT,
             },
+            transport=transport,
             timeout=30.0,
         )
 

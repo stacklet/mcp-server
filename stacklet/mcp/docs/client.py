@@ -27,9 +27,11 @@ class DocsClient:
         self.credentials = credentials
         self.server_state = server_state
         self.docs_url = self.credentials.service_endpoint("docs")
+        transport = server_state.ensure_cached("HTTP_TRANSPORT", httpx.AsyncHTTPTransport)
         self.session = httpx.AsyncClient(
             headers={"User-Agent": USER_AGENT},
             cookies={"stacklet-auth": credentials.identity_token},
+            transport=transport,
         )
 
     @classmethod
