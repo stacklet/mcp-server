@@ -63,6 +63,7 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 ignore_missing_imports = true
+explicit_package_bases = true
 non_interactive = true
 exclude = [ "tests/" ]
 plugins = [ "pydantic.mypy" ]

@@ -22,8 +22,8 @@ repos:
     rev: fc0f09a29bb495f4a91f00266155d6282d52485d  # frozen: v1.20.2
     hooks:
       - id: mypy
-        args: [--config-file=pyproject.toml]
-        exclude: ^tests/
+        args: [--config-file=pyproject.toml, stacklet/]
+        pass_filenames: false
         # some dependencies don't export types, so they're needed in the mypy
         # virtualenv
         additional_dependencies:

@@ -15,7 +15,7 @@ import httpx
 from fastmcp import Context
 
 from .. import USER_AGENT
-from ..lifespan import ServerStateProtocol, server_cached
+from ..lifespan import ServerStateProtocol
 from ..stacklet_auth import StackletCredentials
 from .models import DocContent, DocFile
 
@@ -34,11 +34,8 @@ class DocsClient:
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        def construct() -> DocsClient:
-            state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
-            return cls(StackletCredentials.get(ctx), state)
-
-        return cast(Self, server_cached(ctx, "DOCS_CLIENT", construct))
+        state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
+        return cls(StackletCredentials.get(ctx), state)
 
     async def get_index(self) -> list[DocFile]:
         """Fetch documents index, using the server-level cache."""

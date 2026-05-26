@@ -1,6 +1,6 @@
 # LICENSE HEADER MANAGED BY add-license-header
 #
-# Copyright (c) 2025-2026 Stacklet, Inc.
+# Copyright (c) 2026 Stacklet, Inc.
 #
 
 from fastmcp import Context

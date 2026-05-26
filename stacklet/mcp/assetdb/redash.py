@@ -10,7 +10,7 @@ AssetDB client using Redash API with Stacklet authentication.
 import asyncio
 import time
 
-from typing import Any, Self, cast
+from typing import Any, Self
 from urllib.parse import urljoin
 
 import httpx
@@ -18,7 +18,6 @@ import httpx
 from fastmcp import Context
 
 from .. import USER_AGENT
-from ..lifespan import server_cached
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 from ..utils.error import AnnotatedError
@@ -48,10 +47,7 @@ class AssetDBClient:
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        def construct() -> AssetDBClient:
-            return cls(StackletCredentials.get(ctx), SETTINGS.assetdb_datasource)
-
-        return cast(Self, server_cached(ctx, "ASSETDB_CLIENT", construct))
+        return cls(StackletCredentials.get(ctx), SETTINGS.assetdb_datasource)
 
     async def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any:
         """
