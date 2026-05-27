@@ -7,7 +7,7 @@
 Client for accessing Stacklet documentation.
 """
 
-from typing import Self, cast
+from typing import Self
 from urllib.parse import urljoin
 
 import httpx
@@ -41,10 +41,7 @@ class DocsClient:
 
     async def get_index(self) -> list[DocFile]:
         """Fetch documents index, using the server-level cache."""
-        return cast(
-            list[DocFile],
-            await self.server_state.ensure_cached_async("DOCS_INDEX", self._fetch_index),
-        )
+        return await self.server_state.ensure_cached_async("DOCS_INDEX", self._fetch_index)
 
     async def get_doc_file(self, resource: str) -> DocContent:
         """Fetch a documentation file.

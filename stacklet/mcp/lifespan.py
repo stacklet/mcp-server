@@ -34,11 +34,13 @@ class ServerStateProtocol(Protocol):
         """Auth provider for this server instance."""
         ...
 
-    def ensure_cached(self, key: str, construct: Callable[[], Any]) -> Any:
+    def ensure_cached(self, key: str, construct: Callable[[], ServerCached]) -> ServerCached:
         """Return the cached object for key, constructing it if not present."""
         ...
 
-    async def ensure_cached_async(self, key: str, construct: Callable[[], Awaitable[Any]]) -> Any:
+    async def ensure_cached_async(
+        self, key: str, construct: Callable[[], Awaitable[ServerCached]]
+    ) -> ServerCached:
         """Async variant of ensure_cached for objects that require async construction."""
         ...
 
