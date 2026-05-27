@@ -26,7 +26,7 @@ from graphql import (
 )
 
 from .. import USER_AGENT
-from ..lifespan import ServerState, server_cached
+from ..lifespan import ServerStateProtocol
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 from ..utils.error import AnnotatedError
@@ -46,29 +46,28 @@ class PlatformClient:
     def __init__(
         self,
         credentials: StackletCredentials,
-        server_state: ServerState,
+        server_state: ServerStateProtocol,
         enable_mutations: bool = False,
     ):
         self.credentials = credentials
         self.server_state = server_state
         self.enable_mutations = enable_mutations
 
+        transport = server_state.ensure_cached("HTTP_TRANSPORT", httpx.AsyncHTTPTransport)
         self.session = httpx.AsyncClient(
             headers={
                 "Authorization": f"Bearer {credentials.access_token}",
                 "Content-Type": "application/json",
                 "User-Agent": USER_AGENT,
             },
+            transport=transport,
             timeout=30.0,
         )
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        def construct() -> PlatformClient:
-            state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
-            return cls(StackletCredentials.get(ctx), state, SETTINGS.platform_allow_mutations)
-
-        return cast(Self, server_cached(ctx, "PLATFORM_CLIENT", construct))
+        state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
+        return cls(StackletCredentials.get(ctx), state, SETTINGS.platform_allow_mutations)
 
     async def query(self, query: str, variables: dict[str, Any]) -> GraphQLQueryResult:
         """

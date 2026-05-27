@@ -11,8 +11,6 @@ from typing import NamedTuple, Self, cast
 
 from fastmcp import Context
 
-from .lifespan import server_cached
-
 
 class StackletCredentials(NamedTuple):
     """Stacklet authentication credentials."""
@@ -23,7 +21,10 @@ class StackletCredentials(NamedTuple):
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        return cast(Self, server_cached(ctx, "STACKLET_CREDS", load_stacklet_auth))
+        """Return credentials from the server's configured auth provider."""
+        assert ctx.request_context is not None, "get() must be called within a request context"
+        state = ctx.request_context.lifespan_context
+        return cast(Self, state.auth_provider.get_credentials(ctx))
 
     def service_endpoint(self, service: str) -> str:
         """Return the endpoint for a service."""

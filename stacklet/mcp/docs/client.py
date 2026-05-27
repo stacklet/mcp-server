@@ -7,7 +7,7 @@
 Client for accessing Stacklet documentation.
 """
 
-from typing import Self, cast
+from typing import Self
 from urllib.parse import urljoin
 
 import httpx
@@ -15,7 +15,7 @@ import httpx
 from fastmcp import Context
 
 from .. import USER_AGENT
-from ..lifespan import ServerState, server_cached
+from ..lifespan import ServerStateProtocol
 from ..stacklet_auth import StackletCredentials
 from .models import DocContent, DocFile
 
@@ -23,22 +23,21 @@ from .models import DocContent, DocFile
 class DocsClient:
     """Client to fetch documentation files."""
 
-    def __init__(self, credentials: StackletCredentials, server_state: ServerState):
+    def __init__(self, credentials: StackletCredentials, server_state: ServerStateProtocol):
         self.credentials = credentials
         self.server_state = server_state
         self.docs_url = self.credentials.service_endpoint("docs")
+        transport = server_state.ensure_cached("HTTP_TRANSPORT", httpx.AsyncHTTPTransport)
         self.session = httpx.AsyncClient(
             headers={"User-Agent": USER_AGENT},
             cookies={"stacklet-auth": credentials.identity_token},
+            transport=transport,
         )
 
     @classmethod
     def get(cls, ctx: Context) -> Self:
-        def construct() -> DocsClient:
-            state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
-            return cls(StackletCredentials.get(ctx), state)
-
-        return cast(Self, server_cached(ctx, "DOCS_CLIENT", construct))
+        state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
+        return cls(StackletCredentials.get(ctx), state)
 
     async def get_index(self) -> list[DocFile]:
         """Fetch documents index, using the server-level cache."""
