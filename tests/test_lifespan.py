@@ -1,6 +1,6 @@
 # LICENSE HEADER MANAGED BY add-license-header
 #
-# Copyright (c) 2025-2026 Stacklet, Inc.
+# Copyright (c) 2026 Stacklet, Inc.
 #
 
 """
@@ -10,8 +10,6 @@ Tests for server lifespan, state management, and auth provider delegation.
 import json
 
 from unittest.mock import AsyncMock, MagicMock
-
-import pytest
 
 from fastmcp import Client
 
