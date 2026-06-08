@@ -662,7 +662,10 @@ class TestPlatformClientHeaders:
         client = PlatformClient(mock_stacklet_credentials, mock_state)
 
         assert client.session.headers["X-Stacklet-MCP"] == "1"
-        assert client.session.headers["Authorization"] == f"Bearer {mock_stacklet_credentials.access_token}"
+        assert (
+            client.session.headers["Authorization"]
+            == f"Bearer {mock_stacklet_credentials.access_token}"
+        )
         assert client.session.headers["Content-Type"] == "application/json"
 
 
