@@ -59,6 +59,7 @@ class PlatformClient:
                 "Authorization": f"Bearer {credentials.access_token}",
                 "Content-Type": "application/json",
                 "User-Agent": USER_AGENT,
+                "X-Stacklet-MCP": "1",
             },
             transport=transport,
             timeout=30.0,
