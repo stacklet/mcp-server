@@ -17,12 +17,15 @@ import httpx
 
 from fastmcp import Context
 from graphql import (
+    DocumentNode,
     GraphQLSchema,
+    GraphQLSyntaxError,
     OperationType,
     build_client_schema,
     get_introspection_query,
     parse,
     print_type,
+    validate,
 )
 
 from .. import USER_AGENT
@@ -81,11 +84,32 @@ class PlatformClient:
         Returns:
             Structured GraphQL query result
         """
-        if not self.enable_mutations and has_mutations(query):
+        try:
+            doc = parse(query)
+        except GraphQLSyntaxError as e:
+            raise AnnotatedError(
+                problem=f"GraphQL syntax error: {e.message}",
+                likely_cause="query has invalid syntax",
+                next_steps="fix the syntax error in the query",
+            )
+
+        if not self.enable_mutations and has_mutations(doc):
             raise AnnotatedError(
                 problem="Mutations disabled",
                 likely_cause="the user doesn't want you to run mutations",
                 next_steps="tell the user to set 'STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS'",
+            )
+
+        schema = await self.get_schema()
+        if validation_errors := validate(schema, doc):
+            error_messages = "\n".join(str(e) for e in validation_errors)
+            raise AnnotatedError(
+                problem=f"GraphQL validation failed:\n{error_messages}",
+                likely_cause="query references fields or types not in the schema",
+                next_steps=(
+                    "use 'platform_graphql_list_types' and 'platform_graphql_get_types'"
+                    " to check the schema, then fix the query"
+                ),
             )
 
         return await self._query(query, variables)
@@ -195,7 +219,7 @@ class PlatformClient:
             interval_s *= 2
 
     async def _get_export(self, dataset_id: str) -> ConnectionExport:
-        result = await self.query(self.Q_GET_EXPORT, {"id": dataset_id})
+        result = await self._query(self.Q_GET_EXPORT, {"id": dataset_id})
         if result.errors:
             raise RuntimeError(f"GraphQL errors: {result.errors}")
 
@@ -243,8 +267,7 @@ class PlatformClient:
             raise Exception(f"Unexpected response: {response.text}")
 
 
-def has_mutations(query: str) -> bool:
-    """Return whether a GraphQL query string calls mutations."""
-    doc = parse(query)
+def has_mutations(doc: DocumentNode) -> bool:
+    """Return whether a GraphQL document calls mutations."""
     operations = {dd.operation for dd in doc.definitions}
     return OperationType.MUTATION in operations
