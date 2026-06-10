@@ -12,7 +12,7 @@ from unittest.mock import ANY, MagicMock
 import httpx
 import pytest
 
-from graphql import build_schema
+from graphql import build_schema, parse
 
 from stacklet.mcp.platform.graphql import PlatformClient, has_mutations
 from stacklet.mcp.platform.models import ExportParam
@@ -684,7 +684,7 @@ class TestHasMutations:
         "query", ["query { foo bar }", "query Baz { foo bar }", "query { foo } query { bar }"]
     )
     def test_no_mutations(self, query: str):
-        assert not has_mutations(query)
+        assert not has_mutations(parse(query))
 
     @pytest.mark.parametrize(
         "query",
@@ -697,4 +697,4 @@ class TestHasMutations:
         ],
     )
     def test_with_mutations(self, query: str):
-        assert has_mutations(query)
+        assert has_mutations(parse(query))

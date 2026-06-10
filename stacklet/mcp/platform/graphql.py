@@ -17,7 +17,9 @@ import httpx
 
 from fastmcp import Context
 from graphql import (
+    DocumentNode,
     GraphQLSchema,
+    GraphQLSyntaxError,
     OperationType,
     build_client_schema,
     get_introspection_query,
@@ -82,7 +84,16 @@ class PlatformClient:
         Returns:
             Structured GraphQL query result
         """
-        if not self.enable_mutations and has_mutations(query):
+        try:
+            doc = parse(query)
+        except GraphQLSyntaxError as e:
+            raise AnnotatedError(
+                problem=f"GraphQL syntax error: {e.message}",
+                likely_cause="query has invalid syntax",
+                next_steps="fix the syntax error in the query",
+            )
+
+        if not self.enable_mutations and has_mutations(doc):
             raise AnnotatedError(
                 problem="Mutations disabled",
                 likely_cause="the user doesn't want you to run mutations",
@@ -90,7 +101,6 @@ class PlatformClient:
             )
 
         schema = await self.get_schema()
-        doc = parse(query)
         if validation_errors := validate(schema, doc):
             error_messages = "\n".join(str(e) for e in validation_errors)
             raise AnnotatedError(
@@ -257,8 +267,7 @@ class PlatformClient:
             raise Exception(f"Unexpected response: {response.text}")
 
 
-def has_mutations(query: str) -> bool:
-    """Return whether a GraphQL query string calls mutations."""
-    doc = parse(query)
+def has_mutations(doc: DocumentNode) -> bool:
+    """Return whether a GraphQL document calls mutations."""
     operations = {dd.operation for dd in doc.definitions}
     return OperationType.MUTATION in operations
