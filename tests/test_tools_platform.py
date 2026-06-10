@@ -7,8 +7,9 @@
 Tests for Platform MCP tools using FastMCP's in-memory testing pattern.
 """
 
-from unittest.mock import ANY
+from unittest.mock import ANY, MagicMock
 
+import httpx
 import pytest
 
 from graphql import build_schema
@@ -661,6 +662,21 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
 
         assert async_sleeps == [2, 4]
         self.assert_result(result, started=True, succeeded=succeeded)
+
+
+class TestPlatformClientHeaders:
+    def test_sends_mcp_identification_header(self, mock_stacklet_credentials):
+        mock_state = MagicMock()
+        mock_state.ensure_cached.return_value = httpx.AsyncHTTPTransport()
+
+        client = PlatformClient(mock_stacklet_credentials, mock_state)
+
+        assert client.session.headers["X-Stacklet-MCP"] == "1"
+        assert (
+            client.session.headers["Authorization"]
+            == f"Bearer {mock_stacklet_credentials.access_token}"
+        )
+        assert client.session.headers["Content-Type"] == "application/json"
 
 
 class TestHasMutations:
