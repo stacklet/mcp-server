@@ -189,7 +189,7 @@ class TestGraphQLListTypes(PlatformSchemaTest):
         }
 
 
-class TestGraphQLQuery(MCPBearerTest):
+class TestGraphQLQuery(PlatformSchemaTest):
     tool_name = "platform_graphql_query"
 
     def r(
@@ -220,12 +220,12 @@ class TestGraphQLQuery(MCPBearerTest):
             "errors": None,
         }
 
-    async def test_query_with_errors(self):
-        """Test a GraphQL query that returns errors."""
-        query = "{ invalidField }"
+    async def test_query_with_server_errors(self):
+        """Test a valid GraphQL query that returns server-side errors."""
+        query = "{ accounts { accounts { id name } } }"
         error = graphql_field_error(
-            "Cannot query field 'invalidField' on type 'Query'.",
-            ["invalidField", 0],  # 0 is not accurate, just testing int path segments work
+            "Not authorized to access accounts.",
+            ["accounts", "accounts", 0],  # 0 tests that int path segments work
         )
 
         with self.http.expect(self.r(query, response=graphql_error_response([error]))):
@@ -235,7 +235,7 @@ class TestGraphQLQuery(MCPBearerTest):
             "query": query,
             "variables": {},
             "data": None,
-            "errors": [error | {"extensions": None}],  # Add extensions field for our model
+            "errors": [error | {"extensions": None}],
         }
 
     async def test_query_minimal(self):
@@ -263,8 +263,8 @@ class TestGraphQLQuery(MCPBearerTest):
     )
     async def test_json_guard_variables(self, mangle, value):
         """Test that variables parameter works with JSON guard."""
-        query = "{ accounts }"
-        data = {"accounts": []}
+        query = "{ accounts { accounts { id } } }"
+        data = {"accounts": {"accounts": []}}
 
         with self.http.expect(self.r(query, value, response=graphql_success_response(data))):
             result = await self.assert_call({"query": query, "variables": mangle(value)})
@@ -275,8 +275,8 @@ class TestGraphQLQuery(MCPBearerTest):
     @pytest.mark.parametrize("status_code", [400, 403, 500, 502])
     async def test_http_error_with_valid_graphql(self, status_code):
         """Test HTTP 4xx/5xx status but with valid GraphQL response - should parse GraphQL."""
-        query = "{ platform { version } }"
-        data = {"platform": {"version": "test-version"}}
+        query = "{ accounts { accounts { id } } }"
+        data = {"accounts": {"accounts": []}}
 
         # Backend erroneously returns error status but with valid GraphQL data
         with self.http.expect(
@@ -303,13 +303,23 @@ class TestGraphQLQuery(MCPBearerTest):
     )
     async def test_http_codes_with_invalid_response(self, status_code, response_content):
         """Test HTTP 4xx/5xx with invalid JSON or unexpected format - should raise HTTP error."""
-        query = "{ platform { version } }"
+        query = "{ accounts { accounts { id } } }"
 
         with self.http.expect(self.r(query, response=response_content, status_code=status_code)):
             # Should raise an error due to invalid response content
             result = await self.assert_call({"query": query}, error=True)
             # The error should contain the original response content
             assert response_content in result.text
+
+    async def test_invalid_field_rejected_locally(self):
+        """Queries with unknown fields are rejected before reaching the server."""
+        result = await self.assert_call({"query": "{ nonExistentField }"}, error=True)
+        assert "nonExistentField" in result.text
+
+    async def test_invalid_subfield_rejected_locally(self):
+        """Queries with unknown subfields are rejected before reaching the server."""
+        result = await self.assert_call({"query": "{ accounts { nonExistentField } }"}, error=True)
+        assert "nonExistentField" in result.text
 
 
 def graphql_success_response(data):

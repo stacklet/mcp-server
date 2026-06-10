@@ -23,6 +23,7 @@ from graphql import (
     get_introspection_query,
     parse,
     print_type,
+    validate,
 )
 
 from .. import USER_AGENT
@@ -85,6 +86,19 @@ class PlatformClient:
                 problem="Mutations disabled",
                 likely_cause="the user doesn't want you to run mutations",
                 next_steps="tell the user to set 'STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS'",
+            )
+
+        schema = await self.get_schema()
+        doc = parse(query)
+        if validation_errors := validate(schema, doc):
+            error_messages = "\n".join(str(e) for e in validation_errors)
+            raise AnnotatedError(
+                problem=f"GraphQL validation failed:\n{error_messages}",
+                likely_cause="query references fields or types not in the schema",
+                next_steps=(
+                    "use 'platform_graphql_list_types' and 'platform_graphql_get_types'"
+                    " to check the schema, then fix the query"
+                ),
             )
 
         return await self._query(query, variables)
@@ -194,7 +208,7 @@ class PlatformClient:
             interval_s *= 2
 
     async def _get_export(self, dataset_id: str) -> ConnectionExport:
-        result = await self.query(self.Q_GET_EXPORT, {"id": dataset_id})
+        result = await self._query(self.Q_GET_EXPORT, {"id": dataset_id})
         if result.errors:
             raise RuntimeError(f"GraphQL errors: {result.errors}")
 
