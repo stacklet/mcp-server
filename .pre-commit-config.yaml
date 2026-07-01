@@ -7,19 +7,19 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 6fec9b7edb08fd9989088709d864a7826dc74e80  # frozen: v0.15.12
+    rev: 745be0411e3c150e246d527e531e5a221b8c3462  # frozen: v0.15.19
     hooks:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: 91de51aef61c5f2383f03da25604e3d65a8309e0  # frozen: v2.21.1
+    rev: f073523dfd27b01ec7997cc970a2a7b36c303460  # frozen: v2.25.0
     hooks:
       - id: pyproject-fmt
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: fc0f09a29bb495f4a91f00266155d6282d52485d  # frozen: v1.20.2
+    rev: d2823d321df3af8f878f7ee3414dc94d037145b9  # frozen: v2.1.0
     hooks:
       - id: mypy
         args: [--config-file=pyproject.toml, stacklet/]
@@ -46,7 +46,7 @@ repos:
       - id: actionlint
 
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: a4727cbbcd26d7098e96b9cb738169b59711ae51  # frozen: v1.24.1
+    rev: e3eebf65325ccc992422292cb7a4baee967cf815  # frozen: v1.26.1
     hooks:
     - id: zizmor
 
@@ -56,6 +56,6 @@ repos:
       - id: codespell
 
   - repo: https://github.com/crate-ci/typos
-    rev: cf5f1c29a8ac336af8568821ec41919923b05a83  # frozen: v1.45.1
+    rev: 37bb98842b0d8c4ffebdb75301a13db0267cef89  # frozen: v1.47.2
     hooks:
       - id: typos
