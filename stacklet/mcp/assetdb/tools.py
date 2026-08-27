@@ -5,16 +5,17 @@
 
 import json
 
-from typing import Annotated, Any, Callable
+from typing import Annotated, Any
 
 from fastmcp import Context
+from fastmcp.tools import Tool
 from pydantic import Field
 
 from ..settings import SETTINGS
 from ..utils.file import download_file
 from ..utils.json import json_guard
 from ..utils.text import get_file_text
-from ..utils.tool import ToolsetInfo, info_tool_result
+from ..utils.tool import ToolsetInfo, info_tool_result, make_tool
 from .models import (
     Query,
     QueryArchiveResult,
@@ -29,19 +30,27 @@ from .models import (
 from .redash import AssetDBClient
 
 
-def tools() -> list[Callable[..., Any]]:
+def tools() -> list[Tool]:
     """List of available AssetDB tools."""
-    tools: list[Callable[..., Any]] = [
-        assetdb_sql_info,
-        assetdb_sql_query,
-        assetdb_query_list,
-        assetdb_query_get,
-        assetdb_query_result,
+    tools: list[Tool] = [
+        make_tool(assetdb_sql_info, read_only=True, open_world=False),
+        # SQL reaches Redash as written; nothing here holds it to reads, so what
+        # a call can do is whatever the data source's role allows it to do. The
+        # same goes for the stored SQL a saved query runs.
+        make_tool(assetdb_sql_query, read_only=False, destructive=True),
+        make_tool(assetdb_query_list, read_only=True),
+        make_tool(assetdb_query_get, read_only=True),
+        make_tool(assetdb_query_result, read_only=False, destructive=True),
     ]
     if SETTINGS.assetdb_allow_save:
-        tools.append(assetdb_query_save)
+        # Saving against an existing query_id overwrites its stored SQL.
+        tools.append(make_tool(assetdb_query_save, read_only=False, destructive=True))
     if SETTINGS.assetdb_allow_archive:
-        tools.append(assetdb_query_archive)
+        # Archiving also drops the query's visualizations and alerts and can't be
+        # undone through the API, but archiving twice changes nothing further.
+        tools.append(
+            make_tool(assetdb_query_archive, read_only=False, destructive=True, idempotent=True)
+        )
     return tools
 
 

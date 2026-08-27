@@ -55,7 +55,7 @@ def make_server(
         docs_tools,
         platform_tools,
     ]
-    tools: list[Tool | Callable[..., Any]] = list(chain(*(tool_set() for tool_set in tool_sets)))
+    tools: list[Tool] = list(chain(*(tool_set() for tool_set in tool_sets)))
 
     return FastMCP(
         name="Stacklet",

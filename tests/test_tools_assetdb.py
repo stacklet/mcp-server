@@ -14,8 +14,10 @@ from typing import Any
 
 import pytest
 
+from mcp.types import ToolAnnotations
+
 from stacklet.mcp.assetdb.models import JobStatus, Query
-from stacklet.mcp.assetdb.tools import assetdb_query_archive, assetdb_query_save, tools
+from stacklet.mcp.assetdb.tools import tools
 
 from . import factory
 from .testing.http import ExpectRequest
@@ -25,16 +27,68 @@ from .testing.mcp import MCPCookieTest, MCPTest, json_guard_parametrize
 pytestmark = pytest.mark.usefixtures("mock_stacklet_credentials")
 
 
+def tool_names() -> set[str]:
+    return {tool.name for tool in tools()}
+
+
 @pytest.mark.parametrize("allow_save", [True, False])
 def test_tools_save(override_setting, allow_save: bool):
     override_setting("assetdb_allow_save", allow_save)
-    assert (assetdb_query_save in tools()) == allow_save
+    assert ("assetdb_query_save" in tool_names()) == allow_save
 
 
 @pytest.mark.parametrize("allow_archive", [True, False])
 def test_tools_archive(override_setting, allow_archive: bool):
     override_setting("assetdb_allow_archive", allow_archive)
-    assert (assetdb_query_archive in tools()) == allow_archive
+    assert ("assetdb_query_archive" in tool_names()) == allow_archive
+
+
+class TestToolAnnotations:
+    """The behavioural hints hosts show when asking to approve a tool call."""
+
+    @pytest.fixture(autouse=True)
+    def allow_everything(self, override_setting):
+        override_setting("assetdb_allow_save", True)
+        override_setting("assetdb_allow_archive", True)
+
+    def annotations(self, name: str) -> ToolAnnotations:
+        [tool] = [tool for tool in tools() if tool.name == name]
+        assert tool.annotations is not None
+        return tool.annotations
+
+    @pytest.mark.parametrize(
+        "name, open_world",
+        [
+            ("assetdb_sql_info", False),
+            ("assetdb_query_list", True),
+            ("assetdb_query_get", True),
+        ],
+    )
+    def test_read_only(self, name: str, open_world: bool):
+        annotations = self.annotations(name)
+        assert annotations.readOnlyHint is True
+        assert annotations.destructiveHint is False
+        assert annotations.openWorldHint is open_world
+
+    @pytest.mark.parametrize("name", ["assetdb_sql_query", "assetdb_query_result"])
+    def test_running_sql_is_not_read_only(self, name: str):
+        # Nothing constrains the SQL we hand to Redash to reads.
+        annotations = self.annotations(name)
+        assert annotations.readOnlyHint is False
+        assert annotations.destructiveHint is True
+        assert annotations.idempotentHint is False
+
+    def test_query_save_overwrites(self):
+        annotations = self.annotations("assetdb_query_save")
+        assert annotations.readOnlyHint is False
+        assert annotations.destructiveHint is True
+        assert annotations.idempotentHint is False
+
+    def test_query_archive_is_destructive_but_repeatable(self):
+        annotations = self.annotations("assetdb_query_archive")
+        assert annotations.readOnlyHint is False
+        assert annotations.destructiveHint is True
+        assert annotations.idempotentHint is True
 
 
 class TestSQLInfo(MCPTest):
