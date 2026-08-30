@@ -3,14 +3,16 @@
 # Copyright (c) 2025-2026 Stacklet, Inc.
 #
 
-from typing import Annotated, Any, Callable
+from typing import Annotated, Any
 
 from fastmcp import Context
+from fastmcp.tools import Tool
 from pydantic import Field
 
+from ..settings import SETTINGS
 from ..utils.json import json_guard
 from ..utils.text import get_file_text
-from ..utils.tool import ToolsetInfo, info_tool_result
+from ..utils.tool import ToolsetInfo, info_tool_result, make_tool
 from .graphql import PlatformClient
 from .models import (
     ConnectionExport,
@@ -23,17 +25,36 @@ from .models import (
 )
 
 
-def tools() -> list[Callable[..., Any]]:
+def tools() -> list[Tool]:
     """List of available Platform tools."""
     return [
-        platform_graphql_info,
-        platform_graphql_list_types,
-        platform_graphql_get_types,
-        platform_graphql_query,
-        platform_dataset_info,
-        platform_dataset_export,
-        platform_dataset_lookup,
+        # The info tools just read files we ship, so they touch nothing external.
+        make_tool(platform_graphql_info, read_only=True, open_world=False),
+        make_tool(platform_graphql_list_types, read_only=True),
+        make_tool(platform_graphql_get_types, read_only=True),
+        _graphql_query_tool(),
+        make_tool(platform_dataset_info, read_only=True, open_world=False),
+        # Exports don't change governance data, but they do start a job and
+        # write a file server-side, and each call starts another one.
+        make_tool(platform_dataset_export, read_only=False, destructive=False, idempotent=False),
+        make_tool(platform_dataset_lookup, read_only=True),
     ]
+
+
+def _graphql_query_tool() -> Tool:
+    """
+    The GraphQL tool, annotated according to whether it can run mutations.
+
+    With mutations disabled the client rejects any mutation document before it
+    reaches the API, so the tool really can only read; with them enabled it can
+    run anything the caller's credentials allow, including deletes.
+    """
+    mutations = SETTINGS.platform_allow_mutations
+    return make_tool(
+        platform_graphql_query,
+        read_only=not mutations,
+        destructive=mutations,
+    )
 
 
 def platform_graphql_info() -> ToolsetInfo:

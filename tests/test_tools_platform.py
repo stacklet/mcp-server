@@ -13,9 +13,11 @@ import httpx
 import pytest
 
 from graphql import build_schema, parse
+from mcp.types import ToolAnnotations
 
 from stacklet.mcp.platform.graphql import PlatformClient, has_mutations
 from stacklet.mcp.platform.models import ExportParam
+from stacklet.mcp.platform.tools import tools
 
 from .testing.http import ExpectRequest
 from .testing.mcp import MCPBearerTest, MCPTest, json_guard_parametrize
@@ -662,6 +664,55 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
 
         assert async_sleeps == [2, 4]
         self.assert_result(result, started=True, succeeded=succeeded)
+
+
+class TestToolAnnotations:
+    """The behavioural hints hosts show when asking to approve a tool call."""
+
+    def annotations(self, name: str) -> ToolAnnotations:
+        [tool] = [tool for tool in tools() if tool.name == name]
+        assert tool.annotations is not None
+        return tool.annotations
+
+    @pytest.mark.parametrize(
+        "name, open_world",
+        [
+            ("platform_graphql_info", False),
+            ("platform_dataset_info", False),
+            ("platform_graphql_list_types", True),
+            ("platform_graphql_get_types", True),
+            ("platform_dataset_lookup", True),
+        ],
+    )
+    def test_read_only(self, name: str, open_world: bool):
+        annotations = self.annotations(name)
+        assert annotations.readOnlyHint is True
+        assert annotations.destructiveHint is False
+        assert annotations.openWorldHint is open_world
+
+    def test_dataset_export_writes_but_destroys_nothing(self):
+        annotations = self.annotations("platform_dataset_export")
+        assert annotations.readOnlyHint is False
+        assert annotations.destructiveHint is False
+        assert annotations.idempotentHint is False
+
+    @pytest.mark.parametrize("allow_mutations", [True, False])
+    def test_graphql_query_follows_mutation_setting(self, override_setting, allow_mutations: bool):
+        override_setting("platform_allow_mutations", allow_mutations)
+        annotations = self.annotations("platform_graphql_query")
+        assert annotations.readOnlyHint is not allow_mutations
+        assert annotations.destructiveHint is allow_mutations
+        assert annotations.idempotentHint is False
+
+
+async def test_annotations_reach_the_client(mcp_client):
+    """Annotations survive server construction and are sent to the client."""
+    annotations = {tool.name: tool.annotations for tool in await mcp_client.list_tools()}
+
+    # the mcp_client fixture enables mutations
+    assert annotations["platform_graphql_query"].readOnlyHint is False
+    assert annotations["platform_graphql_query"].destructiveHint is True
+    assert annotations["platform_graphql_info"].readOnlyHint is True
 
 
 class TestPlatformClientHeaders:

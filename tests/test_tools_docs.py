@@ -9,8 +9,22 @@ Tests for docs-related MCP tools.
 
 import json
 
+import pytest
+
+from stacklet.mcp.docs.tools import tools
+
 from .testing.http import ExpectRequest
 from .testing.mcp import MCPCookieTest
+
+
+@pytest.mark.parametrize("name", ["docs_list", "docs_read"])
+def test_tool_annotations(name: str):
+    """Reading docs changes nothing, and hosts should be told so."""
+    [tool] = [tool for tool in tools() if tool.name == name]
+    assert tool.annotations is not None
+    assert tool.annotations.readOnlyHint is True
+    assert tool.annotations.destructiveHint is False
+    assert tool.annotations.openWorldHint is True
 
 
 class TestDocsList(MCPCookieTest):

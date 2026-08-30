@@ -3,20 +3,22 @@
 # Copyright (c) 2025-2026 Stacklet, Inc.
 #
 
-from typing import Annotated, Any, Callable
+from typing import Annotated
 
 from fastmcp import Context
+from fastmcp.tools import Tool
 from pydantic import Field
 
+from ..utils.tool import make_tool
 from .client import DocsClient
 from .models import DocContent, DocsList
 
 
-def tools() -> list[Callable[..., Any]]:
+def tools() -> list[Tool]:
     """List of available Documentation tools."""
     return [
-        docs_list,
-        docs_read,
+        make_tool(docs_list, read_only=True),
+        make_tool(docs_read, read_only=True),
     ]
 
 
