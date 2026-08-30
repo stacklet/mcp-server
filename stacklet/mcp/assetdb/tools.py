@@ -3,13 +3,17 @@
 # Copyright (c) 2025-2026 Stacklet, Inc.
 #
 
+import asyncio
 import json
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Callable
 
 from fastmcp import Context
 from fastmcp.tools import Tool
-from pydantic import Field
+from fastmcp.tools.tool import ToolResult
+from pydantic import AnyUrl, Field
+
+from mcp.types import ContentBlock, EmbeddedResource, TextContent, TextResourceContents
 
 from ..settings import SETTINGS
 from ..utils.file import download_file
@@ -34,13 +38,10 @@ def tools() -> list[Tool]:
     """List of available AssetDB tools."""
     tools: list[Tool] = [
         make_tool(assetdb_sql_info, read_only=True, open_world=False),
-        # SQL reaches Redash as written; nothing here holds it to reads, so what
-        # a call can do is whatever the data source's role allows it to do. The
-        # same goes for the stored SQL a saved query runs.
-        make_tool(assetdb_sql_query, read_only=False, destructive=True),
+        _result_tool(assetdb_sql_query),
         make_tool(assetdb_query_list, read_only=True),
         make_tool(assetdb_query_get, read_only=True),
-        make_tool(assetdb_query_result, read_only=False, destructive=True),
+        _result_tool(assetdb_query_result),
     ]
     if SETTINGS.assetdb_allow_save:
         # Saving against an existing query_id overwrites its stored SQL.
@@ -52,6 +53,24 @@ def tools() -> list[Tool]:
             make_tool(assetdb_query_archive, read_only=False, destructive=True, idempotent=True)
         )
     return tools
+
+
+def _result_tool(fn: Callable[..., Any]) -> Tool:
+    """Build one of the two tools that run SQL and return a hand-built ToolResult.
+
+    SQL reaches Redash as written; nothing here holds it to reads, so what a call
+    can do is whatever the data source's role allows it to do. The same goes for
+    the stored SQL a saved query runs.
+
+    Neither tool can advertise its shape through its return annotation, so declare
+    the output schema explicitly rather than leaving clients without one.
+    """
+    return make_tool(
+        fn,
+        read_only=False,
+        destructive=True,
+        output_schema=ToolQueryResult.model_json_schema(),
+    )
 
 
 def assetdb_sql_info() -> ToolsetInfo:
@@ -289,7 +308,7 @@ async def assetdb_query_result(
     parameters: Annotated[
         dict[str, Any] | None, Field(None, description="Parameter values for parameterized queries")
     ] = None,
-) -> ToolQueryResult:
+) -> ToolResult:
     """
     Execute a saved query and get its results with smart caching.
 
@@ -302,8 +321,9 @@ async def assetdb_query_result(
 
     **Result Handling:**
     - Only the first 20 rows are included in the response to reduce context usage
-    - Complete query results are saved as JSON files in the configured downloads directory
-    - Download links include authentication and can be used directly to access full datasets
+    - The complete rows are always available: either saved as a JSON file in the
+      configured downloads directory, or attached to the response as a JSON resource
+    - Download links point at the saved query's results and need a Redash session
     """
     client = AssetDBClient.get(ctx)
 
@@ -311,7 +331,7 @@ async def assetdb_query_result(
         query_id=query_id, parameters=parameters, max_age=max_age, timeout=timeout
     )
     query = await client.get_query(query_id)
-    return _tool_query_result(client, query_result, query)
+    return await _tool_query_result(client, query_result, query)
 
 
 @json_guard
@@ -333,7 +353,7 @@ async def assetdb_sql_query(
         int,
         Field(ge=5, le=300, default=60, description="Query execution timeout in seconds (max 300)"),
     ],
-) -> ToolQueryResult:
+) -> ToolResult:
     """
     Execute custom SQL queries directly against the AssetDB data warehouse.
 
@@ -346,32 +366,41 @@ async def assetdb_sql_query(
 
     **Result Handling:**
     - Only the first 20 rows are included in the response to reduce context usage
-    - Complete query results are saved as JSON files in the configured downloads directory
+    - The complete rows are always available: either saved as a JSON file in the
+      configured downloads directory, or attached to the response as a JSON resource
     - For alternate formats, save the query first with assetdb_query_save() then use
       assetdb_query_result()
     """
     client = AssetDBClient.get(ctx)
     query_result = await client.execute_adhoc_query(query, max_age=max_age, timeout=timeout)
-    return _tool_query_result(client, query_result, None)
+    return await _tool_query_result(client, query_result, None)
 
 
-def _tool_query_result(
+async def _tool_query_result(
     client: AssetDBClient, query_result: QueryResult, query: Query | None
-) -> ToolQueryResult:
+) -> ToolResult:
     """
     Convert a raw QueryResult into an LLM-friendly ToolQueryResult.
 
     This helper function processes query results by:
-    - Saving the complete result data to a temporary JSON file for analysis with other tools
+    - Making the complete row data available for analysis with other tools
     - Truncating row data to first 20 rows for context efficiency
-    - Generating authenticated download links when a saved query is provided
+    - Generating download links when a saved query is provided
     - Creating a structured response suitable for LLM consumption
 
-    **Download Behavior:**
-    - Local JSON files are saved to the directory specified by STACKLET_MCP_DOWNLOADS_PATH
+    **Full Result Behavior:**
+    The caller always gets the complete rows, by exactly one of two routes:
+    - downloads_enabled: written to STACKLET_MCP_DOWNLOADS_PATH, path in
+      full_results_saved_to. Only useful when the caller shares our filesystem.
+    - otherwise: attached to the response as a JSON resource, because a hosted server's
+      paths mean nothing to its callers and the files would accumulate forever.
+
+    Either way the payload is just the rows; every other field of the QueryResult is
+    already in the ToolQueryResult envelope, so repeating it would double the bytes.
+
+    **Download Links:**
     - Saved queries (query != None): Provides alternate_formats with download links
-    - Ad-hoc queries (query == None): No alternate_formats
-    - All download links include API key authentication for direct access
+    - Ad-hoc queries (query == None): No alternate_formats, as there is no URL to give
 
     Args:
         client: AssetDB client for generating download URLs
@@ -379,19 +408,26 @@ def _tool_query_result(
         query: Optional saved query object (None for ad-hoc queries)
 
     Returns:
-        ToolQueryResult with truncated data and download options (if available)
+        ToolResult carrying the truncated ToolQueryResult, and the full rows when
+        they are not on disk
     """
-    # We've always got the whole dataset, but we generally don't want to dump it
-    # all into context. Preserve the whole thing for analysis with other tools.
+    # We've always got the whole dataset, but we generally don't want to dump it all
+    # into context. Serializing it is expensive enough to be worth keeping off the
+    # event loop, which every other request in a hosted process is sharing.
+    rows = query_result.data.rows
     identity = f"{query.id}_{query_result.id}" if query else f"{query_result.id}"
-    with download_file("w", f"assetdb_{identity}", ".json") as f:
-        json.dump(query_result.model_dump(mode="json"), f, ensure_ascii=False)
-        full_results_saved_to = f.name
+
+    full_results_saved_to = None
+    full_results_resource = None
+    if SETTINGS.downloads_enabled:
+        full_results_saved_to = await asyncio.to_thread(_write_rows, rows, identity)
+    else:
+        full_results_resource = await asyncio.to_thread(_rows_resource, rows, identity)
 
     alternate_formats = None
     if query:
-        # If we've got an actual Query, we can use its API key to give back
-        # handles to the data in all available formats.
+        # If we've got an actual Query, its results are addressable, so we can give
+        # back handles to the data in all available formats.
         result_urls = client.get_query_result_urls(query, query_result)
         alternate_formats = [
             ToolQueryResultArtifact(format=fmt, download_from=url)
@@ -399,15 +435,44 @@ def _tool_query_result(
         ]
 
     # LLM-suited result with truncated data.
-    return ToolQueryResult(
+    result = ToolQueryResult(
         result_id=query_result.id,
         query_id=query.id if query else None,
         query_text=query_result.query,
         query_runtime=query_result.runtime,
         query_timestamp=query_result.retrieved_at,
         columns=query_result.data.columns,
-        row_count=len(query_result.data.rows),
-        some_rows=query_result.data.rows[:20],
+        row_count=len(rows),
+        some_rows=rows[:20],
         full_results_saved_to=full_results_saved_to,
         alternate_formats=alternate_formats,
+    )
+
+    # Hand-build the content blocks: fastmcp only generates the text block for us when
+    # we don't supply any, and we need to sit the full results alongside it.
+    content: list[ContentBlock] = [TextContent(type="text", text=result.model_dump_json())]
+    if full_results_resource:
+        content.append(full_results_resource)
+    return ToolResult(content=content, structured_content=result.model_dump(mode="json"))
+
+
+def _write_rows(rows: list[dict[str, Any]], identity: str) -> str:
+    """Write rows to a JSON file in the downloads directory, returning its path."""
+    with download_file("w", f"assetdb_{identity}", ".json") as f:
+        json.dump(rows, f, ensure_ascii=False, default=str)
+        return f.name
+
+
+def _rows_resource(rows: list[dict[str, Any]], identity: str) -> EmbeddedResource:
+    """Attach rows to the response as a JSON resource.
+
+    The URI identifies the payload; it is not separately readable from this server.
+    """
+    return EmbeddedResource(
+        type="resource",
+        resource=TextResourceContents(
+            uri=AnyUrl(f"assetdb://query_results/{identity}.json"),
+            mimeType="application/json",
+            text=json.dumps(rows, ensure_ascii=False, default=str),
+        ),
     )

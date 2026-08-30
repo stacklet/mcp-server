@@ -18,6 +18,7 @@ from mcp.types import ToolAnnotations
 
 from stacklet.mcp.assetdb.models import JobStatus, Query
 from stacklet.mcp.assetdb.tools import tools
+from stacklet.mcp.settings import SETTINGS
 
 from . import factory
 from .testing.http import ExpectRequest
@@ -269,6 +270,18 @@ class TestQueryGet(MCPCookieTest):
         expect = Query(**q123()).model_dump(mode="json")
         assert result.json() == expect
 
+    async def test_api_key_not_returned(self):
+        """Redash serializes an api_key per query; it must not reach the caller."""
+        assert "api_key" in q123()
+
+        with self.http.expect(
+            ExpectRequest("https://redash.example.com/api/queries/123", response=q123()),
+        ):
+            result = await self.assert_call({"query_id": 123})
+
+        assert "api_key" not in result.json()
+        assert "test-api-key" not in result.text
+
     async def test_not_found(self):
         """Test the assetdb_query_get tool with non-existent query ID."""
         with self.http.expect(
@@ -499,33 +512,69 @@ class QueryResultTest(MCPCookieTest):
         else:
             self.assert_tool_query_result(result)
 
-    def assert_tool_query_result(self, result):
+    def assert_tool_query_result(self, result, downloads_enabled=True):
         actual = result.json()
         assert actual["result_id"] == self.RESULT_ID
         assert actual["query_id"] == self.QUERY_ID
 
-        with open(actual["full_results_saved_to"]) as f:
-            original = json.load(f)
+        expect = self.result_response()["query_result"]
+        assert actual["query_text"] == expect["query"]
+        assert actual["query_runtime"] == expect["runtime"]
+        assert actual["columns"] == expect["data"]["columns"]
 
-        assert actual["query_text"] == original["query"]
-        assert actual["query_runtime"] == original["runtime"]
-        assert actual["columns"] == original["data"]["columns"]
-        assert actual["some_rows"] == original["data"]["rows"][:20]
-        assert actual["row_count"] == len(original["data"]["rows"])
+        rows = expect["data"]["rows"]
+        assert actual["row_count"] == len(rows)
+        assert actual["some_rows"] == rows[:20]
+
+        # The full rows reach the caller by exactly one route: on disk when the server
+        # writes result files, attached to the response when it doesn't.
+        if downloads_enabled:
+            assert result.resources == {}
+            with open(actual["full_results_saved_to"]) as f:
+                assert json.load(f) == rows
+        else:
+            assert actual["full_results_saved_to"] is None
+            assert list(SETTINGS.downloads_path.iterdir()) == []
+            uri = f"assetdb://query_results/{self.result_identity()}.json"
+            [resource] = result.resources.values()
+            assert result.resources == {uri: resource}
+            assert resource.mimeType == "application/json"
+            assert json.loads(resource.text) == rows
 
         links = actual["alternate_formats"]
         if not self.QUERY_ID:
             assert links is None
         else:
+            # No api_key: the query's Redash credential must not ride along in a URL.
             prefix = (
                 f"https://redash.example.com/api/queries/{self.QUERY_ID}/results/{self.RESULT_ID}"
             )
-            assert actual["alternate_formats"] == [
-                {"format": "csv", "download_from": f"{prefix}.csv?api_key=test-api-key"},
-                {"format": "json", "download_from": f"{prefix}.json?api_key=test-api-key"},
-                {"format": "tsv", "download_from": f"{prefix}.tsv?api_key=test-api-key"},
-                {"format": "xlsx", "download_from": f"{prefix}.xlsx?api_key=test-api-key"},
+            assert links == [
+                {"format": "csv", "download_from": f"{prefix}.csv"},
+                {"format": "json", "download_from": f"{prefix}.json"},
+                {"format": "tsv", "download_from": f"{prefix}.tsv"},
+                {"format": "xlsx", "download_from": f"{prefix}.xlsx"},
             ]
+
+    def result_identity(self):
+        if self.QUERY_ID:
+            return f"{self.QUERY_ID}_{self.RESULT_ID}"
+        return str(self.RESULT_ID)
+
+    def simple_call(self):
+        """Params and HTTP expectations for a minimal successful call."""
+        raise NotImplementedError
+
+    @pytest.mark.parametrize("downloads_enabled", [True, False])
+    async def test_full_results_route(self, override_setting, downloads_enabled):
+        """Full rows are available whether or not the server writes result files."""
+        override_setting("downloads_enabled", downloads_enabled)
+        params, expect_http = self.simple_call()
+
+        with self.http.expect(*expect_http):
+            result = await self.assert_call(params)
+
+        self.assert_tool_query_result(result, downloads_enabled=downloads_enabled)
 
 
 class TestQueryResult(QueryResultTest):
@@ -537,6 +586,12 @@ class TestQueryResult(QueryResultTest):
             "max_age": -1,
             "parameters": {},
         } | override
+
+    def simple_call(self):
+        return {"query_id": self.QUERY_ID}, (
+            self.expect_post(self.post_data(), self.result_response()),
+            self.expect_get_query(q123()),
+        )
 
     @json_guard_parametrize([QUERY_ID])
     async def test_query_id(self, mangle, value):
@@ -654,6 +709,9 @@ class TestSQLQuery(QueryResultTest):
             "parameters": {},
             "apply_auto_limit": True,
         } | override
+
+    def simple_call(self):
+        return {"query": "SELECT 1"}, (self.expect_post(self.post_data(), self.result_response()),)
 
     async def test_query(self):
         await self.assert_tool_call(

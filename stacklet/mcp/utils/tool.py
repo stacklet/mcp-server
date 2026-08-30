@@ -18,6 +18,7 @@ def make_tool(
     destructive: bool = False,
     idempotent: bool = False,
     open_world: bool = True,
+    output_schema: dict[str, Any] | None = None,
 ) -> Tool:
     """
     Build a Tool from a function, with behavioural annotations attached.
@@ -29,16 +30,20 @@ def make_tool(
     read-only, but they're always sent: the spec defaults `destructiveHint` to
     true, and a host that doesn't check `readOnlyHint` first shouldn't be told
     that our read tools are destructive.
+
+    `output_schema` is for tools that build their own ToolResult: fastmcp derives
+    a schema from the return annotation, which for those says only ToolResult, so
+    pass the real one rather than leaving clients without any.
     """
-    return Tool.from_function(
-        fn,
-        annotations=ToolAnnotations(
-            readOnlyHint=read_only,
-            destructiveHint=destructive,
-            idempotentHint=idempotent,
-            openWorldHint=open_world,
-        ),
+    annotations = ToolAnnotations(
+        readOnlyHint=read_only,
+        destructiveHint=destructive,
+        idempotentHint=idempotent,
+        openWorldHint=open_world,
     )
+    if output_schema is None:
+        return Tool.from_function(fn, annotations=annotations)
+    return Tool.from_function(fn, annotations=annotations, output_schema=output_schema)
 
 
 class ToolsetInfo(BaseModel):
