@@ -238,10 +238,14 @@ class AssetDBClient:
         """
         Return download URLs for a query result.
 
+        The query's Redash API key is deliberately not embedded in these URLs: they are
+        handed to the model and on to the caller, and a URL is the easiest place for a
+        credential to end up in a log or a transcript. Fetching them therefore requires
+        an authenticated Redash session.
+
         Args:
-            query_id: ID of the query the result refers to
-            result_id: ID of the query result to get downloads urls for
-            api_key: the API key for the query.
+            query: The query the result refers to
+            query_result: The query result to get download URLs for
 
         Returns:
             Dictionary mapping download formats to their URLs
@@ -249,7 +253,7 @@ class AssetDBClient:
         return {
             fmt: urljoin(
                 self.redash_url,
-                f"api/queries/{query.id}/results/{query_result.id}.{fmt}?api_key={query.api_key}",
+                f"api/queries/{query.id}/results/{query_result.id}.{fmt}",
             )
             for fmt in ExportFormat
         }

@@ -66,7 +66,13 @@ class User(BaseModel):
 
 
 class Query(BaseModel):
-    """Redash query object model based on serialize_query output."""
+    """Redash query object model based on serialize_query output.
+
+    Redash also serializes an `api_key` per query. It is deliberately not declared
+    here: this model is returned to the caller verbatim by assetdb_query_get, and
+    `extra="ignore"` means the key is dropped at parse time rather than being carried
+    around and later leaked into a response, a URL, or a log line.
+    """
 
     model_config = ConfigDict(extra="ignore")
 
@@ -77,7 +83,6 @@ class Query(BaseModel):
     name: str = Field(..., description="Query display name")
     description: str | None = Field(None, description="Query description or documentation")
     query: str = Field(..., description="SQL query text")
-    api_key: str = Field(..., description="API key for accessing this query")
     is_draft: bool = Field(..., description="Whether the query is in draft status")
     updated_at: datetime = Field(..., description="Timestamp of last modification")
     created_at: datetime = Field(..., description="Timestamp when query was created")
@@ -230,7 +235,13 @@ class ToolQueryResultArtifact(BaseModel):
     """Query download details for a data format."""
 
     format: ExportFormat = Field(..., description="Export format for the query result download")
-    download_from: str = Field(..., description="URL to download the data in the specified format")
+    download_from: str = Field(
+        ...,
+        description=(
+            "URL to download the data in the specified format; requires an authenticated "
+            "Redash session, as no credentials are embedded in the URL"
+        ),
+    )
 
 
 class ToolQueryResult(BaseModel):
@@ -256,13 +267,19 @@ class ToolQueryResult(BaseModel):
         ..., description="Sample of up to 20 rows from the query result for preview"
     )
 
-    # Complete result data is always saved locally for further analysis. (We don't *have*
-    # to do this on every path, but we do on *some*, so we choose consistency.)
-    full_results_saved_to: str = Field(
-        ..., description="Local path where complete result data was saved as JSON"
+    # Set only when the server writes result files (SETTINGS.downloads_enabled). A hosted
+    # server has no filesystem the caller can read, so it attaches the complete rows to the
+    # response as a JSON resource instead; exactly one of the two handles is present.
+    full_results_saved_to: str | None = Field(
+        None,
+        description=(
+            "Local path where complete result data was saved as a JSON array of rows. "
+            "Null when the server does not write result files, in which case the same "
+            "array is attached to this response as a JSON resource."
+        ),
     )
 
-    # Available only for saved queries (not ad-hoc queries) that have API keys.
+    # Available only for saved queries; ad-hoc query results have no addressable URL.
     alternate_formats: list[ToolQueryResultArtifact] | None = Field(
         None, description="Download URLs for different formats, None for ad-hoc queries"
     )

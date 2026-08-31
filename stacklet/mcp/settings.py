@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     )
 
     downloads_path: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()))
+    downloads_enabled: bool = Field(
+        default=True,
+        description=(
+            "Write complete query results to downloads_path. Disable for hosted "
+            "deployments, where the caller cannot read the server's filesystem and "
+            "the files would accumulate unbounded; full results are then attached "
+            "to the tool response instead."
+        ),
+    )
 
     assetdb_datasource: int = Field(
         default=1,

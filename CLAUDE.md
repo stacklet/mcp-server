@@ -135,17 +135,22 @@ The server requires Stacklet credentials configured through one of:
 **Server Settings:**
 Additional configuration via environment variables with `STACKLET_MCP_` prefix:
 - `STACKLET_MCP_DOWNLOADS_PATH` (default: system temp directory) - Directory for storing query result files
+- `STACKLET_MCP_DOWNLOADS_ENABLED` (default: true) - Write query result files; set false for hosted deployments
 - `STACKLET_MCP_ASSETDB_DATASOURCE` (default: 1) - AssetDB data source ID
 - `STACKLET_MCP_ASSETDB_ALLOW_SAVE` (default: false) - Enable query save/update functionality
 - `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE` (default: false) - Enable query archiving functionality
 - `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS` (default: false) - Enable calling mutations in the Platform GraphQL API
 
 **File Storage:**
-Query results from AssetDB tools are automatically saved to the configured downloads directory:
-- Complete query results are saved as JSON files for analysis with other tools
-- Files use descriptive naming: `assetdb_{query_id}_{result_id}.json` (for saved queries) or `assetdb_{result_id}.json` (for ad-hoc queries)
-- The downloads directory is created automatically if it doesn't exist
-- Files persist after tool execution for further analysis
+AssetDB result tools return only the first 20 rows inline, and make the complete rows
+available by exactly one of two routes, depending on `downloads_enabled`:
+- Enabled (the local default): rows are written as a JSON array to the configured downloads
+  directory, and the path is returned in `full_results_saved_to`. Files are named
+  `assetdb_{query_id}_{result_id}*.json` (saved queries) or `assetdb_{result_id}*.json`
+  (ad-hoc), the directory is created if needed, and files persist after tool execution.
+- Disabled: nothing is written, `full_results_saved_to` is null, and the same JSON array is
+  attached to the tool response as a resource. Hosted deployments must disable downloads —
+  a caller elsewhere cannot read the server's filesystem, so the files would only accumulate.
 
 **External Dependencies:**
 - Documentation files are fetched from the live Stacklet docs service at runtime

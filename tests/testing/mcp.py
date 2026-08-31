@@ -24,8 +24,17 @@ class ToolCallResult:
 
     @cached_property
     def text(self):
-        [content] = self.result.content
+        [content] = [block for block in self.result.content if block.type == "text"]
         return content.text
+
+    @cached_property
+    def resources(self):
+        """Resources attached to the result, keyed by URI."""
+        return {
+            str(block.resource.uri): block.resource
+            for block in self.result.content
+            if block.type == "resource"
+        }
 
     def json(self):
         return json.loads(self.text)
