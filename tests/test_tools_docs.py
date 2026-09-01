@@ -98,7 +98,20 @@ class TestDocsRead(MCPCookieTest):
         }
 
     async def test_read_other_file(self):
-        """Trying to read a document with an unknown file returns an error."""
+        """An unknown path returns an error that tells the agent how to recover.
+
+        A page can be missing because the caller guessed the path, or because
+        this installation runs a documentation build older than the page. The
+        agent cannot tell those apart, and in both cases the useful move is the
+        same: list what is actually there, and report the gap.
+
+        The message has to bound the claim as well as prompt it. Documentation
+        coverage and deployed features are independent, and an agent given only
+        the surviving pages will describe the product from them. An earlier
+        version said to answer from what docs_list returns, and a live agent
+        turned a missing page into "this deployment does post-deploy detection
+        only", which is worse than the bare error it replaced.
+        """
         index = [{"path": "some/file.md", "title": "Sample doc"}]
 
         with self.http.expect(
@@ -109,6 +122,9 @@ class TestDocsRead(MCPCookieTest):
         ):
             result = await self.assert_call({"file_path": "some_other_file.md"}, error=True)
 
-        assert (
-            result.text == "Error calling tool 'docs_read': Resource is not a known document file"
-        )
+        assert "some_other_file.md" in result.text
+        assert "documentation index" in result.text
+        assert "docs_list" in result.text
+        assert "documentation does not cover the topic" in result.text
+        # The agent must not read deployed features off documentation coverage.
+        assert "not evidence that the deployment lacks the feature" in result.text

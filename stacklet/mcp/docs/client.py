@@ -17,6 +17,7 @@ from fastmcp import Context
 from .. import USER_AGENT
 from ..lifespan import ServerStateProtocol
 from ..stacklet_auth import StackletCredentials
+from ..utils.error import AnnotatedError
 from .models import DocContent, DocFile
 
 
@@ -54,7 +55,21 @@ class DocsClient:
         """
         known_docs = {doc.path for doc in await self.get_index()}
         if resource not in known_docs:
-            raise ValueError("Resource is not a known document file")
+            raise AnnotatedError(
+                problem=f"{resource!r} is not in this installation's documentation index",
+                likely_cause=(
+                    "the path is wrong, or this installation runs a documentation build "
+                    "made before the page was added"
+                ),
+                next_steps=(
+                    "Call docs_list to see the pages this installation carries. If the page "
+                    "you want is absent, say that this installation's documentation does not "
+                    "cover the topic, and name any related pages along with how they differ. "
+                    "Confine every claim to what the documentation covers. An absent page is "
+                    "not evidence that the deployment lacks the feature, so do not tell the "
+                    "user what this deployment can or cannot do"
+                ),
+            )
 
         url = urljoin(self.docs_url, resource)
         response = await self.session.get(url, follow_redirects=True)
