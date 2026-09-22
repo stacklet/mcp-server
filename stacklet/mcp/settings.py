@@ -30,9 +30,23 @@ class Settings(BaseSettings):
         ),
     )
 
-    assetdb_datasource: int = Field(
-        default=1,
-        description="AssetDB datasource",
+    assetdb_datasource: int | None = Field(
+        default=None,
+        description=(
+            "Redash data source id to query, for a deployment that needs to name one "
+            "explicitly. Left unset, the id is looked up by name -- see "
+            "assetdb_datasource_name -- which is what every Stacklet deployment wants: "
+            "Redash assigns the id at creation, so it differs between deployments and "
+            "cannot be assumed."
+        ),
+    )
+    assetdb_datasource_name: str = Field(
+        default="AssetDB",
+        description=(
+            "Name of the Redash data source to resolve an id from, used when "
+            "assetdb_datasource is unset. Matches the name Stacklet provisions, which "
+            "is stable across deployments in the way the id is not."
+        ),
     )
     assetdb_allow_save: bool = Field(
         default=False,

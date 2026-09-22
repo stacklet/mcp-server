@@ -719,6 +719,68 @@ class TestSQLQuery(QueryResultTest):
             self.expect_post(self.post_data(query="SELECT 'whatever'"), self.result_response()),
         )
 
+    def expect_data_sources(self, sources):
+        return ExpectRequest(
+            "https://redash.example.com/api/data_sources",
+            response=sources,
+        )
+
+    async def test_data_source_resolved_by_name(self, override_setting):
+        """With no id configured, the id comes from the named data source.
+
+        Redash assigns ids in creation order, so the same "AssetDB" source is 1 on
+        one deployment and 6 on another. Querying an id that does not exist there
+        is not a clean 404 -- Redash raises out of its lookup and answers 500 --
+        so the id has to be discovered rather than assumed.
+        """
+        override_setting("assetdb_datasource", None)
+
+        await self.assert_tool_call(
+            {"query": "SELECT 1"},
+            self.expect_data_sources([{"id": 3, "name": "Other"}, {"id": 6, "name": "AssetDB"}]),
+            self.expect_post(self.post_data(data_source_id=6), self.result_response()),
+        )
+
+    async def test_data_source_lookup_is_cached(self, override_setting):
+        """Resolved once per process, not once per query."""
+        override_setting("assetdb_datasource", None)
+
+        await self.assert_tool_call(
+            {"query": "SELECT 1"},
+            self.expect_data_sources([{"id": 6, "name": "AssetDB"}]),
+            self.expect_post(self.post_data(data_source_id=6), self.result_response()),
+        )
+        await self.assert_tool_call(
+            {"query": "SELECT 1"},
+            self.expect_post(self.post_data(data_source_id=6), self.result_response()),
+        )
+
+    async def test_a_configured_id_skips_the_lookup(self, override_setting):
+        """An explicit id is still honoured, and costs no request."""
+        override_setting("assetdb_datasource", 123)
+
+        await self.assert_tool_call(
+            {"query": "SELECT 1"},
+            self.expect_post(self.post_data(data_source_id=123), self.result_response()),
+        )
+
+    async def test_a_missing_data_source_says_so(self, override_setting):
+        """The failure names what is there, rather than surfacing Redash's 500."""
+        override_setting("assetdb_datasource", None)
+
+        await self.assert_tool_call(
+            {"query": "SELECT 1"},
+            self.expect_data_sources([{"id": 3, "name": "Other"}]),
+            expect_error=(
+                "No Redash data source named 'AssetDB'. This likely means this "
+                "deployment provisions AssetDB under a different name, or the signed-in "
+                "user cannot see it. Next steps: check the data sources this deployment "
+                "has, then set STACKLET_MCP_ASSETDB_DATASOURCE_NAME to the right name, "
+                "or STACKLET_MCP_ASSETDB_DATASOURCE to its id. "
+                "Original error: available: ['Other']"
+            ),
+        )
+
     @json_guard_parametrize([-1, 0, 3600, 3600 * 24 * 365])
     async def test_max_age(self, mangle, value):
         await self.assert_tool_call(
