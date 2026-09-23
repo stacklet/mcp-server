@@ -781,6 +781,35 @@ class TestSQLQuery(QueryResultTest):
             ),
         )
 
+    async def test_a_failed_lookup_is_not_cached(self, override_setting):
+        """A user who cannot see the source must not poison it for everyone.
+
+        The cache is process-wide, so remembering a failure would turn one
+        under-permissioned caller -- or one bad moment -- into an outage for every
+        other caller until the task recycled. Only success is cached, so the next
+        query looks again.
+        """
+        override_setting("assetdb_datasource", None)
+
+        await self.assert_tool_call(
+            {"query": "SELECT 1"},
+            self.expect_data_sources([{"id": 3, "name": "Other"}]),
+            expect_error=(
+                "No Redash data source named 'AssetDB'. This likely means this "
+                "deployment provisions AssetDB under a different name, or the signed-in "
+                "user cannot see it. Next steps: check the data sources this deployment "
+                "has, then set STACKLET_MCP_ASSETDB_DATASOURCE_NAME to the right name, "
+                "or STACKLET_MCP_ASSETDB_DATASOURCE to its id. "
+                "Original error: available: ['Other']"
+            ),
+        )
+        # Looked up again rather than served from a remembered failure.
+        await self.assert_tool_call(
+            {"query": "SELECT 1"},
+            self.expect_data_sources([{"id": 6, "name": "AssetDB"}]),
+            self.expect_post(self.post_data(data_source_id=6), self.result_response()),
+        )
+
     @json_guard_parametrize([-1, 0, 3600, 3600 * 24 * 365])
     async def test_max_age(self, mangle, value):
         await self.assert_tool_call(

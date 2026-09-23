@@ -136,7 +136,8 @@ The server requires Stacklet credentials configured through one of:
 Additional configuration via environment variables with `STACKLET_MCP_` prefix:
 - `STACKLET_MCP_DOWNLOADS_PATH` (default: system temp directory) - Directory for storing query result files
 - `STACKLET_MCP_DOWNLOADS_ENABLED` (default: true) - Write query result files; set false for hosted deployments
-- `STACKLET_MCP_ASSETDB_DATASOURCE` (default: 1) - AssetDB data source ID
+- `STACKLET_MCP_ASSETDB_DATASOURCE_NAME` (default: AssetDB) - Name the data source id is looked up from on first use
+- `STACKLET_MCP_ASSETDB_DATASOURCE` (default: unset) - AssetDB data source ID, when a deployment needs to name one explicitly; unset means look it up by name
 - `STACKLET_MCP_ASSETDB_ALLOW_SAVE` (default: false) - Enable query save/update functionality
 - `STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE` (default: false) - Enable query archiving functionality
 - `STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS` (default: false) - Enable calling mutations in the Platform GraphQL API

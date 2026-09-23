@@ -83,11 +83,18 @@ class AssetDBClient:
         of the org rather than of that user, so sharing it is sound. A failed
         lookup is not cached, so a user who cannot see the source does not poison
         it for everyone.
+
+        Keyed by Redash URL as well as name. Every caller in a process shares one
+        endpoint today -- the hosted server reads it once at startup, and a local
+        one from its own config -- so this cannot currently collide. It is in the
+        key because the id means nothing without the deployment it came from, and
+        that is worth stating here rather than in a comment somewhere warning not
+        to serve two endpoints from one process.
         """
         if self.configured_data_source_id is not None:
             return self.configured_data_source_id
         return await self.server_state.ensure_cached_async(
-            f"ASSETDB_DATASOURCE_ID:{self.data_source_name}",
+            f"ASSETDB_DATASOURCE_ID:{self.redash_url}:{self.data_source_name}",
             self._lookup_data_source_id,
         )
 

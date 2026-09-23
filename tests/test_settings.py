@@ -22,10 +22,12 @@ class TestSettings:
         assert SETTINGS.downloads_path.name.startswith("downloads")
         assert "pytest-of-" in str(SETTINGS.downloads_path)
         # 1 is what the test fixture names, not the shipped default -- assert that
-        # separately, off a fresh Settings, or this only tests the fixture.
+        # separately, or this only tests the fixture. Off the field declarations
+        # rather than a fresh Settings(), which would read the ambient environment
+        # and fail for anyone who has STACKLET_MCP_ASSETDB_DATASOURCE exported.
         assert SETTINGS.assetdb_datasource == 1
-        assert Settings().assetdb_datasource is None
-        assert Settings().assetdb_datasource_name == "AssetDB"
+        assert Settings.model_fields["assetdb_datasource"].default is None
+        assert Settings.model_fields["assetdb_datasource_name"].default == "AssetDB"
         assert SETTINGS.assetdb_allow_save is False
         assert SETTINGS.assetdb_allow_archive is False
         assert SETTINGS.platform_allow_mutations is False
