@@ -21,7 +21,13 @@ class TestSettings:
         """Test that default settings are properly initialized."""
         assert SETTINGS.downloads_path.name.startswith("downloads")
         assert "pytest-of-" in str(SETTINGS.downloads_path)
+        # 1 is what the test fixture names, not the shipped default -- assert that
+        # separately, or this only tests the fixture. Off the field declarations
+        # rather than a fresh Settings(), which would read the ambient environment
+        # and fail for anyone who has STACKLET_MCP_ASSETDB_DATASOURCE exported.
         assert SETTINGS.assetdb_datasource == 1
+        assert Settings.model_fields["assetdb_datasource"].default is None
+        assert Settings.model_fields["assetdb_datasource_name"].default == "AssetDB"
         assert SETTINGS.assetdb_allow_save is False
         assert SETTINGS.assetdb_allow_archive is False
         assert SETTINGS.platform_allow_mutations is False
@@ -30,6 +36,7 @@ class TestSettings:
         """Test that environment variables with STACKLET_MCP_ prefix are loaded."""
         monkeypatch.setenv("STACKLET_MCP_DOWNLOADS_PATH", "/custom/path")
         monkeypatch.setenv("STACKLET_MCP_ASSETDB_DATASOURCE", "2")
+        monkeypatch.setenv("STACKLET_MCP_ASSETDB_DATASOURCE_NAME", "Warehouse")
         monkeypatch.setenv("STACKLET_MCP_ASSETDB_ALLOW_SAVE", "true")
         monkeypatch.setenv("STACKLET_MCP_ASSETDB_ALLOW_ARCHIVE", "true")
         monkeypatch.setenv("STACKLET_MCP_PLATFORM_ALLOW_MUTATIONS", "true")
@@ -38,6 +45,7 @@ class TestSettings:
 
         assert settings.downloads_path == Path("/custom/path")
         assert settings.assetdb_datasource == 2
+        assert settings.assetdb_datasource_name == "Warehouse"
         assert settings.assetdb_allow_save is True
         assert settings.assetdb_allow_archive is True
         assert settings.platform_allow_mutations is True

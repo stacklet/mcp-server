@@ -17,6 +17,10 @@ def default_settings(monkeypatch: pytest.MonkeyPatch, tmp_path_factory) -> Itera
     defaults = {name: field.default for name, field in Settings.model_fields.items()}
     # Use pytest temp directory for downloads
     defaults["downloads_path"] = tmp_path_factory.mktemp("downloads")
+    # Name a data source id, so a test that exercises a query is not also
+    # exercising the lookup that resolves one. The lookup has its own tests,
+    # which opt back in by setting this to None.
+    defaults["assetdb_datasource"] = 1
     for attr, value in defaults.items():
         monkeypatch.setattr(SETTINGS, attr, value)
 

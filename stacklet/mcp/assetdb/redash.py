@@ -32,7 +32,8 @@ class AssetDBClient:
         self,
         credentials: StackletCredentials,
         server_state: ServerStateProtocol,
-        data_source_id: int = 1,
+        data_source_id: int | None = None,
+        data_source_name: str = "AssetDB",
     ) -> None:
         """
         Initialize AssetDB client with Stacklet credentials.
@@ -40,10 +41,13 @@ class AssetDBClient:
         Args:
             credentials: StackletCredentials object containing endpoint and id_token
             server_state: Server state for shared resource caching
-            data_source_id: ID of the Redash data source (default 1 for main AssetDB)
+            data_source_id: Redash data source id, when one is named explicitly
+            data_source_name: name to resolve an id from when data_source_id is None
         """
         self.credentials = credentials
-        self.data_source_id = data_source_id
+        self.configured_data_source_id = data_source_id
+        self.data_source_name = data_source_name
+        self.server_state = server_state
 
         self.redash_url = self.credentials.service_endpoint("redash")
         transport = server_state.ensure_cached("HTTP_TRANSPORT", httpx.AsyncHTTPTransport)
@@ -57,7 +61,61 @@ class AssetDBClient:
     @classmethod
     def get(cls, ctx: Context) -> Self:
         state = ctx.request_context.lifespan_context  # type: ignore[union-attr]
-        return cls(StackletCredentials.get(ctx), state, SETTINGS.assetdb_datasource)
+        return cls(
+            StackletCredentials.get(ctx),
+            state,
+            SETTINGS.assetdb_datasource,
+            SETTINGS.assetdb_datasource_name,
+        )
+
+    async def get_data_source_id(self) -> int:
+        """The data source id to query, looked up by name unless one is configured.
+
+        Redash assigns the id when the data source is created, so it depends on
+        what else that deployment happened to create first: the same "AssetDB"
+        source is 1 on one and 6 on another. Querying a non-existent id is not a
+        clean 404 either -- Redash's handler raises out of a bare `get_by_id`, so
+        the caller sees a 500 -- which is worth avoiding rather than documenting.
+
+        Cached for the process once resolved, since the mapping only changes if
+        someone recreates the data source. The lookup runs as the calling user,
+        because Redash has no other credential here, but the answer is a property
+        of the org rather than of that user, so sharing it is sound. A failed
+        lookup is not cached, so a user who cannot see the source does not poison
+        it for everyone.
+
+        Keyed by Redash URL as well as name. Every caller in a process shares one
+        endpoint today -- the hosted server reads it once at startup, and a local
+        one from its own config -- so this cannot currently collide. It is in the
+        key because the id means nothing without the deployment it came from, and
+        that is worth stating here rather than in a comment somewhere warning not
+        to serve two endpoints from one process.
+        """
+        if self.configured_data_source_id is not None:
+            return self.configured_data_source_id
+        return await self.server_state.ensure_cached_async(
+            f"ASSETDB_DATASOURCE_ID:{self.redash_url}:{self.data_source_name}",
+            self._lookup_data_source_id,
+        )
+
+    async def _lookup_data_source_id(self) -> int:
+        sources = await self._make_request("GET", "api/data_sources")
+        for source in sources:
+            if source.get("name") == self.data_source_name:
+                return int(source["id"])
+        raise AnnotatedError(
+            problem=f"No Redash data source named {self.data_source_name!r}",
+            likely_cause=(
+                "this deployment provisions AssetDB under a different name, or the "
+                "signed-in user cannot see it"
+            ),
+            next_steps=(
+                "check the data sources this deployment has, then set "
+                "STACKLET_MCP_ASSETDB_DATASOURCE_NAME to the right name, or "
+                "STACKLET_MCP_ASSETDB_DATASOURCE to its id"
+            ),
+            original_error=f"available: {sorted(str(s.get('name')) for s in sources)}",
+        )
 
     async def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any:
         """
@@ -163,7 +221,7 @@ class AssetDBClient:
         """
         payload = {
             "query": query,
-            "data_source_id": self.data_source_id,
+            "data_source_id": await self.get_data_source_id(),
             "max_age": max_age,
             "parameters": {},
             "apply_auto_limit": True,
@@ -268,7 +326,7 @@ class AssetDBClient:
         Returns:
             Complete query object with ID, timestamps, and metadata
         """
-        payload = upsert.payload(data_source_id=self.data_source_id)
+        payload = upsert.payload(data_source_id=await self.get_data_source_id())
         result = await self._make_request("POST", "api/queries", json=payload)
         return Query(**result)
 
