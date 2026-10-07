@@ -54,6 +54,8 @@ HOSTED_DOWNLOAD_NOTE = (
     "It works for 24 hours and only for you."
 )
 
+EXPIRED_DOWNLOAD_NOTE = "This export has expired. Start a new one with platform_dataset_export."
+
 
 class PlatformClient:
     """Client for Stacklet Platform GraphQL API."""
@@ -247,11 +249,11 @@ class PlatformClient:
 
     async def _deliver(self, export: ConnectionExport) -> ConnectionExport:
         """Download a completed export's file, or say how to use its link instead."""
-        # The platform keeps returning the URL after the file has expired.
-        if not export.download_url or (
-            export.available_until and export.available_until <= datetime.now(UTC)
-        ):
+        if not export.download_url:
             return export
+        # The platform keeps returning the URL after the file has expired.
+        if export.available_until and export.available_until <= datetime.now(UTC):
+            return export.model_copy(update={"download_note": EXPIRED_DOWNLOAD_NOTE})
         if not SETTINGS.downloads_enabled:
             return export.model_copy(update={"download_note": HOSTED_DOWNLOAD_NOTE})
         path = await self._download(export.dataset_id, export.download_url)
@@ -327,7 +329,7 @@ class PlatformClient:
 
 async def _save_stream(response: httpx.Response, suffix: str) -> str:
     """Write a response body to a new downloads file, removing it if anything fails."""
-    f = await asyncio.to_thread(download_file, "wb", "export_", suffix or ".csv")
+    f = download_file("wb", "export_", suffix or ".csv")
     try:
         async for chunk in response.aiter_bytes():
             await asyncio.to_thread(f.write, chunk)

@@ -255,7 +255,7 @@ async def platform_dataset_lookup(
     Export states:
     - Processing: Export is running (shows progress if available)
     - Complete: Ready for download (includes download_url and expiry time, plus either
-      full_results_saved_to or download_note)
+      full_results_saved_to or download_note; an expired export has only the note)
     - Failed: Export encountered an error
 
     Set timeout > 0 to wait for completion, or timeout=0 for an immediate status check.
