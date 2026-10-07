@@ -153,6 +153,10 @@ available by exactly one of two routes, depending on `downloads_enabled`:
   attached to the tool response as a resource. Hosted deployments must disable downloads —
   a caller elsewhere cannot read the server's filesystem, so the files would only accumulate.
 
+Dataset export tools follow the same switch. Enabled, a completed export is downloaded with
+the caller's token to `export_*` in the downloads directory (`full_results_saved_to`).
+Disabled, the tool returns the link with a `download_note` to open it in a signed-in browser.
+
 **External Dependencies:**
 - Documentation files are fetched from the live Stacklet docs service at runtime
 - Redash endpoint is derived by replacing "api." with "redash." in the platform endpoint

@@ -151,7 +151,7 @@ class ConnectionExport(BaseModel):
         None, validation_alias="availableUntil", description="When download URL expires"
     )
 
-    # A succeeded export sets exactly one of these.
+    # A succeeded export with a download URL sets exactly one of these.
     full_results_saved_to: str | None = Field(
         None,
         description=(
