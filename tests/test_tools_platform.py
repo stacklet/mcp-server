@@ -473,7 +473,7 @@ class PlatformDatasetTest(MCPBearerTest):
         )
 
     def delivery(self, succeeded):
-        """Expected requests that deliver a completed export's file when the server writes files."""
+        """Expected requests that download a completed export's file."""
         return [self.expect_download()] if succeeded else []
 
     def expect_start_export(self, columns, connection="someConnection", node_id=None, params=None):
@@ -732,6 +732,7 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
             result = await self.assert_call({"dataset_id": self.DATASET_ID}, error=True)
 
         assert f"Downloading dataset export {self.DATASET_ID} failed" in result.text
+        assert str(status_code) in result.text
         assert "Export not found or expired." in result.text
         assert "https://example.com/x.csv" in result.text
         assert list(SETTINGS.downloads_path.iterdir()) == []
