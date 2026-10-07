@@ -347,12 +347,16 @@ def graphql_field_error(message: str, field_path: list, line: int = 1, column: i
     }
 
 
+AVAILABLE_UNTIL = "2099-12-07T03:15:09+00:00"
+EXPIRED = "2024-12-07T03:15:09+00:00"
+
+
 class PlatformDatasetTest(MCPBearerTest):
     DATASET_ID = "node-123"
     CSV = "id\nabc\n"
 
     @staticmethod
-    def dataset_result(dataset_id, started=False, succeeded=None):
+    def dataset_result(dataset_id, started=False, succeeded=None, available_until=AVAILABLE_UNTIL):
         node = {
             "id": dataset_id,
             "started": None,
@@ -372,7 +376,7 @@ class PlatformDatasetTest(MCPBearerTest):
                 node |= {
                     "message": "yay!",
                     "downloadURL": "https://example.com/x.csv",
-                    "availableUntil": "2024-12-07T03:15:09+00:00",
+                    "availableUntil": available_until,
                 }
             else:
                 node |= {"message": "meh."}
@@ -411,7 +415,7 @@ class PlatformDatasetTest(MCPBearerTest):
             },
         }
 
-    def assert_result(self, result, started=False, succeeded=None):
+    def assert_result(self, result, started=False, succeeded=None, expired=False):
         """Assert that result matches expected dataset state from factory args."""
         expected = {
             "dataset_id": self.DATASET_ID,
@@ -433,7 +437,9 @@ class PlatformDatasetTest(MCPBearerTest):
             if succeeded:
                 expected["message"] = "yay!"
                 expected["download_url"] = "https://example.com/x.csv"
-                expected["available_until"] = "2024-12-07T03:15:09Z"
+                expected["available_until"] = (EXPIRED if expired else AVAILABLE_UNTIL).replace(
+                    "+00:00", "Z"
+                )
             else:
                 expected["message"] = "meh."
 
@@ -444,17 +450,18 @@ class PlatformDatasetTest(MCPBearerTest):
 
         # A successful export reaches the caller by exactly one route: on disk when the
         # server writes files, as a note about the link when it doesn't.
-        if succeeded and SETTINGS.downloads_enabled:
+        delivered = succeeded and not expired
+        if delivered and SETTINGS.downloads_enabled:
             assert note is None
             with open(saved_to) as f:
                 assert f.read() == self.CSV
-        elif succeeded:
+        elif delivered:
             assert saved_to is None
             assert note == HOSTED_DOWNLOAD_NOTE
         else:
             assert saved_to is None
             assert note is None
-        if not (succeeded and SETTINGS.downloads_enabled):
+        if not (delivered and SETTINGS.downloads_enabled):
             assert list(SETTINGS.downloads_path.iterdir()) == []
 
     def expect_download(self, status_code=200, response=None):
@@ -736,6 +743,7 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
 
         assert f"failed with HTTP {status_code}" in result.text
         assert "Export not found or expired." in result.text
+        assert "https://example.com/x.csv" in result.text
         assert list(SETTINGS.downloads_path.iterdir()) == []
 
     async def test_download_interrupted(self, monkeypatch):
@@ -747,9 +755,24 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
         complete = self.dataset_result(self.DATASET_ID, started=True, succeeded=True)
 
         with self.http.expect(self.expect_get_export(complete), self.expect_download()):
-            await self.assert_call({"dataset_id": self.DATASET_ID}, error=True)
+            result = await self.assert_call({"dataset_id": self.DATASET_ID}, error=True)
 
+        # The caller keeps what it needs to retry: the export ID and the link.
+        assert f"Downloading dataset export {self.DATASET_ID} failed" in result.text
+        assert "https://example.com/x.csv" in result.text
         assert list(SETTINGS.downloads_path.iterdir()) == []
+
+    @pytest.mark.parametrize("downloads_enabled", [True, False])
+    async def test_expired_not_delivered(self, override_setting, downloads_enabled):
+        override_setting("downloads_enabled", downloads_enabled)
+        expired = self.dataset_result(
+            self.DATASET_ID, started=True, succeeded=True, available_until=EXPIRED
+        )
+
+        with self.http.expect(self.expect_get_export(expired)):
+            result = await self.assert_call({"dataset_id": self.DATASET_ID})
+
+        self.assert_result(result, started=True, succeeded=True, expired=True)
 
 
 class TestToolAnnotations:
