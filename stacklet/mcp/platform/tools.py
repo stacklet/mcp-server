@@ -211,7 +211,10 @@ async def platform_dataset_export(
     1. Define columns mapping GraphQL fields to CSV columns
     2. Optionally add filters via params
     3. Export runs asynchronously - use timeout=0 to return immediately
-    4. Use platform_dataset_lookup() to check progress and get download URL
+    4. Use platform_dataset_lookup() to check progress and get the result
+
+    A completed export's file is downloaded before the call returns when the server writes
+    files, so a large export takes longer than the timeout alone suggests.
     """
     dataset_input = ExportRequest(
         connection_field=connection_field,
@@ -255,7 +258,9 @@ async def platform_dataset_lookup(
       full_results_saved_to or download_note)
     - Failed: Export encountered an error
 
-    Set timeout > 0 to wait for completion, or timeout=0 for immediate status check.
+    Set timeout > 0 to wait for completion, or timeout=0 for an immediate status check.
+    Every lookup of a completed export downloads its file again when the server writes
+    files, so the call takes as long as that download.
     Download URLs expire after 24 hours and work only for the user who started the export.
     """
     client = PlatformClient.get(ctx)

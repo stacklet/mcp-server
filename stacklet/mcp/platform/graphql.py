@@ -12,6 +12,8 @@ import os
 import re
 import time
 
+from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Any, Self, cast
 from urllib.parse import urlparse
@@ -250,7 +252,10 @@ class PlatformClient:
         export, so the server fetches it when the caller can read the result, and
         otherwise tells the caller to open it in their own signed-in browser.
         """
-        if not export.download_url:
+        # The platform keeps returning the URL after the file has expired.
+        if not export.download_url or (
+            export.available_until and export.available_until <= datetime.now(UTC)
+        ):
             return export
         if not SETTINGS.downloads_enabled:
             return export.model_copy(update={"download_note": HOSTED_DOWNLOAD_NOTE})
@@ -259,29 +264,48 @@ class PlatformClient:
 
     async def _download(self, dataset_id: str, url: str) -> str:
         """Stream an export file into the downloads directory, returning its path."""
-        async with self.session.stream("GET", url) as response:
-            if response.status_code != 200:
-                await response.aread()
-                raise AnnotatedError(
-                    problem=(
-                        f"Downloading dataset export {dataset_id} failed "
-                        f"with HTTP {response.status_code}"
-                    ),
-                    likely_cause="the export expired, or these credentials cannot read it",
-                    next_steps="start a new export with platform_dataset_export",
-                    original_error=response.text,
-                )
+        next_steps = (
+            f"retry with platform_dataset_lookup, or give the user {url} "
+            "to open in a browser where they're signed in to Stacklet"
+        )
+        try:
+            async with self.session.stream("GET", url) as response:
+                if response.status_code != 200:
+                    await response.aread()
+                    raise AnnotatedError(
+                        problem=(
+                            f"Downloading dataset export {dataset_id} failed "
+                            f"with HTTP {response.status_code}"
+                        ),
+                        likely_cause="the export expired, or these credentials cannot read it",
+                        next_steps=next_steps,
+                        original_error=response.text,
+                    )
+                return await self._save(response, PurePosixPath(urlparse(url).path).suffix)
+        except httpx.HTTPError as e:
+            raise AnnotatedError(
+                problem=f"Downloading dataset export {dataset_id} failed",
+                likely_cause="a network error while fetching the file",
+                next_steps=next_steps,
+                original_error=str(e),
+            ) from e
 
-            suffix = PurePosixPath(urlparse(url).path).suffix or ".csv"
-            with download_file("wb", "export_", suffix) as f:
-                try:
-                    async for chunk in response.aiter_bytes():
-                        f.write(chunk)
-                except BaseException:
-                    f.close()
-                    os.unlink(f.name)
-                    raise
-                return f.name
+    async def _save(self, response: httpx.Response, suffix: str) -> str:
+        """Write a response body to a new downloads file, removing it if anything fails.
+
+        File I/O runs in a thread so a large export does not block the event loop.
+        """
+        f = await asyncio.to_thread(download_file, "wb", "export_", suffix or ".csv")
+        try:
+            async for chunk in response.aiter_bytes():
+                await asyncio.to_thread(f.write, chunk)
+            await asyncio.to_thread(f.close)
+        except BaseException:
+            with suppress(OSError):
+                f.close()
+            os.unlink(f.name)
+            raise
+        return f.name
 
     Q_GET_EXPORT = """
         query getExport($id: ID!) {
