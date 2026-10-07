@@ -3,6 +3,7 @@
 # Copyright (c) 2025-2026 Stacklet, Inc.
 #
 
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastmcp import Context
@@ -23,6 +24,26 @@ from .models import (
     GraphQLQueryResult,
     ListTypesResult,
 )
+
+
+HOSTED_DOWNLOAD_NOTE = (
+    "Open this link in a browser where you're signed in to Stacklet. "
+    "It works only for you, until available_until."
+)
+EXPIRED_DOWNLOAD_NOTE = "This export has expired. Start a new one with platform_dataset_export."
+
+
+async def _deliver(client: PlatformClient, export: ConnectionExport) -> ConnectionExport:
+    """Download a completed export's file, or say how to use its link instead."""
+    if not export.completed or not export.download_url:
+        return export
+    # The platform keeps returning the URL after the file has expired.
+    if export.available_until and export.available_until <= datetime.now(UTC):
+        return export.model_copy(update={"download_note": EXPIRED_DOWNLOAD_NOTE})
+    if not SETTINGS.downloads_enabled:
+        return export.model_copy(update={"download_note": HOSTED_DOWNLOAD_NOTE})
+    path = await client.download_export(export.dataset_id, export.download_url)
+    return export.model_copy(update={"full_results_saved_to": path})
 
 
 def tools() -> list[Tool]:
@@ -225,7 +246,7 @@ async def platform_dataset_export(
 
     client = PlatformClient.get(ctx)
     dataset_id = await client.start_export(dataset_input)
-    return await client.wait_for_export(dataset_id, timeout)
+    return await _deliver(client, await client.wait_for_export(dataset_id, timeout))
 
 
 @json_guard
@@ -264,4 +285,4 @@ async def platform_dataset_lookup(
     Download URLs expire after 24 hours and work only for the user who started the export.
     """
     client = PlatformClient.get(ctx)
-    return await client.wait_for_export(dataset_id, timeout)
+    return await _deliver(client, await client.wait_for_export(dataset_id, timeout))

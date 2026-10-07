@@ -17,14 +17,9 @@ import pytest
 from graphql import build_schema, parse
 from mcp.types import ToolAnnotations
 
-from stacklet.mcp.platform.graphql import (
-    EXPIRED_DOWNLOAD_NOTE,
-    HOSTED_DOWNLOAD_NOTE,
-    PlatformClient,
-    has_mutations,
-)
+from stacklet.mcp.platform.graphql import PlatformClient, has_mutations
 from stacklet.mcp.platform.models import ExportParam
-from stacklet.mcp.platform.tools import tools
+from stacklet.mcp.platform.tools import EXPIRED_DOWNLOAD_NOTE, HOSTED_DOWNLOAD_NOTE, tools
 from stacklet.mcp.settings import SETTINGS
 
 from .testing.http import ExpectRequest, MockHTTPXResponse
@@ -420,7 +415,9 @@ class PlatformDatasetTest(MCPBearerTest):
             },
         }
 
-    def assert_result(self, result, started=False, succeeded=None, expired=False):
+    def assert_result(
+        self, result, started=False, succeeded=None, expired=False, downloads_enabled=True
+    ):
         """Assert that result matches expected dataset state from factory args."""
         expected = {
             "dataset_id": self.DATASET_ID,
@@ -455,7 +452,7 @@ class PlatformDatasetTest(MCPBearerTest):
 
         # A delivered export reaches the caller by exactly one route.
         delivered = succeeded and not expired
-        if delivered and SETTINGS.downloads_enabled:
+        if delivered and downloads_enabled:
             assert note is None
             with open(saved_to) as f:
                 assert f.read() == self.CSV
@@ -476,8 +473,8 @@ class PlatformDatasetTest(MCPBearerTest):
         )
 
     def delivery(self, succeeded):
-        """Expected requests that deliver a completed export's file."""
-        return [self.expect_download()] if succeeded and SETTINGS.downloads_enabled else []
+        """Expected requests that deliver a completed export's file when the server writes files."""
+        return [self.expect_download()] if succeeded else []
 
     def expect_start_export(self, columns, connection="someConnection", node_id=None, params=None):
         """Create expectation for the export mutation request."""
@@ -723,16 +720,6 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
 
         assert result.text.startswith(f"Dataset export {self.DATASET_ID} not found")
 
-    @pytest.mark.parametrize("succeeded", [True, False])
-    async def test_hosted_does_not_download(self, override_setting, succeeded):
-        override_setting("downloads_enabled", False)
-        complete = self.dataset_result(self.DATASET_ID, started=True, succeeded=succeeded)
-
-        with self.http.expect(self.expect_get_export(complete)):
-            result = await self.assert_call({"dataset_id": self.DATASET_ID})
-
-        self.assert_result(result, started=True, succeeded=succeeded)
-
     @pytest.mark.parametrize("status_code", [401, 404])
     async def test_download_refused(self, status_code):
         complete = self.dataset_result(self.DATASET_ID, started=True, succeeded=True)
@@ -744,7 +731,7 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
         ):
             result = await self.assert_call({"dataset_id": self.DATASET_ID}, error=True)
 
-        assert f"failed with HTTP {status_code}" in result.text
+        assert f"Downloading dataset export {self.DATASET_ID} failed" in result.text
         assert "Export not found or expired." in result.text
         assert "https://example.com/x.csv" in result.text
         assert list(SETTINGS.downloads_path.iterdir()) == []
@@ -765,17 +752,34 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
         assert "https://example.com/x.csv" in result.text
         assert list(SETTINGS.downloads_path.iterdir()) == []
 
-    @pytest.mark.parametrize("downloads_enabled", [True, False])
-    async def test_expired_not_delivered(self, override_setting, downloads_enabled):
+    @pytest.mark.parametrize(
+        "downloads_enabled, succeeded, expired",
+        [
+            pytest.param(False, True, False, id="hosted"),
+            pytest.param(False, False, False, id="hosted-failed"),
+            pytest.param(False, True, True, id="hosted-expired"),
+            pytest.param(True, True, True, id="local-expired"),
+        ],
+    )
+    async def test_no_download(self, override_setting, downloads_enabled, succeeded, expired):
         override_setting("downloads_enabled", downloads_enabled)
-        expired = self.dataset_result(
-            self.DATASET_ID, started=True, succeeded=True, available_until=EXPIRED
+        complete = self.dataset_result(
+            self.DATASET_ID,
+            started=True,
+            succeeded=succeeded,
+            available_until=EXPIRED if expired else AVAILABLE_UNTIL,
         )
 
-        with self.http.expect(self.expect_get_export(expired)):
+        with self.http.expect(self.expect_get_export(complete)):
             result = await self.assert_call({"dataset_id": self.DATASET_ID})
 
-        self.assert_result(result, started=True, succeeded=True, expired=True)
+        self.assert_result(
+            result,
+            started=True,
+            succeeded=succeeded,
+            expired=expired,
+            downloads_enabled=downloads_enabled,
+        )
 
 
 class TestToolAnnotations:

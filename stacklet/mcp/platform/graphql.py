@@ -12,11 +12,7 @@ import os
 import re
 import time
 
-from contextlib import suppress
-from datetime import UTC, datetime
-from pathlib import PurePosixPath
 from typing import Any, Self, cast
-from urllib.parse import urlparse
 
 import httpx
 
@@ -47,14 +43,6 @@ from .models import (
     GraphQLQueryResult,
     ListTypesResult,
 )
-
-
-HOSTED_DOWNLOAD_NOTE = (
-    "Open this link in a browser where you're signed in to Stacklet. "
-    "It works for 24 hours and only for you."
-)
-
-EXPIRED_DOWNLOAD_NOTE = "This export has expired. Start a new one with platform_dataset_export."
 
 
 class PlatformClient:
@@ -223,7 +211,7 @@ class PlatformClient:
             # Always try at least once.
             export = await self._get_export(dataset_id)
             if export.completed:
-                return await self._deliver(export)
+                return export
 
             # Aim for the final attempt to happen at cutoff time.
             remaining_s = cutoff - time.monotonic()
@@ -247,44 +235,27 @@ class PlatformClient:
             )
         return ConnectionExport(**fields)
 
-    async def _deliver(self, export: ConnectionExport) -> ConnectionExport:
-        """Download a completed export's file, or say how to use its link instead."""
-        if not export.download_url:
-            return export
-        # The platform keeps returning the URL after the file has expired.
-        if export.available_until and export.available_until <= datetime.now(UTC):
-            return export.model_copy(update={"download_note": EXPIRED_DOWNLOAD_NOTE})
-        if not SETTINGS.downloads_enabled:
-            return export.model_copy(update={"download_note": HOSTED_DOWNLOAD_NOTE})
-        path = await self._download(export.dataset_id, export.download_url)
-        return export.model_copy(update={"full_results_saved_to": path})
-
-    async def _download(self, dataset_id: str, url: str) -> str:
+    async def download_export(self, dataset_id: str, url: str) -> str:
         """Stream an export file into the downloads directory, returning its path."""
-        next_steps = (
-            f"retry with platform_dataset_lookup, or give the user {url} "
-            "to open in a browser where they're signed in to Stacklet"
-        )
         try:
             async with self.session.stream("GET", url) as response:
                 if response.status_code != 200:
                     await response.aread()
-                    raise AnnotatedError(
-                        problem=(
-                            f"Downloading dataset export {dataset_id} failed "
-                            f"with HTTP {response.status_code}"
-                        ),
-                        likely_cause="the export expired, or these credentials cannot read it",
-                        next_steps=next_steps,
-                        original_error=response.text,
-                    )
-                return await _save_stream(response, PurePosixPath(urlparse(url).path).suffix)
+                    response.raise_for_status()
+                return await _save_stream(response)
         except httpx.HTTPError as e:
+            detail = e.response.text if isinstance(e, httpx.HTTPStatusError) else str(e)
             raise AnnotatedError(
                 problem=f"Downloading dataset export {dataset_id} failed",
-                likely_cause="a network error while fetching the file",
-                next_steps=next_steps,
-                original_error=str(e),
+                likely_cause=(
+                    "the export expired, these credentials cannot read it, "
+                    "or the connection dropped"
+                ),
+                next_steps=(
+                    f"retry with platform_dataset_lookup, or give the user {url} "
+                    "to open in a browser where they're signed in to Stacklet"
+                ),
+                original_error=detail,
             ) from e
 
     Q_GET_EXPORT = """
@@ -327,16 +298,14 @@ class PlatformClient:
             raise Exception(f"Unexpected response: {response.text}")
 
 
-async def _save_stream(response: httpx.Response, suffix: str) -> str:
-    """Write a response body to a new downloads file, removing it if anything fails."""
-    f = download_file("wb", "export_", suffix or ".csv")
+async def _save_stream(response: httpx.Response) -> str:
+    """Write a response body to a new downloads CSV, removing it if anything fails."""
+    f = download_file("wb", "export_", ".csv")
     try:
-        async for chunk in response.aiter_bytes():
-            await asyncio.to_thread(f.write, chunk)
-        await asyncio.to_thread(f.close)
+        with f:
+            async for chunk in response.aiter_bytes():
+                f.write(chunk)
     except BaseException:
-        with suppress(OSError):
-            f.close()
         os.unlink(f.name)
         raise
     return f.name
