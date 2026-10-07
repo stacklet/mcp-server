@@ -8,10 +8,13 @@ Stacklet Platform client for GraphQL API operations.
 """
 
 import asyncio
+import os
 import re
 import time
 
+from pathlib import PurePosixPath
 from typing import Any, Self, cast
+from urllib.parse import urlparse
 
 import httpx
 
@@ -33,6 +36,7 @@ from ..lifespan import ServerStateProtocol
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 from ..utils.error import AnnotatedError
+from ..utils.file import download_file
 from .models import (
     ConnectionExport,
     ExportRequest,
@@ -40,6 +44,12 @@ from .models import (
     GraphQLError,
     GraphQLQueryResult,
     ListTypesResult,
+)
+
+
+HOSTED_DOWNLOAD_NOTE = (
+    "Open this link in a browser where you're signed in to Stacklet. "
+    "It works for 24 hours and only for you."
 )
 
 
@@ -209,7 +219,7 @@ class PlatformClient:
             # Always try at least once.
             export = await self._get_export(dataset_id)
             if export.completed:
-                return export
+                return await self._deliver(export)
 
             # Aim for the final attempt to happen at cutoff time.
             remaining_s = cutoff - time.monotonic()
@@ -232,6 +242,46 @@ class PlatformClient:
                 next_steps="start a new export with platform_dataset_export",
             )
         return ConnectionExport(**fields)
+
+    async def _deliver(self, export: ConnectionExport) -> ConnectionExport:
+        """Make a completed export's file reachable by the caller.
+
+        The download URL only works with the credentials of the user who started the
+        export, so the server fetches it when the caller can read the result, and
+        otherwise tells the caller to open it in their own signed-in browser.
+        """
+        if not export.download_url:
+            return export
+        if not SETTINGS.downloads_enabled:
+            return export.model_copy(update={"download_note": HOSTED_DOWNLOAD_NOTE})
+        path = await self._download(export.dataset_id, export.download_url)
+        return export.model_copy(update={"full_results_saved_to": path})
+
+    async def _download(self, dataset_id: str, url: str) -> str:
+        """Stream an export file into the downloads directory, returning its path."""
+        async with self.session.stream("GET", url) as response:
+            if response.status_code != 200:
+                await response.aread()
+                raise AnnotatedError(
+                    problem=(
+                        f"Downloading dataset export {dataset_id} failed "
+                        f"with HTTP {response.status_code}"
+                    ),
+                    likely_cause="the export expired, or these credentials cannot read it",
+                    next_steps="start a new export with platform_dataset_export",
+                    original_error=response.text,
+                )
+
+            suffix = PurePosixPath(urlparse(url).path).suffix or ".csv"
+            with download_file("wb", "export_", suffix) as f:
+                try:
+                    async for chunk in response.aiter_bytes():
+                        f.write(chunk)
+                except BaseException:
+                    f.close()
+                    os.unlink(f.name)
+                    raise
+                return f.name
 
     Q_GET_EXPORT = """
         query getExport($id: ID!) {

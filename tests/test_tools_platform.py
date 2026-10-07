@@ -17,11 +17,12 @@ import pytest
 from graphql import build_schema, parse
 from mcp.types import ToolAnnotations
 
-from stacklet.mcp.platform.graphql import PlatformClient, has_mutations
+from stacklet.mcp.platform.graphql import HOSTED_DOWNLOAD_NOTE, PlatformClient, has_mutations
 from stacklet.mcp.platform.models import ExportParam
 from stacklet.mcp.platform.tools import tools
+from stacklet.mcp.settings import SETTINGS
 
-from .testing.http import ExpectRequest
+from .testing.http import ExpectRequest, MockHTTPXResponse
 from .testing.mcp import MCPBearerTest, MCPTest, json_guard_parametrize
 
 
@@ -348,6 +349,7 @@ def graphql_field_error(message: str, field_path: list, line: int = 1, column: i
 
 class PlatformDatasetTest(MCPBearerTest):
     DATASET_ID = "node-123"
+    CSV = "id\nabc\n"
 
     @staticmethod
     def dataset_result(dataset_id, started=False, succeeded=None):
@@ -435,7 +437,37 @@ class PlatformDatasetTest(MCPBearerTest):
             else:
                 expected["message"] = "meh."
 
-        assert result.json() == expected
+        actual = result.json()
+        saved_to = actual.pop("full_results_saved_to")
+        note = actual.pop("download_note")
+        assert actual == expected
+
+        # A successful export reaches the caller by exactly one route: on disk when the
+        # server writes files, as a note about the link when it doesn't.
+        if succeeded and SETTINGS.downloads_enabled:
+            assert note is None
+            with open(saved_to) as f:
+                assert f.read() == self.CSV
+        elif succeeded:
+            assert saved_to is None
+            assert note == HOSTED_DOWNLOAD_NOTE
+        else:
+            assert saved_to is None
+            assert note is None
+        if not (succeeded and SETTINGS.downloads_enabled):
+            assert list(SETTINGS.downloads_path.iterdir()) == []
+
+    def expect_download(self, status_code=200, response=None):
+        """Create expectation for the export file download, made with the bearer token."""
+        return ExpectRequest(
+            "https://example.com/x.csv",
+            status_code=status_code,
+            response=self.CSV if response is None else response,
+        )
+
+    def delivery(self, succeeded):
+        """Expected requests that deliver a completed export's file."""
+        return [self.expect_download()] if succeeded and SETTINGS.downloads_enabled else []
 
     def expect_start_export(self, columns, connection="someConnection", node_id=None, params=None):
         """Create expectation for the export mutation request."""
@@ -552,6 +584,7 @@ class TestPlatformDatasetExport(PlatformDatasetTest):
         with self.http.expect(
             self.expect_start_export(columns),
             self.expect_get_export(dataset),
+            *self.delivery(succeeded=True),
         ):
             result = await self.assert_call(
                 {
@@ -640,6 +673,7 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
 
         with self.http.expect(
             self.expect_get_export(complete),
+            *self.delivery(succeeded),
         ):
             result = await self.assert_call(
                 {"dataset_id": self.DATASET_ID, "timeout": mangle(value)}
@@ -659,6 +693,7 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
             self.expect_get_export(incomplete),
             self.expect_get_export(incomplete),
             self.expect_get_export(complete),
+            *self.delivery(succeeded),
         ):
             result = await self.assert_call(
                 {"dataset_id": self.DATASET_ID, "timeout": mangle(value)}
@@ -677,6 +712,44 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
             result = await self.assert_call({"dataset_id": self.DATASET_ID}, error=True)
 
         assert result.text.startswith(f"Dataset export {self.DATASET_ID} not found")
+
+    @pytest.mark.parametrize("succeeded", [True, False])
+    async def test_hosted_does_not_download(self, override_setting, succeeded):
+        override_setting("downloads_enabled", False)
+        complete = self.dataset_result(self.DATASET_ID, started=True, succeeded=succeeded)
+
+        with self.http.expect(self.expect_get_export(complete)):
+            result = await self.assert_call({"dataset_id": self.DATASET_ID})
+
+        self.assert_result(result, started=True, succeeded=succeeded)
+
+    @pytest.mark.parametrize("status_code", [401, 404])
+    async def test_download_refused(self, status_code):
+        complete = self.dataset_result(self.DATASET_ID, started=True, succeeded=True)
+        body = json.dumps({"error": "Export not found or expired."})
+
+        with self.http.expect(
+            self.expect_get_export(complete),
+            self.expect_download(status_code=status_code, response=body),
+        ):
+            result = await self.assert_call({"dataset_id": self.DATASET_ID}, error=True)
+
+        assert f"failed with HTTP {status_code}" in result.text
+        assert "Export not found or expired." in result.text
+        assert list(SETTINGS.downloads_path.iterdir()) == []
+
+    async def test_download_interrupted(self, monkeypatch):
+        async def broken_stream(self):
+            yield b"id\n"
+            raise httpx.ReadError("connection lost")
+
+        monkeypatch.setattr(MockHTTPXResponse, "aiter_bytes", broken_stream)
+        complete = self.dataset_result(self.DATASET_ID, started=True, succeeded=True)
+
+        with self.http.expect(self.expect_get_export(complete), self.expect_download()):
+            await self.assert_call({"dataset_id": self.DATASET_ID}, error=True)
+
+        assert list(SETTINGS.downloads_path.iterdir()) == []
 
 
 class TestToolAnnotations:

@@ -251,11 +251,12 @@ async def platform_dataset_lookup(
 
     Export states:
     - Processing: Export is running (shows progress if available)
-    - Complete: Ready for download (includes download_url and expiry time)
+    - Complete: Ready for download (includes download_url and expiry time, plus either
+      full_results_saved_to or download_note)
     - Failed: Export encountered an error
 
     Set timeout > 0 to wait for completion, or timeout=0 for immediate status check.
-    Download URLs are temporary and expire after a few hours.
+    Download URLs expire after 24 hours and work only for the user who started the export.
     """
     client = PlatformClient.get(ctx)
     return await client.wait_for_export(dataset_id, timeout)
