@@ -29,6 +29,10 @@ class MockHTTPXResponse:
     def text(self):
         return self._data
 
+    @property
+    def is_success(self):
+        return 200 <= self.status_code < 300
+
     def json(self):
         return json.loads(self._data)
 

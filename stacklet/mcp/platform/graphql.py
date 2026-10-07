@@ -239,12 +239,12 @@ class PlatformClient:
         """Stream an export file into the downloads directory, returning its path."""
         try:
             async with self.session.stream("GET", url) as response:
-                if response.status_code != 200:
+                if not response.is_success:
                     await response.aread()
                     response.raise_for_status()
                 return await _save_stream(response)
         except httpx.HTTPError as e:
-            detail = e.response.text if isinstance(e, httpx.HTTPStatusError) else str(e)
+            detail = f"{e}\n{e.response.text}" if isinstance(e, httpx.HTTPStatusError) else str(e)
             raise AnnotatedError(
                 problem=f"Downloading dataset export {dataset_id} failed",
                 likely_cause=(
