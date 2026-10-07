@@ -134,8 +134,8 @@ The server requires Stacklet credentials configured through one of:
 
 **Server Settings:**
 Additional configuration via environment variables with `STACKLET_MCP_` prefix:
-- `STACKLET_MCP_DOWNLOADS_PATH` (default: system temp directory) - Directory for storing query result files
-- `STACKLET_MCP_DOWNLOADS_ENABLED` (default: true) - Write query result files; set false for hosted deployments
+- `STACKLET_MCP_DOWNLOADS_PATH` (default: system temp directory) - Directory for storing query result and dataset export files
+- `STACKLET_MCP_DOWNLOADS_ENABLED` (default: true) - Write query result and dataset export files; set false for hosted deployments
 - `STACKLET_MCP_ASSETDB_DATASOURCE_NAME` (default: AssetDB) - Name the data source id is looked up from on first use
 - `STACKLET_MCP_ASSETDB_DATASOURCE` (default: unset) - AssetDB data source ID, when a deployment needs to name one explicitly; unset means look it up by name
 - `STACKLET_MCP_ASSETDB_ALLOW_SAVE` (default: false) - Enable query save/update functionality
@@ -156,6 +156,7 @@ available by exactly one of two routes, depending on `downloads_enabled`:
 Dataset export tools follow the same switch. Enabled, a completed export is downloaded with
 the caller's token to `export_*` in the downloads directory (`full_results_saved_to`).
 Disabled, the tool returns the link with a `download_note` to open it in a signed-in browser.
+An expired export returns only a `download_note` either way.
 
 **External Dependencies:**
 - Documentation files are fetched from the live Stacklet docs service at runtime
