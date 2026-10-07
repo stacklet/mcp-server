@@ -3,6 +3,7 @@
 # Copyright (c) 2025-2026 Stacklet, Inc.
 #
 
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastmcp import Context
@@ -25,6 +26,26 @@ from .models import (
 )
 
 
+HOSTED_DOWNLOAD_NOTE = (
+    "Open this link in a browser where you're signed in to Stacklet. "
+    "It works only for you, until the export expires."
+)
+EXPIRED_DOWNLOAD_NOTE = "This export has expired. Start a new one with platform_dataset_export."
+
+
+async def _deliver(client: PlatformClient, export: ConnectionExport) -> ConnectionExport:
+    """Download a completed export's file, or say how to use its link instead."""
+    if not export.completed or not export.download_url:
+        return export
+    # The platform keeps returning the URL after the file has expired.
+    if export.available_until and export.available_until <= datetime.now(UTC):
+        return export.model_copy(update={"download_note": EXPIRED_DOWNLOAD_NOTE})
+    if not SETTINGS.downloads_enabled:
+        return export.model_copy(update={"download_note": HOSTED_DOWNLOAD_NOTE})
+    path = await client.download_export(export.dataset_id, export.download_url)
+    return export.model_copy(update={"full_results_saved_to": path})
+
+
 def tools() -> list[Tool]:
     """List of available Platform tools."""
     return [
@@ -37,7 +58,7 @@ def tools() -> list[Tool]:
         # Exports don't change governance data, but they do start a job and
         # write a file server-side, and each call starts another one.
         make_tool(platform_dataset_export, read_only=False, destructive=False, idempotent=False),
-        make_tool(platform_dataset_lookup, read_only=True),
+        make_tool(platform_dataset_lookup, read_only=False, destructive=False, idempotent=False),
     ]
 
 
@@ -211,7 +232,10 @@ async def platform_dataset_export(
     1. Define columns mapping GraphQL fields to CSV columns
     2. Optionally add filters via params
     3. Export runs asynchronously - use timeout=0 to return immediately
-    4. Use platform_dataset_lookup() to check progress and get download URL
+    4. Use platform_dataset_lookup() to check progress and get the result
+
+    A completed export's file is downloaded before the call returns when the server writes
+    files, so a large export takes longer than the timeout alone suggests.
     """
     dataset_input = ExportRequest(
         connection_field=connection_field,
@@ -222,7 +246,7 @@ async def platform_dataset_export(
 
     client = PlatformClient.get(ctx)
     dataset_id = await client.start_export(dataset_input)
-    return await client.wait_for_export(dataset_id, timeout)
+    return await _deliver(client, await client.wait_for_export(dataset_id, timeout))
 
 
 @json_guard
@@ -251,11 +275,14 @@ async def platform_dataset_lookup(
 
     Export states:
     - Processing: Export is running (shows progress if available)
-    - Complete: Ready for download (includes download_url and expiry time)
+    - Complete: Ready for download (includes download_url and expiry time, plus either
+      full_results_saved_to or download_note; an expired export has only the note)
     - Failed: Export encountered an error
 
-    Set timeout > 0 to wait for completion, or timeout=0 for immediate status check.
-    Download URLs are temporary and expire after a few hours.
+    Set timeout > 0 to wait for completion, or timeout=0 for an immediate status check.
+    Every lookup of a completed export downloads its file again when the server writes
+    files, so the call takes as long as that download.
+    Download URLs expire after 24 hours and work only for the user who started the export.
     """
     client = PlatformClient.get(ctx)
-    return await client.wait_for_export(dataset_id, timeout)
+    return await _deliver(client, await client.wait_for_export(dataset_id, timeout))

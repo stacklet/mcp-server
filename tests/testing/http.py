@@ -7,6 +7,7 @@
 
 import json
 
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
@@ -28,8 +29,18 @@ class MockHTTPXResponse:
     def text(self):
         return self._data
 
+    @property
+    def is_success(self):
+        return 200 <= self.status_code < 300
+
     def json(self):
         return json.loads(self._data)
+
+    async def aread(self):
+        return self.content
+
+    async def aiter_bytes(self):
+        yield self.content
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -112,7 +123,13 @@ def _mock_http_request_with_auth_check(monkeypatch, mock_stacklet_credentials, a
         auth_check_func(self, mock_stacklet_credentials)
         return controller.next_request().respond(method, url, **kwargs)
 
+    @asynccontextmanager
+    async def mock_stream(self, method, url, **kwargs):
+        auth_check_func(self, mock_stacklet_credentials)
+        yield controller.next_request().respond(method, url, **kwargs)
+
     monkeypatch.setattr("httpx.AsyncClient.request", mock_request)
+    monkeypatch.setattr("httpx.AsyncClient.stream", mock_stream)
     return controller
 
 

@@ -4,6 +4,12 @@
 
 ### Changes
 
+- **Dataset exports download with your credentials**: Stacklet now requires sign-in to
+  download an export, and only the user who started it can. When the server writes files,
+  `platform_dataset_lookup` and `platform_dataset_export` download the finished export with
+  your token and return the local path in `full_results_saved_to`. A hosted server returns
+  the link with a `download_note` telling you to open it in your signed-in browser.
+
 ### Fixes
 
 ---
