@@ -304,7 +304,7 @@ async def _save_stream(response: httpx.Response) -> str:
     try:
         with f:
             async for chunk in response.aiter_bytes():
-                f.write(chunk)
+                await asyncio.to_thread(f.write, chunk)
     except BaseException:
         os.unlink(f.name)
         raise

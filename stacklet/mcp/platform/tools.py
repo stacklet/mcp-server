@@ -28,7 +28,7 @@ from .models import (
 
 HOSTED_DOWNLOAD_NOTE = (
     "Open this link in a browser where you're signed in to Stacklet. "
-    "It works only for you, until available_until."
+    "It works only for you, until the export expires."
 )
 EXPIRED_DOWNLOAD_NOTE = "This export has expired. Start a new one with platform_dataset_export."
 
@@ -58,7 +58,7 @@ def tools() -> list[Tool]:
         # Exports don't change governance data, but they do start a job and
         # write a file server-side, and each call starts another one.
         make_tool(platform_dataset_export, read_only=False, destructive=False, idempotent=False),
-        make_tool(platform_dataset_lookup, read_only=True),
+        make_tool(platform_dataset_lookup, read_only=False, destructive=False, idempotent=False),
     ]
 
 
