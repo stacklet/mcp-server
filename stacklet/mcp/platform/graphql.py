@@ -246,12 +246,7 @@ class PlatformClient:
         return ConnectionExport(**fields)
 
     async def _deliver(self, export: ConnectionExport) -> ConnectionExport:
-        """Make a completed export's file reachable by the caller.
-
-        The download URL only works with the credentials of the user who started the
-        export, so the server fetches it when the caller can read the result, and
-        otherwise tells the caller to open it in their own signed-in browser.
-        """
+        """Download a completed export's file, or say how to use its link instead."""
         # The platform keeps returning the URL after the file has expired.
         if not export.download_url or (
             export.available_until and export.available_until <= datetime.now(UTC)
@@ -281,7 +276,7 @@ class PlatformClient:
                         next_steps=next_steps,
                         original_error=response.text,
                     )
-                return await self._save(response, PurePosixPath(urlparse(url).path).suffix)
+                return await _save_stream(response, PurePosixPath(urlparse(url).path).suffix)
         except httpx.HTTPError as e:
             raise AnnotatedError(
                 problem=f"Downloading dataset export {dataset_id} failed",
@@ -289,23 +284,6 @@ class PlatformClient:
                 next_steps=next_steps,
                 original_error=str(e),
             ) from e
-
-    async def _save(self, response: httpx.Response, suffix: str) -> str:
-        """Write a response body to a new downloads file, removing it if anything fails.
-
-        File I/O runs in a thread so a large export does not block the event loop.
-        """
-        f = await asyncio.to_thread(download_file, "wb", "export_", suffix or ".csv")
-        try:
-            async for chunk in response.aiter_bytes():
-                await asyncio.to_thread(f.write, chunk)
-            await asyncio.to_thread(f.close)
-        except BaseException:
-            with suppress(OSError):
-                f.close()
-            os.unlink(f.name)
-            raise
-        return f.name
 
     Q_GET_EXPORT = """
         query getExport($id: ID!) {
@@ -345,6 +323,21 @@ class PlatformClient:
         except Exception:
             # Any failure (JSON parsing, validation, etc.) -> unexpected response
             raise Exception(f"Unexpected response: {response.text}")
+
+
+async def _save_stream(response: httpx.Response, suffix: str) -> str:
+    """Write a response body to a new downloads file, removing it if anything fails."""
+    f = await asyncio.to_thread(download_file, "wb", "export_", suffix or ".csv")
+    try:
+        async for chunk in response.aiter_bytes():
+            await asyncio.to_thread(f.write, chunk)
+        await asyncio.to_thread(f.close)
+    except BaseException:
+        with suppress(OSError):
+            f.close()
+        os.unlink(f.name)
+        raise
+    return f.name
 
 
 def has_mutations(doc: DocumentNode) -> bool:

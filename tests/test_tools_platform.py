@@ -448,20 +448,15 @@ class PlatformDatasetTest(MCPBearerTest):
         note = actual.pop("download_note")
         assert actual == expected
 
-        # A successful export reaches the caller by exactly one route: on disk when the
-        # server writes files, as a note about the link when it doesn't.
+        # A delivered export reaches the caller by exactly one route.
         delivered = succeeded and not expired
         if delivered and SETTINGS.downloads_enabled:
             assert note is None
             with open(saved_to) as f:
                 assert f.read() == self.CSV
-        elif delivered:
-            assert saved_to is None
-            assert note == HOSTED_DOWNLOAD_NOTE
         else:
             assert saved_to is None
-            assert note is None
-        if not (delivered and SETTINGS.downloads_enabled):
+            assert note == (HOSTED_DOWNLOAD_NOTE if delivered else None)
             assert list(SETTINGS.downloads_path.iterdir()) == []
 
     def expect_download(self, status_code=200, response=None):
