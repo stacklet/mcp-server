@@ -7,6 +7,8 @@
 Tests for Platform MCP tools using FastMCP's in-memory testing pattern.
 """
 
+import json
+
 from unittest.mock import ANY, MagicMock
 
 import httpx
@@ -664,6 +666,17 @@ class TestPlatformDatasetLookup(PlatformDatasetTest):
 
         assert async_sleeps == [2, 4]
         self.assert_result(result, started=True, succeeded=succeeded)
+
+    async def test_not_found(self):
+        # The platform returns a null node for an unknown ID, and for an export that
+        # belongs to someone else.
+        not_found = self.expect_get_export({"id": self.DATASET_ID})
+        not_found.response = json.dumps({"data": {"node": None}})
+
+        with self.http.expect(not_found):
+            result = await self.assert_call({"dataset_id": self.DATASET_ID}, error=True)
+
+        assert result.text.startswith(f"Dataset export {self.DATASET_ID} not found")
 
 
 class TestToolAnnotations:
