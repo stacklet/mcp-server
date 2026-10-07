@@ -17,7 +17,12 @@ import pytest
 from graphql import build_schema, parse
 from mcp.types import ToolAnnotations
 
-from stacklet.mcp.platform.graphql import HOSTED_DOWNLOAD_NOTE, PlatformClient, has_mutations
+from stacklet.mcp.platform.graphql import (
+    EXPIRED_DOWNLOAD_NOTE,
+    HOSTED_DOWNLOAD_NOTE,
+    PlatformClient,
+    has_mutations,
+)
 from stacklet.mcp.platform.models import ExportParam
 from stacklet.mcp.platform.tools import tools
 from stacklet.mcp.settings import SETTINGS
@@ -456,7 +461,10 @@ class PlatformDatasetTest(MCPBearerTest):
                 assert f.read() == self.CSV
         else:
             assert saved_to is None
-            assert note == (HOSTED_DOWNLOAD_NOTE if delivered else None)
+            if delivered:
+                assert note == HOSTED_DOWNLOAD_NOTE
+            else:
+                assert note == (EXPIRED_DOWNLOAD_NOTE if expired else None)
             assert list(SETTINGS.downloads_path.iterdir()) == []
 
     def expect_download(self, status_code=200, response=None):
