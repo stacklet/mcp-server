@@ -798,7 +798,6 @@ class TestToolAnnotations:
             ("platform_dataset_info", False),
             ("platform_graphql_list_types", True),
             ("platform_graphql_get_types", True),
-            ("platform_dataset_lookup", True),
         ],
     )
     def test_read_only(self, name: str, open_world: bool):
@@ -807,8 +806,10 @@ class TestToolAnnotations:
         assert annotations.destructiveHint is False
         assert annotations.openWorldHint is open_world
 
-    def test_dataset_export_writes_but_destroys_nothing(self):
-        annotations = self.annotations("platform_dataset_export")
+    @pytest.mark.parametrize("name", ["platform_dataset_export", "platform_dataset_lookup"])
+    def test_dataset_tools_write_but_destroy_nothing(self, name: str):
+        # Both download a completed export into the downloads directory.
+        annotations = self.annotations(name)
         assert annotations.readOnlyHint is False
         assert annotations.destructiveHint is False
         assert annotations.idempotentHint is False
