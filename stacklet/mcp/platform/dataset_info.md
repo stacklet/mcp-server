@@ -87,7 +87,8 @@ platform_dataset_export(
 
 **Download:** the link needs the credentials of the user who started the export, so do not fetch it yourself.
 - `full_results_saved_to` set: the server already downloaded the file to that local path.
-- `download_note` set: give the user `download_url` and the note. They open it in a browser where they're signed in to Stacklet.
+- `download_note` set and `available_until` still ahead: give the user `download_url` and the note. They open it in a browser where they're signed in to Stacklet.
+- `available_until` passed: the link is dead. Start a new export instead of sharing it.
 
 ## Quick Examples
 

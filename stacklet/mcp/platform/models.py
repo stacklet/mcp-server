@@ -160,5 +160,5 @@ class ConnectionExport(BaseModel):
         ),
     )
     download_note: str | None = Field(
-        None, description="How to use download_url when the server did not download it"
+        None, description="Why the server did not download the file, and what to do instead"
     )
