@@ -225,6 +225,12 @@ class PlatformClient:
 
         # If no errors, data is at least guaranteed guaranteed truthy.
         fields = cast(dict[str, Any], result.data)["node"]
+        if fields is None:
+            raise AnnotatedError(
+                problem=f"Dataset export {dataset_id} not found",
+                likely_cause="the ID is wrong, or the export belongs to another user",
+                next_steps="start a new export with platform_dataset_export",
+            )
         return ConnectionExport(**fields)
 
     Q_GET_EXPORT = """
