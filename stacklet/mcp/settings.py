@@ -23,10 +23,10 @@ class Settings(BaseSettings):
     downloads_enabled: bool = Field(
         default=True,
         description=(
-            "Write complete query results to downloads_path. Disable for hosted "
-            "deployments, where the caller cannot read the server's filesystem and "
-            "the files would accumulate unbounded; full results are then attached "
-            "to the tool response instead."
+            "Write complete query results and dataset exports to downloads_path. "
+            "Disable for hosted deployments, where the caller cannot read the server's "
+            "filesystem and the files would accumulate unbounded; query results are then "
+            "attached to the tool response, and exports return their link with a note."
         ),
     )
 

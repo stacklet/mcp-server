@@ -150,3 +150,15 @@ class ConnectionExport(BaseModel):
     available_until: datetime | None = Field(
         None, validation_alias="availableUntil", description="When download URL expires"
     )
+
+    # A succeeded export with a download URL sets exactly one of these.
+    full_results_saved_to: str | None = Field(
+        None,
+        description=(
+            "Local path where the server saved the exported file. Null when the server "
+            "does not write files or the export has expired, in which case see download_note."
+        ),
+    )
+    download_note: str | None = Field(
+        None, description="Why the server did not download the file, and what to do instead"
+    )

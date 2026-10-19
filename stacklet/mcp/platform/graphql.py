@@ -8,6 +8,7 @@ Stacklet Platform client for GraphQL API operations.
 """
 
 import asyncio
+import os
 import re
 import time
 
@@ -33,6 +34,7 @@ from ..lifespan import ServerStateProtocol
 from ..settings import SETTINGS
 from ..stacklet_auth import StackletCredentials
 from ..utils.error import AnnotatedError
+from ..utils.file import download_file
 from .models import (
     ConnectionExport,
     ExportRequest,
@@ -225,7 +227,36 @@ class PlatformClient:
 
         # If no errors, data is at least guaranteed guaranteed truthy.
         fields = cast(dict[str, Any], result.data)["node"]
+        if fields is None:
+            raise AnnotatedError(
+                problem=f"Dataset export {dataset_id} not found",
+                likely_cause="the ID is wrong, or the export belongs to another user",
+                next_steps="start a new export with platform_dataset_export",
+            )
         return ConnectionExport(**fields)
+
+    async def download_export(self, dataset_id: str, url: str) -> str:
+        """Stream an export file into the downloads directory, returning its path."""
+        try:
+            async with self.session.stream("GET", url) as response:
+                if not response.is_success:
+                    await response.aread()
+                    response.raise_for_status()
+                return await _save_stream(response)
+        except httpx.HTTPError as e:
+            detail = f"{e}\n{e.response.text}" if isinstance(e, httpx.HTTPStatusError) else str(e)
+            raise AnnotatedError(
+                problem=f"Downloading dataset export {dataset_id} failed",
+                likely_cause=(
+                    "the export expired, these credentials cannot read it, "
+                    "or the connection dropped"
+                ),
+                next_steps=(
+                    f"retry with platform_dataset_lookup, or give the user {url} "
+                    "to open in a browser where they're signed in to Stacklet"
+                ),
+                original_error=detail,
+            ) from e
 
     Q_GET_EXPORT = """
         query getExport($id: ID!) {
@@ -265,6 +296,19 @@ class PlatformClient:
         except Exception:
             # Any failure (JSON parsing, validation, etc.) -> unexpected response
             raise Exception(f"Unexpected response: {response.text}")
+
+
+async def _save_stream(response: httpx.Response) -> str:
+    """Write a response body to a new downloads CSV, removing it if anything fails."""
+    f = download_file("wb", "export_", ".csv")
+    try:
+        with f:
+            async for chunk in response.aiter_bytes():
+                await asyncio.to_thread(f.write, chunk)
+    except BaseException:
+        os.unlink(f.name)
+        raise
+    return f.name
 
 
 def has_mutations(doc: DocumentNode) -> bool:
