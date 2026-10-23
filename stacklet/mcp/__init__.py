@@ -5,7 +5,7 @@
 
 """Stacklet MCP server."""
 
-__version__ = "2026.05.20"
+__version__ = "2026.10.23"
 
 
 USER_AGENT = f"stacklet.mcp/{__version__}"
