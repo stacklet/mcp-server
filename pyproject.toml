@@ -17,11 +17,16 @@ classifiers = [
 ]
 dynamic = [ "version" ]
 dependencies = [
-  "fastmcp>=2",
+  "certifi>=2026.10.19",           # httpx's CA bundle; earlier releases trust the compromised eMudhra CA
+  "cryptography>=50.0.2",          # not imported directly; minimum for CVE fixes
+  "fastmcp>=3.3.1,<4",             # minimum for security fixes; fastmcp 4 removes APIs we import
   "graphql-core>=3.2",
   "httpx>=0.28.1",
+  "platformdirs>=4.13",            # not imported directly; minimum for CVE fixes
   "pydantic>=2.11.7",
   "pydantic-settings>=2.13,<2.14",
+  "pyjwt>=2.15.1",                 # not imported directly; minimum for CVE fixes
+  "starlette>=1.8",                # not imported directly; minimum for CVE fixes
 ]
 scripts.stacklet-mcp = "stacklet.mcp.mcp:main"
 
@@ -29,7 +34,7 @@ scripts.stacklet-mcp = "stacklet.mcp.mcp:main"
 dev = [
   "add-license-header>=2.4",
   "mypy>=1.8",
-  "pip",                     # mypy needs pip to auto-install type stubs; uv venvs don't include it by default
+  "pip>=26.2.2",             # mypy needs pip to auto-install type stubs; uv venvs don't include it by default
   "pre-commit>=4.2",
   "pyproject-fmt>=2.6",
   "pytest>=7",
@@ -47,6 +52,9 @@ version.path = "stacklet/mcp/__init__.py"
 
 [tool.uv]
 exclude-newer = "7 days"
+# Admit the eMudhra CA fix releases (certifi 2026.10.19, pip 26.2.2, both uploaded 2026-10-20)
+# ahead of the window; remove once "7 days" covers them (after 2026-10-27).
+exclude-newer-package = { certifi = "2026-10-21T00:00:00Z", pip = "2026-10-21T00:00:00Z" }
 
 [tool.ruff]
 line-length = 100
@@ -55,6 +63,9 @@ lint.extend-select = [ "E501", "I" ]
 lint.isort.lines-after-imports = 2
 # Use a single line between direct and from import.
 lint.isort.lines-between-types = 1
+
+[tool.typos]
+default.extend-words.certifi = "certifi"
 
 [tool.mypy]
 strict = true
