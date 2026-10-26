@@ -18,15 +18,14 @@ classifiers = [
 dynamic = [ "version" ]
 dependencies = [
   "certifi>=2026.10.19",           # httpx's CA bundle; earlier releases trust the compromised eMudhra CA
-  "cryptography>=50.0.2",          # not imported directly; minimum for CVE fixes
-  "fastmcp>=3.3.1,<4",             # minimum for security fixes; fastmcp 4 removes APIs we import
+  "cryptography>=50",              # not imported directly; CVE-2026-69247 fixed in 50.0.0
+  "fastmcp>=3.2,<4",               # 3.2.0 fixes the advisories that affect us; fastmcp 4 removes APIs we import
   "graphql-core>=3.2",
   "httpx>=0.28.1",
-  "platformdirs>=4.13",            # not imported directly; minimum for CVE fixes
   "pydantic>=2.11.7",
   "pydantic-settings>=2.13,<2.14",
-  "pyjwt>=2.15.1",                 # not imported directly; minimum for CVE fixes
-  "starlette>=1.8",                # not imported directly; minimum for CVE fixes
+  "pyjwt>=2.15",                   # not imported directly; CVE-2026-101918 and CVE-2026-102275 fixed in 2.15.0
+  "starlette>=1.3.1",              # not imported directly; CVE-2026-54283 fixed in 1.3.1
 ]
 scripts.stacklet-mcp = "stacklet.mcp.mcp:main"
 
