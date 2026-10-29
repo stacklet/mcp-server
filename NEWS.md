@@ -6,6 +6,9 @@
 
 ### Fixes
 
+- **Past months' costs**: your AI assistant no longer reports past months as having no
+  cost data.
+
 ---
 
 ## October 26, 2026
