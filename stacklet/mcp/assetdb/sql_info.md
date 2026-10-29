@@ -35,6 +35,8 @@ Many AssetDB tables are extremely large. Always use LIMIT and indexed column fil
 - A month's row may be partial while its data is still arriving: compare `source_date` or `last_date` with the month end.
 - Filter on `account_id.provider` or `cloud_service.provider`, not by matching service names: a provider's services need not contain its name. Some deployments have non-cloud providers (e.g. `anthropic`, in preview, whose services are model names); `SELECT DISTINCT provider FROM account_id` lists them.
 - `account_cost_monthly.account`, `.service` and `.region` are integer ids; join them to `account_id`, `cloud_service` and `cloud_region` on `id`. `resource_cost_monthly` has only `account` and `resource_id`, with no service or region.
+- `resource_focus_cost` and `resource_cost_monthly` have `tags`, an array of `resource_tags.id`s: unnest and join them to see whose cost it is, even for resources that aren't in `resources`. Only `resource_focus_cost` has `sku`: join it to `sku.id` for `sku_id`, which encodes the pricing dimensions.
+- Anthropic (preview): the cost row's `resource_id` joins `resource_id.id`, whose `r_id` is a user (`user_…`, Claude Code usage included), an API key (`apikey_…`) or a service account (untagged). Users are tagged `anthropic:user_email`/`anthropic:user_name` (or `anthropic:claude_code_user` for users who've left), keys `anthropic:api_key_name`/`anthropic:owner_*`. `sku_id` is `model:token_type:context_window:service_tier:inference_geo:speed` (e.g. `…:200k-1M:…` for long context), or `web_search`. Some cost (Console usage, code execution, small shares) has no principal, so is only in account-level cost; resource rows sum to less.
 
 ### **Safe Querying Process**
 
