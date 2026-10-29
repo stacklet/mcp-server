@@ -14,7 +14,6 @@ Always call these info tools first - they contain essential guidance and best pr
 ### 🔍 Cloud Asset Discovery & Analytics
 Analyze your entire multi-cloud estate with a continuously-updated PostgreSQL warehouse:
 - Query resource inventories, costs, and relationships across AWS, GCP, Azure, Tencent
-- Analyze spend from other providers, such as Anthropic, alongside cloud costs
 - Perform complex analytics on resource usage patterns and cost optimization
 - Track resource changes and lifecycle management
 - Build custom reports with SQL

@@ -33,7 +33,7 @@ Many AssetDB tables are extremely large. Always use LIMIT and indexed column fil
 
 - Do not filter on `current` to pick a month; filter on `date`. `current` marks each account's (`account_cost_monthly`) or resource's (`resource_cost_monthly`) own latest month, not the latest calendar month, and a resource that has stopped costing has no current row. Rows are never superseded, so filtering `current = true` silently drops past months, and any account or resource whose latest data is older.
 - A month's row may be partial while its data is still arriving: compare `source_date` or `last_date` with the month end.
-- Providers are not only clouds: `account_id.provider` and `cloud_service.provider` also include AI vendors such as `anthropic`, whose services are model names (e.g. `claude-sonnet-4-6`) and items such as `web_search`, never containing the vendor name. Find providers with `SELECT DISTINCT provider FROM account_id`, and filter on provider, never by matching service names.
+- Filter on `account_id.provider` or `cloud_service.provider`, not by matching service names: a provider's services need not contain its name. Some deployments have non-cloud providers (e.g. `anthropic`, in preview, whose services are model names); `SELECT DISTINCT provider FROM account_id` lists them.
 - `account_cost_monthly.account`, `.service` and `.region` are integer ids; join them to `account_id`, `cloud_service` and `cloud_region` on `id`. `resource_cost_monthly` has only `account` and `resource_id`, with no service or region.
 
 ### **Safe Querying Process**

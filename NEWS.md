@@ -2,9 +2,6 @@
 
 ### Features
 
-- **Ask about AI spend**: your AI assistant can now find spend from AI providers such as
-  Anthropic.
-
 ### Changes
 
 ### Fixes
