@@ -6,8 +6,8 @@
 
 ### Fixes
 
-- **Dependency compatibility**: stacklet-mcp can share an environment with applications
-  requiring pydantic-settings 2.14, including Chainlit 2.12.
+- **Dependency compatibility**: relaxed version constraints to allow additional
+  dependency versions validated by our test suite.
 - **Past months' costs**: your AI assistant no longer reports past months as having no
   cost data.
 
