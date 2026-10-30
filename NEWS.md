@@ -6,6 +6,8 @@
 
 ### Fixes
 
+- **Dependency compatibility**: relaxed version constraints to allow additional
+  dependency versions validated by our test suite.
 - **Past months' costs**: your AI assistant no longer reports past months as having no
   cost data.
 
