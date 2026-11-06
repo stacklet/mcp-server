@@ -37,7 +37,7 @@ repos:
         args:
           - --single-year-if-same
           - --year-delimiter=-
-          - --license-file=license-header.tpl
+          - --license-file=.license-header
         files: ^.*\.py$
 
   - repo: https://github.com/rhysd/actionlint
